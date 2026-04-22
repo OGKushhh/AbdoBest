@@ -1,43 +1,23 @@
 name: Build APK
-
 on:
   push:
-    branches: [ "master", "main" ]
-  pull_request:
-    branches: [ "master", "main" ]
-
+    branches: [ main, master ]
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
-
-      - name: Fix JSON Files
-        run: |
-          for file in package.json app.json; do
-            if [ -f "$file" ]; then
-              sed -i '1s/^\xEF\xBB\xBF//' "$file"
-              echo "Cleaned $file"
-            fi
-          done
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Install Expo CLI
-        run: npm install -g expo-cli
-
-      - name: Build Android APK
-        run: expo build:android --type apk --non-interactive
+          node-version: '20'
+      - run: npm install
+      - run: npm install -g eas-cli
+      - run: for f in eas.json app.json; do [ -f "$f" ] && tail -c +4 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; done
+      - run: eas build --platform android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: app-apk
-          path: *.apk
+          name: khafif-app
+          path: app-*.apk
