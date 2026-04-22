@@ -1,5 +1,5 @@
 ﻿import axios from 'axios';
-import * as cheerio from 'cheerio-without-native';
+import cheerio from 'cheerio';
 
 const BASE_URL = 'https://www.fasel-hd.cam';
 let globalCookies = '';

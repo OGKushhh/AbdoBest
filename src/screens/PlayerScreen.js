@@ -1,7 +1,7 @@
 ﻿import React, { useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions } from 'react-native';
+import { Video } from 'expo-av';
 import { WebView } from 'react-native-webview';
-import Video from 'react-native-video';
 
 const { height, width } = Dimensions.get('window');
 
@@ -12,14 +12,17 @@ export default function PlayerScreen({ route }) {
   const [duration, setDuration] = useState(0);
   const videoRef = useRef(null);
 
-  if (source.type === 'iframe') {
+  // If it's not a direct video URL, use WebView
+  if (!source.url.includes('.mp4') && !source.url.includes('.m3u8')) {
     return (
       <View style={styles.container}>
-        <WebView 
-          source={{ uri: source.url }} 
-          allowsFullscreenVideo 
-          javaScriptEnabled={true} 
-          domStorageEnabled={true} 
+        <WebView
+          source={{ uri: source.url }}
+          allowsFullscreenVideo
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          style={styles.webview}
         />
       </View>
     );
@@ -31,38 +34,38 @@ export default function PlayerScreen({ route }) {
         source={{ uri: source.url }}
         ref={videoRef}
         resizeMode="contain"
-        onLoad={(data) => setDuration(data.duration)}
-        onProgress={(data) => setCurrentTime(data.currentTime)}
-        paused={paused}
+        shouldPlay={!paused}
+        useNativeControls
+        onLoad={(status) => setDuration(status.durationMillis / 1000)}
+        onProgress={(status) => setCurrentTime(status.positionMillis / 1000)}
         style={styles.video}
-        controls={true}
-        fullscreenOrientation="landscape"
       />
-
       <View style={styles.overlay}>
         <TouchableOpacity onPress={() => setPaused(!paused)}>
-          <Text style={{ color: '#fff' }}>{paused ? 'PLAY' : 'PAUSE'}</Text>
+          <Text style={styles.buttonText}>{paused ? 'PLAY' : 'PAUSE'}</Text>
         </TouchableOpacity>
-        <Text style={{ color: '#fff' }}>
+        <Text style={styles.timeText}>
           {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60)} / {Math.floor(duration / 60)}:{Math.floor(duration % 60)}
         </Text>
-        <Text style={{ color: '#E50914', fontWeight: 'bold' }}>
-          {source.label}
-        </Text>
+        <Text style={styles.labelText}>{source.label}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  video: { width: width, height: height },
-  overlay: { 
-    position: 'absolute', 
-    bottom: 50, 
-    width: '100%', 
-    alignItems: 'center', 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    paddingVertical: 10 
-  }
+  container: { flex: 1, backgroundColor: '#000' },
+  video: { width, height },
+  webview: { flex: 1 },
+  overlay: {
+    position: 'absolute',
+    bottom: 50,
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 10,
+  },
+  buttonText: { color: '#fff', fontSize: 16 },
+  timeText: { color: '#fff', marginTop: 5 },
+  labelText: { color: '#E50914', fontWeight: 'bold', marginTop: 5 },
 });
