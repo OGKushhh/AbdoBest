@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
+
       - uses: actions/setup-node@v2
         with:
           node-version: '18'
-          
+
       - name: Fix JSON Files
         run: |
           for file in package.json app.json; do
@@ -24,7 +24,7 @@ jobs:
               echo "Cleaned $file"
             fi
           done
-      
+
       - name: Install Dependencies
         run: npm install
 
@@ -35,7 +35,7 @@ jobs:
         run: expo build:android --type apk --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      
+
       - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
