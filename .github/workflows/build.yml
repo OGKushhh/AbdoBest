@@ -2,9 +2,9 @@
 
 on:
   push:
-    branches: [ "master", "main" ]
+      branches: [ "master", "main" ]
   pull_request:
-    branches: [ "master", "main" ]
+      branches: [ "master", "main" ]
 
 jobs:
   build:
@@ -14,9 +14,8 @@ jobs:
     
     - uses: actions/setup-node@v2
       with:
-        node-version: '18'
+          node-version: '18'
         
-    # Fix JSON BOM
     - name: Fix JSON Files
       run: |
         for file in package.json app.json; do
@@ -29,17 +28,17 @@ jobs:
     - name: Install Dependencies
       run: npm install
 
-    - name: Install Expo CLI (Legacy)
+    - name: Install Expo CLI
       run: npm install -g expo-cli
 
-    - name: Build Android APK (Legacy)
+    - name: Build Android APK
       run: expo build:android --type apk --non-interactive
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     
-    # Upload the APK so you can download it from the GitHub Actions summary
+    # FIXED: Updated to v3 and changed path to catch any APK file
     - name: Upload APK
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: app-apk
-        path: NoCima-1.0.0.apk
+        path: *.apk
