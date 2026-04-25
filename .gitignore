@@ -1,8 +1,59 @@
-﻿@"
+# Dependencies
 node_modules/
-.expo/
-*.log
+.babel-cache/
+
+# React Native
+.buckconfig
+
+# Metro
+.metro-health-check*
+
+# macOS
 .DS_Store
-android/
-assets/
-"@ | Out-File -FilePath .gitignore -Encoding utf8
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/gradle/gradle-wrapper.jar
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+gen/
+bin/
+out/
+
+# iOS (not used but good to have)
+ios/Pods/
+ios/build/
+
+# Generated
+*.hprof
+
+# Testing
+coverage/
+
+# Temporary
+tmp/
+temp/
