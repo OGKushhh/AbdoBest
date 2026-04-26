@@ -42,9 +42,9 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: 🏗️ Build Release APK
+      - name: Build Release APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon
+        run: gradle assembleRelease --no-daemon --info 2>&1 | head -200
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
