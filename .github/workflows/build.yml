@@ -33,10 +33,11 @@ jobs:
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: 🧹 Unset conflicting JAVA_TOOL_OPTIONS
+        run: echo "JAVA_TOOL_OPTIONS=" >> $GITHUB_ENV
+
       - name: 🔧 Generate Gradle Wrapper (if missing)
         working-directory: android
-        env:
-          JAVA_TOOL_OPTIONS: ""
         run: |
           if [ ! -f gradlew ]; then
             gradle wrapper --gradle-version=8.10.2
@@ -45,8 +46,6 @@ jobs:
 
       - name: 🏗️ Build Release APK
         working-directory: android
-        env:
-          JAVA_TOOL_OPTIONS: ""
         run: ./gradlew assembleRelease
 
       - name: 📤 Upload APK Artifact
