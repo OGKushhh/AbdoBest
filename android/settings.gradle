@@ -1,5 +1,5 @@
 pluginManagement {
-    def reactNativeGradlePlugin = new File(rootProject.projectDir.parentFile, "node_modules/@react-native/gradle-plugin")
+    def reactNativeGradlePlugin = new File(settingsDir.parentFile, "node_modules/@react-native/gradle-plugin")
     if (reactNativeGradlePlugin.exists()) {
         includeBuild(reactNativeGradlePlugin)
     }
