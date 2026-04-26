@@ -34,6 +34,9 @@ jobs:
       - name: 📋 Install Node dependencies
         run: npm ci
 
+      - name: 🔗 Generate autolinking config
+        run: npx react-native config
+
       - name: 🐘 Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:

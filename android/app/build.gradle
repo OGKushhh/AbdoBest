@@ -8,13 +8,14 @@ react {
 
 android {
     namespace "com.abdobest"
-    compileSdk rootProject.ext.compileSdkVersion
+    compileSdk 34
     defaultConfig {
         applicationId "com.abdobest"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion 21
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0.0"
+        ndkVersion "26.1.10909125"
     }
     signingConfigs {
         debug { storeFile file('debug.keystore') }
