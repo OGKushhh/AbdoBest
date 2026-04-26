@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      JAVA_TOOL_OPTIONS: ""
 
     steps:
       - name: 📥 Checkout code
@@ -33,9 +35,6 @@ jobs:
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: 🧹 Unset conflicting JAVA_TOOL_OPTIONS
-        run: echo "JAVA_TOOL_OPTIONS=" >> $GITHUB_ENV
-
       - name: 🔧 Generate Gradle Wrapper (if missing)
         working-directory: android
         run: |
@@ -46,7 +45,10 @@ jobs:
 
       - name: 🏗️ Build Release APK
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: |
+          unset JAVA_TOOL_OPTIONS
+          export JAVA_TOOL_OPTIONS=""
+          ./gradlew assembleRelease --no-daemon
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
