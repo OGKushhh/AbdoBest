@@ -1,7 +1,7 @@
 import React, {useState, useCallback} from 'react';
 import {View, StyleSheet, FlatList, RefreshControl, StatusBar} from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import {loadMovies, loadTrending, getMoviesArray} from '../services/metadataService';
+import {loadCategory, loadFeatured, getMoviesArray} from '../services/metadataService';
 import {ContentItem, TrendingContent, TrendingItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
 import {SectionHeader} from '../components/SectionHeader';
@@ -15,6 +15,7 @@ export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [movies, setMovies] = useState<ContentItem[]>([]);
   const [trending, setTrending] = useState<TrendingContent | null>(null);
+  const [featured, setFeatured] = useState<TrendingContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,10 +23,14 @@ export const HomeScreen: React.FC = () => {
   const loadData = useCallback(async (forceRefresh = false) => {
     try {
       setError(null);
-      const moviesDict = await loadMovies(forceRefresh);
-      const trendingData = await loadTrending(forceRefresh);
-      setMovies(getMoviesArray(moviesDict));
-      setTrending(trendingData);
+      const [moviesDict, trendingData, featuredData] = await Promise.all([
+        loadCategory('movies', forceRefresh),
+        loadCategory('trending', forceRefresh),
+        loadFeatured(forceRefresh),
+      ]);
+      setMovies(getMoviesArray(moviesDict as Record<string, any>));
+      setTrending(trendingData as TrendingContent);
+      setFeatured(featuredData as TrendingContent);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -53,9 +58,9 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('Category', {category});
   };
 
-  const trendingToItems = (items: TrendingItem[]): ContentItem[] => {
+  const trendingToItems = (items: TrendingItem[], prefix: string): ContentItem[] => {
     return items.slice(0, 20).map((tItem, i) => ({
-      id: `trending_${i}`,
+      id: `${prefix}_${i}`,
       Title: tItem.title,
       Category: tItem.content_type || 'movies',
       'Image Source': tItem.image,
@@ -76,10 +81,30 @@ export const HomeScreen: React.FC = () => {
 
   const renderTrendingSection = () => {
     if (!trending?.movies?.length) return null;
-    const items = trendingToItems(trending.movies);
+    const items = trendingToItems(trending.movies, 'trending');
     return (
       <View style={styles.section}>
         <SectionHeader title={t('trending_now')} onSeeAll={() => navigateToCategory('trending')} />
+        <FlatList
+          data={items}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+          keyExtractor={(item) => item.id}
+          renderItem={({item}) => (
+            <MovieCard item={item} onPress={navigateToDetails} width={140} />
+          )}
+        />
+      </View>
+    );
+  };
+
+  const renderFeaturedSection = () => {
+    if (!featured?.movies?.length) return null;
+    const items = trendingToItems(featured.movies, 'featured');
+    return (
+      <View style={styles.section}>
+        <SectionHeader title={t('featured_now')} onSeeAll={() => navigateToCategory('trending')} />
         <FlatList
           data={items}
           horizontal
@@ -140,6 +165,7 @@ export const HomeScreen: React.FC = () => {
         ListHeaderComponent={
           <View>
             {renderTrendingSection()}
+            {renderFeaturedSection()}
             {renderLatestSection()}
             {renderRecentSection()}
           </View>

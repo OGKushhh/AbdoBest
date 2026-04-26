@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity} from 'react-native';
 import {useRoute, useNavigation} from '@react-navigation/native';
-import {loadMovies, getMoviesArray, filterByGenre} from '../services/metadataService';
+import {loadCategory, getMoviesArray, filterByGenre, ContentCategory} from '../services/metadataService';
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
 import {LoadingSpinner} from '../components/LoadingSpinner';
@@ -11,16 +11,27 @@ import {GENRE_FILTERS} from '../constants/categories';
 import {useTranslation} from 'react-i18next';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+// Map route category param → service category key
+const CATEGORY_MAP: Record<string, ContentCategory> = {
+  movies: 'movies',
+  anime: 'anime',
+  series: 'series',
+  tvshows: 'tvshows',
+  trending: 'trending',
+};
+
 export const CategoryScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const category = route.params?.category || 'movies';
   const {t} = useTranslation();
-  const [movies, setMovies] = useState<ContentItem[]>([]);
+  const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const serviceCategory = CATEGORY_MAP[category] || 'movies';
 
   useEffect(() => {
     loadCategoryData();
@@ -30,9 +41,22 @@ export const CategoryScreen: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const moviesDict = await loadMovies();
-      const allMovies = getMoviesArray(moviesDict);
-      setMovies(allMovies);
+
+      // Fetch ONLY the category we need — not the entire database
+      const data = await loadCategory(serviceCategory);
+
+      if (!data) {
+        setItems([]);
+        return;
+      }
+
+      // Handle both dict format (movies, series) and array format
+      if (Array.isArray(data)) {
+        setItems(data);
+      } else if (typeof data === 'object') {
+        const dict = data as Record<string, ContentItem>;
+        setItems(getMoviesArray(dict));
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -41,30 +65,28 @@ export const CategoryScreen: React.FC = () => {
   };
 
   const filteredMovies = useMemo(() => {
-    let result = movies;
-    
+    let result = items;
+
     if (category === 'trending') {
       const shuffled = [...result].sort(() => Math.random() - 0.5);
       result = shuffled.slice(0, 50);
     }
 
     if (selectedGenre) {
-      result = filterByGenre(
-        result.reduce((acc, m) => ({...acc, [m.id]: m}), {}),
-        selectedGenre
-      );
+      const dict = result.reduce((acc, m) => ({...acc, [m.id]: m}), {});
+      result = filterByGenre(dict, selectedGenre);
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(m => 
+      result = result.filter(m =>
         m.Title?.toLowerCase().includes(q) ||
         m.Genres?.some(g => g.toLowerCase().includes(q))
       );
     }
 
     return result;
-  }, [movies, selectedGenre, searchQuery, category]);
+  }, [items, selectedGenre, searchQuery, category]);
 
   const navigateToDetails = (item: ContentItem) => {
     navigation.navigate('Details', {item});

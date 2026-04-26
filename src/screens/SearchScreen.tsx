@@ -2,7 +2,7 @@ import React, {useState, useCallback, useEffect} from 'react';
 import {View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {loadMovies, searchContent} from '../services/metadataService';
+import {searchContent} from '../services/metadataService';
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
 import {LoadingSpinner} from '../components/LoadingSpinner';
@@ -29,8 +29,8 @@ export const SearchScreen: React.FC = () => {
     }
     setLoading(true);
     try {
-      const moviesDict = await loadMovies();
-      const found = searchContent(moviesDict, query);
+      // Searches across all available categories (movies, series, etc.)
+      const found = await searchContent(query);
       setResults(found);
       setSearchHistory(prev => {
         const filtered = prev.filter(h => h !== query);

@@ -6,6 +6,7 @@ export const en = {
   downloads: '📥 Downloads',
   settings: '⚙️ Settings',
   trending_now: '🔥 Trending Now',
+  featured_now: '⭐ Featured',
   latest_movies: '🎬 Latest Movies',
   most_viewed: '👁️ Most Viewed',
   latest_episodes: '📺 Latest Episodes',

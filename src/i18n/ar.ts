@@ -6,6 +6,7 @@ export const ar = {
   downloads: '📥 التحميلات',
   settings: '⚙️ الإعدادات',
   trending_now: '🔥 الأكثر رواجاً الآن',
+  featured_now: '⭐ مميز',
   latest_movies: '🎬 أحدث الأفلام',
   most_viewed: '👁️ الأكثر مشاهدة',
   latest_episodes: '📺 أحدث الحلقات',
