@@ -27,6 +27,7 @@ export const ar = {
   anime: '⛩️ أنمي',
   series: '📺 مسلسلات',
   tvshows: '📡 برامج تلفزيونية',
+  asian_series: '🌏 مسلسلات آسيوية',
   all: '✨ عرض الكل',
   coming_soon: '🔜 قريباً',
   not_available: '🚫 غير متاح حالياً',
@@ -90,4 +91,7 @@ export const ar = {
   sync_database: '🔄 مزامنة قاعدة البيانات',
   last_sync: '🕐 آخر مزامنة',
   never: 'أبداً',
+  // شاشة التفاصيل
+  description: '📝 الوصف',
+  episode_count: '🎞️ الحلقات',
 };

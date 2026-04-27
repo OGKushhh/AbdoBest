@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useMemo, useRef, memo} from 'react';
 import {View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -10,42 +10,106 @@ import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
 
+// ─── Debounce hook for search input ────────────────────────────────
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// ─── Memoized MovieCard row item ───────────────────────────────────
+interface MovieCardItemProps {
+  item: ContentItem;
+  onPress: (item: ContentItem) => void;
+}
+
+const MovieCardItem = memo<MovieCardItemProps>(
+  ({item, onPress}) => <MovieCard item={item} onPress={onPress} />,
+  (prev, next) => prev.item.id === next.item.id,
+);
+MovieCardItem.displayName = 'MovieCardItem';
+
 export const SearchScreen: React.FC = () => {
   const {t} = useTranslation();
   const navigation = useNavigation<any>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const navigateToDetails = (item: ContentItem) => {
+  // Debounce search by 400ms to avoid excessive searches on fast typing
+  // This is critical with 13,000+ movies to prevent UI jank
+  const debouncedQuery = useDebounce(query, 400);
+
+  const navigateToDetails = useCallback((item: ContentItem) => {
     navigation.navigate('Details', {item});
-  };
+  }, [navigation]);
 
-  const handleSearch = useCallback(async () => {
-    if (!query.trim()) {
+  // Auto-search when debounced query changes
+  useEffect(() => {
+    if (!debouncedQuery.trim()) {
       setResults([]);
+      setHasSearched(false);
       return;
     }
-    setLoading(true);
-    try {
-      // Searches across all available categories (movies, series, etc.)
-      const found = await searchContent(query);
-      setResults(found);
-      setSearchHistory(prev => {
-        const filtered = prev.filter(h => h !== query);
-        return [query, ...filtered].slice(0, 10);
-      });
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
 
-  useEffect(() => {
-    if (!query.trim()) setResults([]);
-  }, [query]);
+    let cancelled = false;
+
+    const performSearch = async () => {
+      setLoading(true);
+      try {
+        const found = await searchContent(debouncedQuery);
+        if (!cancelled) {
+          setResults(found);
+          setHasSearched(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    performSearch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery]);
+
+  // ─── Memoized renderers ──────────────────────────────────────────
+  const renderItem = useCallback(({item}: {item: ContentItem}) => (
+    <MovieCardItem item={item} onPress={navigateToDetails} />
+  ), [navigateToDetails]);
+
+  const keyExtractor = useCallback((item: ContentItem) => item.id, []);
+
+  const ListEmptyComponent = useMemo(() => {
+    if (loading) return null;
+
+    if (hasSearched) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Icon name="search-outline" size={48} color={Colors.dark.textMuted} />
+          <Text style={styles.emptyText}>{t('no_results')}</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Icon name="film-outline" size={48} color={Colors.dark.textMuted} />
+        <Text style={styles.emptyText}>{t('search_placeholder')}</Text>
+      </View>
+    );
+  }, [loading, hasSearched, t]);
 
   return (
     <View style={styles.container}>
@@ -60,7 +124,6 @@ export const SearchScreen: React.FC = () => {
             placeholderTextColor={Colors.dark.textMuted}
             autoFocus
             returnKeyType="search"
-            onSubmitEditing={handleSearch}
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')}>
@@ -75,28 +138,22 @@ export const SearchScreen: React.FC = () => {
 
       {loading ? (
         <LoadingSpinner fullScreen={false} size="small" />
-      ) : results.length > 0 ? (
+      ) : (
         <FlatList
           data={results}
           numColumns={2}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
-          renderItem={({item}) => (
-            <MovieCard item={item} onPress={navigateToDetails} />
-          )}
+          // Performance optimizations for search results
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
+          ListEmptyComponent={ListEmptyComponent}
+          renderItem={renderItem}
         />
-      ) : query.trim().length > 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="search-outline" size={48} color={Colors.dark.textMuted} />
-          <Text style={styles.emptyText}>{t('no_results')}</Text>
-        </View>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Icon name="film-outline" size={48} color={Colors.dark.textMuted} />
-          <Text style={styles.emptyText}>{t('search_placeholder')}</Text>
-        </View>
       )}
     </View>
   );

@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo} from 'react';
+import React, {useState, useEffect, useMemo, useCallback, memo} from 'react';
 import {View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity} from 'react-native';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {loadCategory, getMoviesArray, filterByGenre, ContentCategory} from '../services/metadataService';
@@ -18,7 +18,20 @@ const CATEGORY_MAP: Record<string, ContentCategory> = {
   series: 'series',
   tvshows: 'tvshows',
   trending: 'trending',
+  'asian-series': 'asian-series',
 };
+
+// ─── Memoized MovieCard row item ───────────────────────────────────
+interface MovieCardItemProps {
+  item: ContentItem;
+  onPress: (item: ContentItem) => void;
+}
+
+const MovieCardItem = memo<MovieCardItemProps>(
+  ({item, onPress}) => <MovieCard item={item} onPress={onPress} />,
+  (prev, next) => prev.item.id === next.item.id,
+);
+MovieCardItem.displayName = 'MovieCardItem';
 
 export const CategoryScreen: React.FC = () => {
   const route = useRoute<any>();
@@ -73,7 +86,7 @@ export const CategoryScreen: React.FC = () => {
     }
 
     if (selectedGenre) {
-      const dict = result.reduce((acc, m) => ({...acc, [m.id]: m}), {});
+      const dict = result.reduce((acc, m) => ({...acc, [m.id]: m}), {} as Record<string, ContentItem>);
       result = filterByGenre(dict, selectedGenre);
     }
 
@@ -88,9 +101,13 @@ export const CategoryScreen: React.FC = () => {
     return result;
   }, [items, selectedGenre, searchQuery, category]);
 
-  const navigateToDetails = (item: ContentItem) => {
+  const navigateToDetails = useCallback((item: ContentItem) => {
     navigation.navigate('Details', {item});
-  };
+  }, [navigation]);
+
+  const handleGenreSelect = useCallback((genre: string | null) => {
+    setSelectedGenre(prev => (prev === genre ? null : genre));
+  }, []);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorView message={error} onRetry={loadCategoryData} />;
@@ -102,9 +119,33 @@ export const CategoryScreen: React.FC = () => {
       series: t('series'),
       tvshows: t('tvshows'),
       trending: t('trending_now'),
+      'asian-series': t('asian_series'),
     };
     return titles[category] || t('browse');
   };
+
+  // ─── Grid item renderer (memoized) ───────────────────────────────
+  const renderItem = useCallback(({item}: {item: ContentItem}) => (
+    <MovieCardItem item={item} onPress={navigateToDetails} />
+  ), [navigateToDetails]);
+
+  // ─── Key extractor ───────────────────────────────────────────────
+  const keyExtractor = useCallback((item: ContentItem) => item.id, []);
+
+  // ─── Genre filter key extractor ──────────────────────────────────
+  const genreKeyExtractor = useCallback((item: string | null) => item || 'all', []);
+
+  // ─── Genre filter renderer ───────────────────────────────────────
+  const renderGenreChip = useCallback(({item: genre}: {item: string | null}) => (
+    <TouchableOpacity
+      style={[styles.genreChip, selectedGenre === genre && styles.genreChipActive]}
+      onPress={() => handleGenreSelect(genre)}
+    >
+      <Text style={[styles.genreText, selectedGenre === genre && styles.genreTextActive]}>
+        {genre ? genre : t('all')}
+      </Text>
+    </TouchableOpacity>
+  ), [selectedGenre, handleGenreSelect, t]);
 
   return (
     <View style={styles.container}>
@@ -123,36 +164,35 @@ export const CategoryScreen: React.FC = () => {
         data={[null, ...GENRE_FILTERS]}
         horizontal
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item || 'all'}
+        keyExtractor={genreKeyExtractor}
         contentContainerStyle={styles.genreList}
-        renderItem={({item: genre}) => (
-          <TouchableOpacity
-            style={[styles.genreChip, selectedGenre === genre && styles.genreChipActive]}
-            onPress={() => setSelectedGenre(genre === selectedGenre ? null : genre)}
-          >
-            <Text style={[styles.genreText, selectedGenre === genre && styles.genreTextActive]}>
-              {genre ? genre : t('all')}
-            </Text>
-          </TouchableOpacity>
-        )}
+        renderItem={renderGenreChip}
       />
 
       <FlatList
         data={filteredMovies}
         numColumns={2}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.grid}
         columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
+        // Performance optimizations for 13,000+ items
+        initialNumToRender={10}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        removeClippedSubviews={true}
+        getItemLayout={(data, index) => ({
+          length: CARD_WIDTH * 1.5 + 40, // card height + title height + margin
+          offset: (CARD_WIDTH * 1.5 + 40) * index,
+          index,
+        })}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Icon name="film-outline" size={48} color={Colors.dark.textMuted} />
             <Text style={styles.emptyText}>{t('no_results')}</Text>
           </View>
         }
-        renderItem={({item}) => (
-          <MovieCard item={item} onPress={navigateToDetails} />
-        )}
+        renderItem={renderItem}
       />
     </View>
   );

@@ -4,7 +4,7 @@ import {MMKV} from 'react-native-mmkv';
 
 const storage = new MMKV();
 
-interface ReleaseInfo {
+export interface ReleaseInfo {
   version: string;
   downloadUrl: string;
   changelog: string;
@@ -74,9 +74,9 @@ export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
       publishedAt: release.published_at,
       assetName: apkAsset?.name || 'AbdoBest.apk',
     };
-  } catch (error) {
+  } catch (error: any) {
     // Silently fail — update check shouldn't break the app
-    console.log('[OTA] Update check failed:', error.message);
+    console.log('[OTA] Update check failed:', error?.message);
     return null;
   }
 };

@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useMemo, memo} from 'react';
 import {View, StyleSheet, FlatList, RefreshControl, StatusBar} from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {loadCategory, loadFeatured, getMoviesArray} from '../services/metadataService';
@@ -9,6 +9,45 @@ import {LoadingSpinner} from '../components/LoadingSpinner';
 import {ErrorView} from '../components/ErrorView';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
+
+// ─── Memoized horizontal row for performance ──────────────────────
+interface HorizontalSectionProps {
+  title: string;
+  items: ContentItem[];
+  onSeeAll?: () => void;
+  cardWidth?: number;
+  onPressItem: (item: ContentItem) => void;
+}
+
+const HorizontalSection = memo<HorizontalSectionProps>(
+  ({title, items, onSeeAll, cardWidth, onPressItem}) => {
+    if (items.length === 0) return null;
+    return (
+      <View style={styles.section}>
+        <SectionHeader title={title} onSeeAll={onSeeAll} />
+        <FlatList
+          data={items}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+          keyExtractor={(item) => item.id}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
+          renderItem={({item}) => (
+            <MovieCard item={item} onPress={onPressItem} width={cardWidth || CARD_WIDTH} />
+          )}
+        />
+      </View>
+    );
+  },
+  (prev, next) =>
+    prev.title === next.title &&
+    prev.items.length === next.items.length &&
+    prev.items[0]?.id === next.items[0]?.id,
+);
+HorizontalSection.displayName = 'HorizontalSection';
 
 export const HomeScreen: React.FC = () => {
   const {t} = useTranslation();
@@ -45,20 +84,20 @@ export const HomeScreen: React.FC = () => {
     }, [loadData])
   );
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData(true);
-  };
+  }, [loadData]);
 
-  const navigateToDetails = (item: ContentItem) => {
+  const navigateToDetails = useCallback((item: ContentItem) => {
     navigation.navigate('Details', {item});
-  };
+  }, [navigation]);
 
-  const navigateToCategory = (category: string) => {
+  const navigateToCategory = useCallback((category: string) => {
     navigation.navigate('Category', {category});
-  };
+  }, [navigation]);
 
-  const trendingToItems = (items: TrendingItem[], prefix: string): ContentItem[] => {
+  const trendingToItems = useCallback((items: TrendingItem[], prefix: string): ContentItem[] => {
     return items.slice(0, 20).map((tItem, i) => ({
       id: `${prefix}_${i}`,
       Title: tItem.title,
@@ -71,91 +110,23 @@ export const HomeScreen: React.FC = () => {
       Runtime: null,
       Country: null,
     }));
-  };
+  }, []);
 
-  const latestMovies = movies.slice(0, 20);
-  const recentAdded = movies.slice(-20).reverse();
+  const latestMovies = useMemo(() => movies.slice(0, 20), [movies]);
+  const recentAdded = useMemo(() => movies.slice(-20).reverse(), [movies]);
+
+  const trendingItems = useMemo(
+    () => (trending?.movies ? trendingToItems(trending.movies, 'trending') : []),
+    [trending?.movies, trendingToItems],
+  );
+
+  const featuredItems = useMemo(
+    () => (featured?.movies ? trendingToItems(featured.movies, 'featured') : []),
+    [featured?.movies, trendingToItems],
+  );
 
   if (loading) return <LoadingSpinner />;
   if (error && movies.length === 0) return <ErrorView message={error} onRetry={() => loadData(true)} />;
-
-  const renderTrendingSection = () => {
-    if (!trending?.movies?.length) return null;
-    const items = trendingToItems(trending.movies, 'trending');
-    return (
-      <View style={styles.section}>
-        <SectionHeader title={t('trending_now')} onSeeAll={() => navigateToCategory('trending')} />
-        <FlatList
-          data={items}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({item}) => (
-            <MovieCard item={item} onPress={navigateToDetails} width={140} />
-          )}
-        />
-      </View>
-    );
-  };
-
-  const renderFeaturedSection = () => {
-    if (!featured?.movies?.length) return null;
-    const items = trendingToItems(featured.movies, 'featured');
-    return (
-      <View style={styles.section}>
-        <SectionHeader title={t('featured_now')} onSeeAll={() => navigateToCategory('trending')} />
-        <FlatList
-          data={items}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({item}) => (
-            <MovieCard item={item} onPress={navigateToDetails} width={140} />
-          )}
-        />
-      </View>
-    );
-  };
-
-  const renderLatestSection = () => {
-    if (latestMovies.length === 0) return null;
-    return (
-      <View style={styles.section}>
-        <SectionHeader title={t('latest_movies')} onSeeAll={() => navigateToCategory('movies')} />
-        <FlatList
-          data={latestMovies}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({item}) => (
-            <MovieCard item={item} onPress={navigateToDetails} width={CARD_WIDTH} />
-          )}
-        />
-      </View>
-    );
-  };
-
-  const renderRecentSection = () => {
-    if (recentAdded.length === 0) return null;
-    return (
-      <View style={styles.section}>
-        <SectionHeader title={t('most_viewed')} onSeeAll={() => navigateToCategory('movies')} />
-        <FlatList
-          data={recentAdded}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({item}) => (
-            <MovieCard item={item} onPress={navigateToDetails} width={CARD_WIDTH} />
-          )}
-        />
-      </View>
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -164,10 +135,32 @@ export const HomeScreen: React.FC = () => {
         data={[]}
         ListHeaderComponent={
           <View>
-            {renderTrendingSection()}
-            {renderFeaturedSection()}
-            {renderLatestSection()}
-            {renderRecentSection()}
+            <HorizontalSection
+              title={t('trending_now')}
+              items={trendingItems}
+              onSeeAll={() => navigateToCategory('trending')}
+              cardWidth={140}
+              onPressItem={navigateToDetails}
+            />
+            <HorizontalSection
+              title={t('featured_now')}
+              items={featuredItems}
+              onSeeAll={() => navigateToCategory('trending')}
+              cardWidth={140}
+              onPressItem={navigateToDetails}
+            />
+            <HorizontalSection
+              title={t('latest_movies')}
+              items={latestMovies}
+              onSeeAll={() => navigateToCategory('movies')}
+              onPressItem={navigateToDetails}
+            />
+            <HorizontalSection
+              title={t('most_viewed')}
+              items={recentAdded}
+              onSeeAll={() => navigateToCategory('movies')}
+              onPressItem={navigateToDetails}
+            />
           </View>
         }
         renderItem={() => null}

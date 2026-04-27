@@ -27,6 +27,7 @@ export const en = {
   anime: '⛩️ Anime',
   series: '📺 Series',
   tvshows: '📡 TV Shows',
+  asian_series: '🌏 Asian Series',
   all: '✨ See All',
   coming_soon: '🔜 Coming Soon',
   not_available: '🚫 Not available yet',
@@ -90,4 +91,7 @@ export const en = {
   sync_database: '🔄 Sync Database',
   last_sync: '🕐 Last Sync',
   never: 'Never',
+  // Details screen
+  description: '📝 Description',
+  episode_count: '🎞️ Episodes',
 };

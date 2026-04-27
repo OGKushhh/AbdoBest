@@ -119,8 +119,8 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
   const lowerQuery = query.toLowerCase().trim();
   if (!lowerQuery) return [];
 
-  // Only search available categories (movies for now)
-  const availableCategories: ContentCategory[] = ['movies'];
+  // Search across all available categories
+  const availableCategories: ContentCategory[] = ['movies', 'series', 'anime', 'tvshows', 'asian-series'];
   let allResults: ContentItem[] = [];
 
   // Fetch all available categories (uses cache if fresh)

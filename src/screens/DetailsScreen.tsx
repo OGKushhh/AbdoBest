@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useCallback, useMemo} from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Dimensions, Alert, Share, ActivityIndicator,
@@ -12,6 +12,8 @@ import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 import {QualityBadge} from '../components/QualityBadge';
 import {useTranslation} from 'react-i18next';
+import {localizeGenres} from '../i18n/genres';
+import {getSettings} from '../storage';
 
 const {height: SCREEN_HEIGHT} = Dimensions.get('window');
 const BACKDROP_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -20,13 +22,29 @@ export const DetailsScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const item: ContentItem = route.params?.item;
-  const {t} = useTranslation();
+  const {t, i18n} = useTranslation();
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
   const hasSource = item.Source && item.Source.length > 0;
+  const lang = (i18n.language === 'ar' ? 'ar' : 'en') as 'ar' | 'en';
 
-  const handlePlay = async () => {
+  // Localize genres for the current language
+  const displayGenres = useMemo(() => {
+    return localizeGenres(item.Genres || [], lang);
+  }, [item.Genres, lang]);
+
+  // Get the appropriate description based on language
+  const description = useMemo(() => {
+    if (lang === 'ar') {
+      return item.DescriptionAr || item.Description || '';
+    }
+    return item.Description || item.DescriptionAr || '';
+  }, [item.Description, item.DescriptionAr, lang]);
+
+  const hasDescription = description && description.trim().length > 0;
+
+  const handlePlay = useCallback(async () => {
     if (!hasSource) {
       Alert.alert(t('video_unavailable'), t('not_available'));
       return;
@@ -47,9 +65,9 @@ export const DetailsScreen: React.FC = () => {
     } finally {
       setExtracting(false);
     }
-  };
+  }, [hasSource, item.id, item.Source, item.Title, navigation, t]);
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     if (!hasSource) {
       Alert.alert(t('video_unavailable'), t('not_available'));
       return;
@@ -72,13 +90,13 @@ export const DetailsScreen: React.FC = () => {
     } finally {
       setExtracting(false);
     }
-  };
+  }, [hasSource, item.id, item.Source, t]);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
     if (item.Source) {
       Share.share({message: item.Title, url: item.Source});
     }
-  };
+  }, [item.Source, item.Title]);
 
   const formatRuntime = (minutes: number | null) => {
     if (!minutes) return null;
@@ -118,6 +136,7 @@ export const DetailsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Poster + Info Row */}
         <View style={styles.posterRow}>
           <FastImage
             source={item['Image Source'] ? {uri: item['Image Source']} : 0}
@@ -139,12 +158,31 @@ export const DetailsScreen: React.FC = () => {
                 <Text style={styles.countryText}>{item.Country}</Text>
               </View>
             )}
+            {/* Episode count for series/anime */}
+            {item['Number Of Episodes'] ? (
+              <View style={styles.countryRow}>
+                <Icon name="tv-outline" size={14} color={Colors.dark.textSecondary} />
+                <Text style={styles.countryText}>
+                  {item['Number Of Episodes']} {t('episodes')}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
-        {item.Genres && item.Genres.length > 0 && (
+        {/* Description */}
+        {hasDescription && (
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.descriptionText} numberOfLines={5}>
+              {description}
+            </Text>
+          </View>
+        )}
+
+        {/* Genre Chips */}
+        {displayGenres.length > 0 && (
           <View style={styles.genresContainer}>
-            {item.Genres.map((genre, idx) => (
+            {displayGenres.map((genre, idx) => (
               <View key={idx} style={styles.genreChip}>
                 <Text style={styles.genreText}>{genre}</Text>
               </View>
@@ -152,6 +190,7 @@ export const DetailsScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Action Buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.playButton]}
@@ -178,6 +217,7 @@ export const DetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Error State */}
         {extractError && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{extractError}</Text>
@@ -196,6 +236,7 @@ export const DetailsScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Info Section */}
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>{t('quality')}</Text>
           <Text style={styles.infoText}>{item.Format || 'N/A'}</Text>
@@ -214,10 +255,10 @@ export const DetailsScreen: React.FC = () => {
             </>
           )}
 
-          {item.Genres?.length > 0 && (
+          {displayGenres.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>{t('genres')}</Text>
-              <Text style={styles.infoText}>{item.Genres.join(', ')}</Text>
+              <Text style={styles.infoText}>{displayGenres.join(', ')}</Text>
             </>
           )}
         </View>
@@ -322,6 +363,15 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: Typography.sizes.sm,
     marginLeft: 4,
+  },
+  descriptionContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  descriptionText: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.md,
+    lineHeight: 20,
   },
   genresContainer: {
     flexDirection: 'row',
