@@ -14,6 +14,11 @@ android {
     namespace "com.abdobest"
     ndkVersion rootProject.ext.ndkVersion
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
     defaultConfig {
         applicationId "com.abdobest"
         minSdkVersion 24
@@ -40,6 +45,13 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsi.so'
+        pickFirst '**/libreact_nativemodule_core.so'
+        pickFirst '**/libturbomodulejsijni.so'
     }
 }
 
