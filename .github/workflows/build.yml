@@ -30,8 +30,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK 26
-        run: sdkmanager --install "ndk;26.1.10909125"
+      # ❌ REMOVED: Install NDK 26 (we use NDK 25.2 from build.gradle)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,6 +48,9 @@ jobs:
           rm -rf android/app/.cxx
           rm -rf android/app/build
           rm -rf ~/.gradle/caches/transforms-*
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
       - name: Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4

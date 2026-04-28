@@ -19,6 +19,11 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    // ✅ ADD THIS BLOCK
+    buildFeatures {
+        prefab true
+    }
+
     defaultConfig {
         applicationId "com.abdobest"
         minSdkVersion 24
