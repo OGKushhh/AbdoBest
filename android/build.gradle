@@ -20,11 +20,11 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
-// Force ALL subprojects (including react-native-nitro-modules) to use NDK 27.
+// We use plugins.withId instead of afterEvaluate because the React Native
+// root project plugin eagerly evaluates subprojects, making afterEvaluate fail.
 subprojects { subproject ->
-    afterEvaluate {
-        if (subproject.hasProperty("android")) {
-            subproject.android.ndkVersion = rootProject.ext.ndkVersion
-        }
+    subproject.plugins.withId("com.android.application") {
+        subproject.android.ndkVersion = rootProject.ext.ndkVersion
     }
-}
+    subproject.plugins.withId("com.android.library") {
+        subproject.android.ndkVersion = rootProject.ext.ndkVersion
