@@ -12,6 +12,7 @@ def jscFlavor = 'org.webkit:android-jsc:+'
 android {
     compileSdk rootProject.ext.compileSdkVersion
     namespace "com.abdobest"
+    ndkVersion rootProject.ext.ndkVersion
 
     defaultConfig {
         applicationId "com.abdobest"
