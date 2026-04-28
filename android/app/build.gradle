@@ -73,7 +73,15 @@ configurations.all {
     resolutionStrategy {
         force 'androidx.core:core:1.15.0'
         force 'androidx.core:core-ktx:1.15.0'
+        // Fix duplicate AndroidSVG (JAR vs AAR) from @d11/react-native-fast-image
+        eachDependency { details ->
+            if (details.requested.group == 'com.caverock' && details.requested.name == 'androidsvg-aar') {
+                details.useTarget 'com.caverock:androidsvg-aar:1.4'
+            }
+        }
     }
+    // Exclude the JAR variant — only use AAR
+    exclude group: 'com.caverock', module: 'androidsvg'
 }
 
 dependencies {
