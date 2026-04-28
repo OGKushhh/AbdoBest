@@ -5,23 +5,24 @@
   "scripts": {
     "android": "react-native run-android",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "node patch-fs-turbo.js"
   },
   "dependencies": {
     "@react-native-community/netinfo": "^11.3.0",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.0",
-    "@react-navigation/native-stack": "^7.0.0",
+    "@react-navigation/native-stack": "7.0.0",
     "axios": "^1.7.9",
     "i18next": "^24.2.2",
     "react": "18.3.1",
     "react-i18next": "^15.4.1",
     "react-native": "0.76.8",
     "react-native-fast-image": "^8.6.3",
-    "react-native-fs-turbo": "^0.5.1",
+    "react-native-fs-turbo": "0.5.1",
     "react-native-mmkv": "^2.12.2",
     "react-native-safe-area-context": "^5.0.0",
-    "react-native-screens": "~4.4.0",
+    "react-native-screens": "4.4.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-video": "^6.1.2"
   },
