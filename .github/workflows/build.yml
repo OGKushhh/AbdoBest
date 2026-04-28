@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # This line adds the "Run workflow" button in the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -15,6 +16,7 @@ jobs:
       JAVA_TOOL_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       _JAVA_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       GRADLE_OPTS: ""
+      # Opts into Node 24 to clear the deprecation warnings in your logs
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
@@ -36,6 +38,11 @@ jobs:
         run: |
           rm -rf node_modules package-lock.json
           npm install
+
+      - name: Patch NitroModulesPackage (add missing hasConstants)
+        run: |
+          sed -i 's/isCxxModule = false,/hasConstants = false, isCxxModule = false,/' \
+            node_modules/react-native-nitro-modules/android/src/main/java/com/margelo/nitro/NitroModulesPackage.kt
 
       - name: Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
