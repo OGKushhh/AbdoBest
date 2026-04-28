@@ -1,7 +1,7 @@
 // HF Spaces API
 export const API_BASE = 'https://ogkushhh-abdobest.hf.space';
 
-// Metadata API endpoints (served by HF Spaces, not GitHub raw)
+// Metadata API endpoints (served by HF Spaces)
 export const METADATA_ENDPOINTS = {
   movies: '/api/movies',
   anime: '/api/anime',
@@ -10,7 +10,18 @@ export const METADATA_ENDPOINTS = {
   'asian-series': '/api/asian-series',
   trending: '/api/trending',
   featured: '/api/featured',
-  allContent: '/api/all-content',
+};
+
+// Dynamic API endpoints
+export const API_ENDPOINTS = {
+  /** Episode list for a series/tvshow/asian-series: /api/episodes/{category}/{id} */
+  episodes: (category: string, id: string) => `/api/episodes/${category}/${id}`,
+  /** Server-side search: /api/search?q=... */
+  search: (query: string) => `/api/search?q=${encodeURIComponent(query)}`,
+  /** Server health check */
+  health: '/health',
+  /** Video URL extraction (POST) */
+  extract: '/extract',
 };
 
 // GitHub OTA Update
