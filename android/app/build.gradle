@@ -10,13 +10,13 @@ def enableProguardInReleaseBuilds = false
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
-    compileSdk 36
+    compileSdk rootProject.ext.compileSdkVersion
     namespace "com.abdobest"
 
     defaultConfig {
         applicationId "com.abdobest"
         minSdkVersion 24
-        targetSdkVersion 35
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
     }
