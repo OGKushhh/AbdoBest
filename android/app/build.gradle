@@ -31,18 +31,9 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Include 32-bit ABIs for older devices
+        // Include all ABIs for device compatibility
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-        }
-
-        // Force all ABIs and explicit CMake arguments
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared",
-                          "-DANDROID_TOOLCHAIN=clang"
-                abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-            }
         }
     }
 
@@ -81,6 +72,7 @@ android {
         pickFirst '**/libjsi.so'
         pickFirst '**/libreact_nativemodule_core.so'
         pickFirst '**/libturbomodulejsijni.so'
+        pickFirst '**/libreact_featureflagsjni.so'
     }
 }
 

@@ -9,6 +9,7 @@
     "postinstall": "node scripts/patch-fs-turbo.js"
   },
   "dependencies": {
+    "@d11/react-native-fast-image": "^8.13.0",
     "@react-native-community/netinfo": "^11.5.2",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.0",
@@ -19,10 +20,10 @@
     "react-dom": "19.0.0",
     "react-i18next": "^15.4.1",
     "react-native": "0.79.2",
-    "@d11/react-native-fast-image": "^8.13.0",
     "react-native-fs-turbo": "0.5.1",
     "react-native-gesture-handler": "^2.31.1",
-    "react-native-mmkv": "^2.12.2",
+    "react-native-mmkv": "^4.3.1",
+    "react-native-nitro-modules": "^0.35.6",
     "react-native-safe-area-context": "5.4.1",
     "react-native-screens": "4.16.0",
     "react-native-vector-icons": "^10.3.0",
