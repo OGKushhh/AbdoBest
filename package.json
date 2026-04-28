@@ -6,7 +6,7 @@
     "android": "react-native run-android",
     "start": "react-native start",
     "test": "jest",
-    "postinstall": "node patch-fs-turbo.js"
+    "postinstall": "node scripts/patch-fs-turbo.js"
   },
   "dependencies": {
     "@react-native-community/netinfo": "^11.3.0",
