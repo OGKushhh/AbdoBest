@@ -37,6 +37,12 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install
 
+      - name: Inspect NitroModulesPackage
+        run: |
+          cat node_modules/react-native-nitro-modules/android/src/main/java/com/margelo/nitro/NitroModulesPackage.kt
+          echo "---VERSION---"
+          cat node_modules/react-native-nitro-modules/package.json | grep '"version"'
+
       - name: Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
