@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import FastImage from '@d11/react-native-fast-image';
+import FastImage from 'react-native-fast-image';
 import {ContentItem} from '../types';
 import {getStreamUrl} from '../services/videoService';
 import {Colors} from '../theme/colors';
