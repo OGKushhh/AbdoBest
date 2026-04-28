@@ -4,7 +4,7 @@ buildscript {
         minSdkVersion = 24
         compileSdkVersion = 35
         targetSdkVersion = 35
-        ndkVersion = "27.1.12297006"
+        ndkVersion = "25.1.8937393"   // ← downgraded from 27 to 25
         kotlinVersion = "1.9.25"
     }
     repositories {
@@ -18,5 +18,15 @@ buildscript {
     }
 }
 
+// Force NDK version for all subprojects that have the Android plugin.
+// This must be placed BEFORE the apply plugin line.
+subprojects { subproject ->
+    subproject.plugins.withId("com.android.application") {
+        subproject.android.ndkVersion = rootProject.ext.ndkVersion
+    }
+    subproject.plugins.withId("com.android.library") {
+        subproject.android.ndkVersion = rootProject.ext.ndkVersion
+    }
+}
 
 apply plugin: "com.facebook.react.rootproject"

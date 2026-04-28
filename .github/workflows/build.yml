@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  # This line adds the "Run workflow" button in the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -16,7 +15,6 @@ jobs:
       JAVA_TOOL_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       _JAVA_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       GRADLE_OPTS: ""
-      # Opts into Node 24 to clear the deprecation warnings in your logs
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
@@ -31,6 +29,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install NDK 25
+        run: sdkmanager --install "ndk;25.1.8937393"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
