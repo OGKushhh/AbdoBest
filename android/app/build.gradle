@@ -19,7 +19,7 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // ✅ CRITICAL: Enable prefab for New Architecture
+    // Enable prefab for New Architecture
     buildFeatures {
         prefab true
     }
@@ -31,7 +31,7 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // ✅ Force all ABIs and explicit CMake arguments
+        // Force all ABIs and explicit CMake arguments
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared",
@@ -66,13 +66,6 @@ android {
         pickFirst '**/libjsi.so'
         pickFirst '**/libreact_nativemodule_core.so'
         pickFirst '**/libturbomodulejsijni.so'
-    }
-}
-
-// ✅ Ensure React Native native libs are built before CMake runs
-tasks.whenTaskAdded { task ->
-    if (task.name.contains("configureCMake")) {
-        task.dependsOn(":ReactAndroid:build")
     }
 }
 

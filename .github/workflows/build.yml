@@ -30,8 +30,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # ❌ REMOVED: Install NDK 26 (we use NDK 25.2 from build.gradle)
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
