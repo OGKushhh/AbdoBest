@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  # This line adds the "Run workflow" button in the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -16,7 +15,6 @@ jobs:
       JAVA_TOOL_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       _JAVA_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       GRADLE_OPTS: ""
-      # Opts into Node 24 to clear the deprecation warnings in your logs
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
@@ -29,6 +27,13 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK 27
+        run: |
+          sdkmanager --install "ndk;27.1.12297006"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -39,15 +44,21 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install
 
-      - name: Patch NitroModulesPackage (add missing hasConstants)
-        run: |
-          sed -i 's/isCxxModule = false,/hasConstants = false, isCxxModule = false,/' \
-            node_modules/react-native-nitro-modules/android/src/main/java/com/margelo/nitro/NitroModulesPackage.kt
-
       - name: Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+
+      - name: Patch NitroModulesPackage (ReactModuleInfo 7-arg constructor)
+        run: |
+          NITRO_PKG="node_modules/react-native-nitro-modules/android/src/main/java/com/margelo/nitro/NitroModulesPackage.kt"
+          if [ -f "$NITRO_PKG" ]; then
+            sed -i 's/hasConstants = true/hasConstants = false/g' "$NITRO_PKG" || true
+            sed -i 's/isTurboModule\s*))/isTurboModule, hasConstants = false)/g' "$NITRO_PKG" || true
+            echo "Patched NitroModulesPackage.kt"
+          else
+            echo "WARNING: NitroModulesPackage.kt not found at $NITRO_PKG"
+          fi
 
       - name: Build Release APK
         working-directory: android

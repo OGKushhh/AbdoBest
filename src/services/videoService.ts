@@ -5,17 +5,16 @@
  *  - Stream URL resolution (with MMKV 6h URL cache)
  *  - Download state persistence (via MMKV)
  *
- * Actual video downloading is handled by videoDownloadManager.ts
- * using @rajeev02/media for HLS/m3u8 support.
+ * Download feature is currently disabled.
+ * When re-enabled, HLS downloads will require a compatible media library.
  *
  * Storage architecture:
- *  - @rajeev02/media → video download (HLS → .mp4, cross-platform)
- *  - MMKV → download queue, settings, URL cache (6h TTL)
- *  - Nitro FS → large file I/O (movies.json reads/writes, file moves)
+ *  - MMKV (Nitro) → download queue, settings, URL cache (6h TTL)
+ *  - react-native-fs-turbo → metadata JSON files on disk, per-category (24h TTL)
  *
  * Metadata persistence:
- *  - Cached metadata (movies, series, anime catalogs) persists INDEFINITELY
- *    in MMKV until the user clears cache or uninstalls
+ *  - Cached metadata (movies, series, anime catalogs) is stored on disk
+ *    and persists until the user clears cache or uninstalls
  *  - The 24h TTL only controls when to RE-FETCH from the server
  *  - The 6h TTL only applies to extracted video URL reuse
  *  - Completed downloads, user preferences, and cached catalogs persist
