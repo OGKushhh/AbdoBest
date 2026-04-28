@@ -20,11 +20,11 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
-// We use plugins.withId instead of afterEvaluate because the React Native
-// root project plugin eagerly evaluates subprojects, making afterEvaluate fail.
 subprojects { subproject ->
     subproject.plugins.withId("com.android.application") {
         subproject.android.ndkVersion = rootProject.ext.ndkVersion
     }
     subproject.plugins.withId("com.android.library") {
         subproject.android.ndkVersion = rootProject.ext.ndkVersion
+    }
+}
