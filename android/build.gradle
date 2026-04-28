@@ -19,3 +19,12 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// Force ALL subprojects (including react-native-nitro-modules) to use NDK 27.
+subprojects { subproject ->
+    afterEvaluate {
+        if (subproject.hasProperty("android")) {
+            subproject.android.ndkVersion = rootProject.ext.ndkVersion
+        }
+    }
+}
