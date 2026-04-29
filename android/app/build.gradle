@@ -19,6 +19,12 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    // Enable Prefab so native modules (screens, mmkv, video) can find
+    // ReactAndroid's prebuilt libraries via CMake
+    buildFeatures {
+        prefab true
+    }
+
     defaultConfig {
         applicationId "com.abdobest"
         minSdkVersion 24
@@ -28,6 +34,12 @@ android {
 
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+
+        externalNativeBuild {
+            cmake {
+                version rootProject.ext.cmakeVersion
+            }
         }
     }
 
@@ -66,13 +78,6 @@ android {
         pickFirst '**/libjsi.so'
         pickFirst '**/libreact_nativemodule_core.so'
         pickFirst '**/libturbomodulejsijni.so'
-    }
-}
-
-// Force-disable CMake for all subprojects (prevents CXX1210)
-tasks.configureEach {
-    if (it.name.contains('configureCMake')) {
-        it.enabled = false
     }
 }
 

@@ -10,8 +10,6 @@ module.exports = {
           '@': './src'
         }
       }
-    ],
-    // IMPORTANT: must be LAST
-    'react-native-reanimated/plugin'
+    ]
   ]
 };
