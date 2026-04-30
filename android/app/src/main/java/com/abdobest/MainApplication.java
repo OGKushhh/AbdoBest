@@ -22,10 +22,11 @@ public class MainApplication extends Application implements ReactApplication {
                     @SuppressWarnings("UnnecessaryLocalVariable")
                     List<ReactPackage> packages = new PackageList(this).getPackages();
                     return packages;
+                }
 
                 @Override
-                protected Boolean isHermesEnabled() {
-                    return BuildConfig.IS_HERMES_ENABLED;
+                protected String getJSMainModuleName() {
+                    return "index";
                 }
             };
 
