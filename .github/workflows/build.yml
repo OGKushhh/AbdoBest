@@ -50,10 +50,12 @@ jobs:
 
       - name: Build Release APK
         working-directory: android
+        env:
+          JAVA_TOOL_OPTIONS: ""
+          _JAVA_OPTIONS: ""
+          JDK_JAVA_OPTIONS: ""
         run: |
           chmod +x gradlew
-          unset JAVA_TOOL_OPTIONS
-          unset _JAVA_OPTIONS
           ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK Artifact
