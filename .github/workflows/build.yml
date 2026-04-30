@@ -11,9 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      JAVA_TOOL_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
-      _JAVA_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
 
     steps:
       - name: Checkout code
