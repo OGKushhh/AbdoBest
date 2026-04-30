@@ -46,6 +46,13 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
 
+      - name: Verify RN maven repo exists
+        run: |
+          echo "Checking react-native android dir..."
+          ls node_modules/react-native/android/com/facebook/react/react-native/ || { echo "MISSING RN android maven!"; exit 1; }
+          echo "Checking hermes maven dir..."
+          ls node_modules/react-native/sdks/hermes-engine/maven/ || { echo "MISSING hermes maven!"; exit 1; }
+
       - name: Clean stale Android build cache
         run: |
           rm -rf android/.gradle
@@ -66,11 +73,9 @@ jobs:
           JAVA_TOOL_OPTIONS: ""
           _JAVA_OPTIONS: ""
           JDK_JAVA_OPTIONS: ""
-          CMAKE_JAVA_TOOL_OPTIONS: ""
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
