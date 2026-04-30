@@ -36,6 +36,9 @@ jobs:
       - name: Install NDK
         run: sdkmanager --install "ndk;23.1.7779620"
 
+      - name: Remove cmake to prevent CMake-based errors
+        run: rm -rf $ANDROID_SDK_ROOT/cmake
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
