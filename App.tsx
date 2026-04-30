@@ -1,12 +1,13 @@
 import React, {useEffect, useState} from 'react';
-import {StatusBar, LogBox, View, ActivityIndicator} from 'react-native';
-import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {StatusBar, LogBox, View, ActivityIndicator, Text, Platform} from 'react-native';
+import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {UpdateModal} from './src/components/UpdateModal';
 import {checkForUpdate, skipVersion, openUpdateUrl, ReleaseInfo} from './src/services/updateService';
 import {APP_VERSION} from './src/constants/endpoints';
 import {storage} from './src/storage/Storage';
 import {Colors} from './src/theme/colors';
+import {Typography} from './src/theme/typography';
 import './src/i18n';
 
 LogBox.ignoreLogs([
@@ -21,11 +22,9 @@ const App: React.FC = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
-    // Initialize storage (load from AsyncStorage into memory) before rendering
     storage.init().then(() => {
       setReady(true);
 
-      // Check for updates after 3 seconds (don't block app launch)
       const timer = setTimeout(async () => {
         const update = await checkForUpdate();
         if (update) {
@@ -51,14 +50,21 @@ const App: React.FC = () => {
   if (!ready) {
     return (
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.dark.background}}>
-        <ActivityIndicator size="large" color={Colors.dark.primary} />
+        <Text style={{color: Colors.dark.primary, fontSize: Typography.sizes.heading, fontWeight: '900', fontFamily: 'Rubik'}}>
+          AbdoBest
+        </Text>
+        <ActivityIndicator size="small" color={Colors.dark.primary} style={{marginTop: 16}} />
       </View>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
       <AppNavigator />
       <UpdateModal
         visible={showUpdateModal}
