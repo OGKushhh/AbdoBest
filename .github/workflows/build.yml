@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, launch-fix]
+    branches: [launch-fix]
     tags: ['v*']
   workflow_dispatch:
 
@@ -14,21 +14,19 @@ jobs:
     env:
       JAVA_TOOL_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
       _JAVA_OPTIONS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
-      GRADLE_OPTS: ""
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Java 11
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v2
 
       - name: Install NDK
         run: sdkmanager --install "ndk;23.1.7779620"
