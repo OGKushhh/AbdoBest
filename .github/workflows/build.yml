@@ -48,15 +48,16 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
-      - name: Fix gradlew
-        working-directory: android
-        run: sed -i "s/DEFAULT_JVM_OPTS='.*'/DEFAULT_JVM_OPTS=''/" gradlew
-
       - name: Build Release APK
         working-directory: android
+        env:
+          JAVA_TOOL_OPTIONS: ""
+          _JAVA_OPTIONS: ""
+          JDK_JAVA_OPTIONS: ""
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
