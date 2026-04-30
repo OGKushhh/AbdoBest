@@ -1,5 +1,15 @@
 pluginManagement {
-    includeBuild('../node_modules/react-native/node_modules/@react-native/gradle-plugin')
+    def rnGradlePlugin = file('../node_modules/@react-native/gradle-plugin')
+    def rnGradlePluginNested = file('../node_modules/react-native/node_modules/@react-native/gradle-plugin')
+
+    if (rnGradlePluginNested.exists()) {
+        includeBuild(rnGradlePluginNested)
+    } else if (rnGradlePlugin.exists()) {
+        includeBuild(rnGradlePlugin)
+    } else {
+        throw new GradleException("Could not find @react-native/gradle-plugin in node_modules. Run 'npm install'.")
+    }
+
     repositories {
         google()
         mavenCentral()
