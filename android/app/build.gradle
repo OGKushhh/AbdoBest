@@ -60,18 +60,8 @@ android {
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
-
-    implementation("com.facebook.react:react-native:+") {
-        exclude group: "com.facebook.fbjni"
-    }
-
-    def jscFlavor = 'org.webkit:android-jsc:+'
-    def enableHermes = project.ext.react.get("enableHermes", true)
-    if (enableHermes) {
-        implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
+    implementation("com.facebook.react:react-native:+")
+    implementation("com.facebook.react:hermes-android")
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
