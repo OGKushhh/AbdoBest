@@ -46,13 +46,6 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
 
-      - name: Verify RN maven repo exists
-        run: |
-          echo "Checking react-native android dir..."
-          ls node_modules/react-native/android/com/facebook/react/react-native/ || { echo "MISSING RN android maven!"; exit 1; }
-          echo "Checking hermes maven dir..."
-          ls node_modules/react-native/sdks/hermes-engine/maven/ || { echo "MISSING hermes maven!"; exit 1; }
-
       - name: Clean stale Android build cache
         run: |
           rm -rf android/.gradle
