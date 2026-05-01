@@ -1,9 +1,9 @@
 import React, {useState, useRef, useEffect, useCallback, useMemo} from 'react';
 import {
   View, StyleSheet, Dimensions, TouchableOpacity, Text,
-  ActivityIndicator, StatusBar, Modal, FlatList, Image,
+  ActivityIndicator, StatusBar, Modal, Image,
 } from 'react-native';
-import Video, {VideoRef, OnProgressData, ResizeMode, OnBufferData} from 'react-native-video';
+import Video from 'react-native-video';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Colors} from '../theme/colors';
@@ -12,25 +12,13 @@ import {recordPlay} from '../services/viewService';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
-// HLS quality levels
 const HLS_QUALITIES = [
-  {label: 'Auto',  bitrate: undefined},
+  {label: 'Auto',  bitrate: 0},
   {label: '1080p', bitrate: 8000000},
   {label: '720p',  bitrate: 3000000},
   {label: '480p',  bitrate: 1500000},
   {label: '360p',  bitrate: 800000},
 ];
-
-// Auto-detect video type from URL extension
-const detectVideoType = (urlStr: string): string | undefined => {
-  if (!urlStr) return undefined;
-  const lower = urlStr.toLowerCase().split('?')[0].split('#')[0];
-  if (lower.endsWith('.m3u8') || lower.includes('.m3u8')) return 'm3u8';
-  if (lower.endsWith('.mpd')) return 'mpd';
-  if (lower.endsWith('.mp4')) return 'mp4';
-  if (lower.endsWith('.webm')) return 'webm';
-  return undefined; // let the player auto-detect
-};
 
 export const PlayerScreen: React.FC = () => {
   const route = useRoute<any>();
@@ -39,41 +27,43 @@ export const PlayerScreen: React.FC = () => {
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const videoRef = useRef<VideoRef>(null);
+  const videoRef: any = useRef(null);
   const [playing, setPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffering, setBuffering] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Build quality list: prefer qualities from extraction result, fallback to HLS defaults
   const qualityList = useMemo(() => {
     if (paramQualities && paramQualities.length > 0) {
       return paramQualities.map((label: string) => {
         const match = HLS_QUALITIES.find(q => q.label === label);
-        return match ?? {label, bitrate: undefined};
+        return match || {label, bitrate: 0};
       });
     }
     return HLS_QUALITIES;
   }, [paramQualities]);
 
-  const [selectedQuality, setSelectedQuality] = useState<{label: string; bitrate?: number}>(qualityList[0] ?? HLS_QUALITIES[0]);
-
-  // Resolve source with auto-detect
-  const videoSource = useMemo(() => {
-    const detectedType = detectVideoType(url);
-    const source: any = {uri: url};
-    if (detectedType) {
-      source.type = detectedType;
-    }
-    return source;
-  }, [url]);
+  const [selectedQuality, setSelectedQuality] = useState(qualityList[0] || HLS_QUALITIES[0]);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = useRef<any>(null);
   const viewTracked = useRef(false);
+  const loadTimeout = useRef<any>(null);
 
-  // Track view on first play
+  // Build the source object — let react-native-video auto-detect type
+  const videoSource = useMemo(() => {
+    if (!url) return undefined;
+    // If URL ends with .m3u8, hint the type; otherwise let it auto-detect
+    const lower = url.toLowerCase().split('?')[0];
+    if (lower.endsWith('.m3u8') || lower.includes('.m3u8')) {
+      return {uri: url, type: 'm3u8'};
+    }
+    return {uri: url};
+  }, [url]);
+
+  // Track view
   useEffect(() => {
     if (contentId && category && !viewTracked.current) {
       viewTracked.current = true;
@@ -81,11 +71,27 @@ export const PlayerScreen: React.FC = () => {
     }
   }, [contentId, category]);
 
+  // Cleanup
   useEffect(() => {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (loadTimeout.current) clearTimeout(loadTimeout.current);
     };
   }, []);
+
+  // Safety timeout: if video hasn't loaded in 20s, show error
+  useEffect(() => {
+    if (!url || error) return;
+    loadTimeout.current = setTimeout(() => {
+      if (buffering) {
+        setErrorMsg('Video took too long to load. Check your connection and try again.');
+        setBuffering(false);
+      }
+    }, 20000);
+    return () => {
+      if (loadTimeout.current) clearTimeout(loadTimeout.current);
+    };
+  }, [url, buffering, error]);
 
   const triggerHideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -99,22 +105,34 @@ export const PlayerScreen: React.FC = () => {
     });
   }, [triggerHideControls]);
 
-  const handleProgress = (data: OnProgressData) => setCurrentTime(data.currentTime);
+  const handleProgress = useCallback((data: any) => {
+    if (data?.currentTime !== undefined) setCurrentTime(data.currentTime);
+  }, []);
 
-  const handleLoad = (meta: any) => {
-    setDuration(meta.duration);
+  const handleLoad = useCallback((meta: any) => {
+    console.log('[Player] Video loaded:', JSON.stringify(meta)?.substring(0, 200));
+    if (meta?.duration !== undefined) setDuration(meta.duration);
     setBuffering(false);
     triggerHideControls();
-  };
+  }, [triggerHideControls]);
 
-  const handleBuffer: (data: OnBufferData) => void = (data) => setBuffering(data.isBuffering);
-  const handleEnd = () => { setPlaying(false); setShowControls(true); };
+  const handleBuffer = useCallback((data: any) => {
+    const isBuf = data?.isBuffering ?? data?.buffering ?? false;
+    setBuffering(isBuf);
+  }, []);
 
-  const handleError = (err: any) => {
-    console.error('[Player] Video error:', err?.error?.errorString || err?.error || err);
+  const handleEnd = useCallback(() => {
+    setPlaying(false);
+    setShowControls(true);
+  }, []);
+
+  const handleError = useCallback((err: any) => {
+    const errStr = err?.error?.errorString || err?.error?.toString?.() || err?.message || JSON.stringify(err) || 'Unknown error';
+    console.error('[Player] Video error:', errStr);
+    setErrorMsg(errStr);
     setError(t('video_unavailable'));
     setBuffering(false);
-  };
+  }, [t]);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -135,18 +153,20 @@ export const PlayerScreen: React.FC = () => {
     setCurrentTime(clamped);
   };
 
-  const handleQualitySelect = (q: {label: string; bitrate?: number}) => {
+  const handleQualitySelect = (q: any) => {
     setSelectedQuality(q);
     setShowQualityPicker(false);
     triggerHideControls();
   };
 
+  // ── Error / No URL states ──
   if (!url) {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
         <Image source={require('../../assets/icons/nlp.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
         <Text style={styles.errorText}>{t('video_unavailable')}</Text>
+        <Text style={styles.errorSub}>No URL provided</Text>
         <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
           <Text style={styles.errorButtonText}>{t('retry')}</Text>
         </TouchableOpacity>
@@ -160,6 +180,7 @@ export const PlayerScreen: React.FC = () => {
         <StatusBar hidden />
         <Image source={require('../../assets/icons/nlp.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
         <Text style={styles.errorText}>{error}</Text>
+        {errorMsg ? <Text style={styles.errorSub} numberOfLines={5}>{errorMsg}</Text> : null}
         <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
           <Text style={styles.errorButtonText}>{t('retry')}</Text>
         </TouchableOpacity>
@@ -167,15 +188,17 @@ export const PlayerScreen: React.FC = () => {
     );
   }
 
+  // ── Main player ──
   return (
     <View style={styles.container}>
       <StatusBar hidden />
 
-      <TouchableOpacity style={styles.videoContainer} activeOpacity={1} onPress={toggleControls}>
+      {/* Video — NOT wrapped in TouchableOpacity (causes white screen on Android) */}
+      <View style={styles.videoContainer}>
         <Video
           ref={videoRef}
           source={videoSource}
-          resizeMode={ResizeMode.CONTAIN}
+          resizeMode="contain"
           onProgress={handleProgress}
           onLoad={handleLoad}
           onBuffer={handleBuffer}
@@ -185,18 +208,24 @@ export const PlayerScreen: React.FC = () => {
           playWhenInactive={false}
           paused={!playing}
           style={styles.video}
-          preventsDisplaySleepDuringVideoPlayback={true}
-          minLoadRetryCount={3}
-          maxBitRate={selectedQuality.bitrate || undefined}
+          repeat={false}
+          controls={false}
+        />
+
+        {/* Tap overlay for controls toggle */}
+        <TouchableOpacity
+          style={styles.tapOverlay}
+          activeOpacity={1}
+          onPress={toggleControls}
         />
 
         {buffering && (
-          <View style={styles.bufferingOverlay}>
+          <View style={styles.bufferingOverlay} pointerEvents="none">
             <ActivityIndicator size="large" color={Colors.dark.primary} />
             <Text style={styles.bufferingText}>Loading...</Text>
           </View>
         )}
-      </TouchableOpacity>
+      </View>
 
       {/* Controls overlay */}
       {showControls && (
@@ -207,7 +236,6 @@ export const PlayerScreen: React.FC = () => {
               <Image source={require('../../assets/icons/arrow.png')} style={{width: 26, height: 26, tintColor: '#fff'}} />
             </TouchableOpacity>
             <Text style={styles.titleText} numberOfLines={1}>{title}</Text>
-            {/* Quality picker button */}
             <TouchableOpacity
               style={styles.qualityButton}
               onPress={() => {
@@ -222,7 +250,6 @@ export const PlayerScreen: React.FC = () => {
 
           {/* Bottom controls */}
           <View style={[styles.bottomControls, {paddingBottom: insets.bottom + 16}]}>
-            {/* Seek bar */}
             <TouchableOpacity
               style={styles.seekBarContainer}
               onPress={handleSeekBarPress}
@@ -235,13 +262,11 @@ export const PlayerScreen: React.FC = () => {
               </View>
             </TouchableOpacity>
 
-            {/* Time row */}
             <View style={styles.timeRow}>
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
 
-            {/* Playback row */}
             <View style={styles.playbackRow}>
               <TouchableOpacity
                 style={styles.skipButton}
@@ -255,7 +280,9 @@ export const PlayerScreen: React.FC = () => {
                 style={styles.playPauseButton}
                 onPress={() => { setPlaying(!playing); triggerHideControls(); }}
               >
-                <Text style={{color: '#fff', fontSize: 30, textAlign: 'center', lineHeight: 34}}>{playing ? '\u275A\u275A' : '\u25B6'}</Text>
+                <Text style={{color: '#fff', fontSize: 30, textAlign: 'center', lineHeight: 34}}>
+                  {playing ? '\u275A\u275A' : '\u25B6'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -284,7 +311,7 @@ export const PlayerScreen: React.FC = () => {
         >
           <View style={styles.qualityModal}>
             <Text style={styles.qualityModalTitle}>{t('select_quality')}</Text>
-            {qualityList.map(q => (
+            {qualityList.map((q: any) => (
               <TouchableOpacity
                 key={q.label}
                 style={[
@@ -302,7 +329,7 @@ export const PlayerScreen: React.FC = () => {
                   {q.label}
                 </Text>
                 {selectedQuality.label === q.label && (
-                  <Text style={{color: Colors.dark.primary, fontSize: 16, fontWeight: '700'}}>\u2713</Text>
+                  <Text style={{color: Colors.dark.primary, fontSize: 16, fontWeight: '700'}}>{'\u2713'}</Text>
                 )}
               </TouchableOpacity>
             ))}
@@ -314,7 +341,10 @@ export const PlayerScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#000'},
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
   videoContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -327,30 +357,44 @@ const styles = StyleSheet.create({
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+    backgroundColor: '#000',
+  },
+  tapOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // transparent, just for tap detection
   },
   bufferingOverlay: {
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   bufferingText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 10,
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Rubik',
   },
   topControls: {
     position: 'absolute',
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingBottom: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   topButton: {
-    width: 40, height: 40,
-    justifyContent: 'center', alignItems: 'center',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   titleText: {
     flex: 1,
@@ -379,10 +423,12 @@ const styles = StyleSheet.create({
   },
   bottomControls: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
     paddingTop: 16,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   seekBarContainer: {
     width: '100%',
@@ -405,7 +451,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   seekBarThumb: {
-    width: 14, height: 14,
+    width: 14,
+    height: 14,
     borderRadius: 7,
     backgroundColor: '#fff',
     marginRight: -7,
@@ -441,7 +488,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Rubik',
   },
   playPauseButton: {
-    width: 64, height: 64,
+    width: 64,
+    height: 64,
     borderRadius: 32,
     backgroundColor: 'rgba(229,9,20,0.9)',
     justifyContent: 'center',
@@ -451,7 +499,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     elevation: 8,
   },
-  // Quality Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.75)',
@@ -497,7 +544,6 @@ const styles = StyleSheet.create({
     color: Colors.dark.primary,
     fontWeight: '700',
   },
-  // Error
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -511,6 +557,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     fontFamily: 'Rubik',
+  },
+  errorSub: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    fontFamily: 'Rubik',
+    marginHorizontal: 20,
   },
   errorButton: {
     marginTop: 22,
