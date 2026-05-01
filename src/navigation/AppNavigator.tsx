@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -10,28 +10,24 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { CategoryScreen } from '../screens/CategoryScreen';
 import { DetailsScreen } from '../screens/DetailsScreen';
 import { PlayerScreen } from '../screens/PlayerScreen';
+import { SearchScreen } from '../screens/SearchScreen';
 import { DownloadsScreen } from '../screens/DownloadsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useTranslation } from 'react-i18next';
 
-// =============================================================================
-// Local PNG icon assets — verified to exist under /assets/icons/
-// =============================================================================
-const TabIcons = {
-  home: require('../../assets/icons/tv.png'),
-  browse: require('../../assets/icons/browsing.png'),
-  downloads: require('../../assets/icons/files.png'),
-  settings: require('../../assets/icons/settings.png'),
-} as const;
+// Tab icons removed — text-only tab bar
 
 // =============================================================================
 // Navigator types
 // =============================================================================
+import { ContentItem } from '../types';
+
 export type RootStackParamList = {
   Home: undefined;
   Category: { category?: string };
-  Details: { id: string };
-  Player: { id: string };
+  Details: { item: ContentItem };
+  Player: { url: string; title?: string; contentId?: string; category?: string; qualities?: string[]; pageUrl?: string };
+  Search: undefined;
 };
 
 export type HomeTabParamList = {
@@ -44,19 +40,7 @@ export type HomeTabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<HomeTabParamList>();
 
-// =============================================================================
-// Tab icon component — 24×24 with tintColor
-// =============================================================================
-const TabIcon: React.FC<{
-  source: typeof TabIcons.home;
-  color: string;
-}> = ({ source, color }) => (
-  <Image
-    source={source}
-    style={[styles.tabIcon, { tintColor: color }]}
-    resizeMode="contain"
-  />
-);
+
 
 // =============================================================================
 // Tab Navigator (HomeTabs) — wrapped in error boundary guard
@@ -71,8 +55,8 @@ const HomeTabs: React.FC = () => {
         backgroundColor: colors.tabBar,
         borderTopColor: colors.tabBarBorder,
         borderTopWidth: 0.5,
-        height: 68,
-        paddingBottom: 10,
+        height: 52,
+        paddingBottom: 8,
         paddingTop: 6,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: -1 } as { width: number; height: number },
@@ -83,10 +67,10 @@ const HomeTabs: React.FC = () => {
       tabBarActiveTintColor: colors.tabBarActive,
       tabBarInactiveTintColor: colors.tabBarInactive,
       tabBarLabelStyle: {
-        fontSize: FONTS.caption.fontSize,
-        fontWeight: '600' as const,
+        fontSize: 13,
+        fontWeight: '700' as const,
         fontFamily: 'Rubik',
-        marginTop: 2,
+        marginTop: 0,
       },
       headerShown: false,
     }),
@@ -99,43 +83,23 @@ const HomeTabs: React.FC = () => {
         <Tab.Screen
           name="HomeTab"
           component={HomeScreen}
-          options={{
-            tabBarLabel: t('home'),
-            tabBarIcon: ({ color }) => (
-              <TabIcon source={TabIcons.home} color={color} />
-            ),
-          }}
+          options={{ tabBarLabel: t('home') }}
         />
         <Tab.Screen
           name="BrowseTab"
           component={CategoryScreen}
           initialParams={{ category: 'movies' }}
-          options={{
-            tabBarLabel: t('browse'),
-            tabBarIcon: ({ color }) => (
-              <TabIcon source={TabIcons.browse} color={color} />
-            ),
-          }}
+          options={{ tabBarLabel: t('browse') }}
         />
         <Tab.Screen
           name="DownloadsTab"
           component={DownloadsScreen}
-          options={{
-            tabBarLabel: t('downloads'),
-            tabBarIcon: ({ color }) => (
-              <TabIcon source={TabIcons.downloads} color={color} />
-            ),
-          }}
+          options={{ tabBarLabel: t('downloads') }}
         />
         <Tab.Screen
           name="SettingsTab"
           component={SettingsScreen}
-          options={{
-            tabBarLabel: t('settings'),
-            tabBarIcon: ({ color }) => (
-              <TabIcon source={TabIcons.settings} color={color} />
-            ),
-          }}
+          options={{ tabBarLabel: t('settings') }}
         />
       </Tab.Navigator>
     );
@@ -203,6 +167,11 @@ const AppNavigatorInner: React.FC = () => {
           component={PlayerScreen}
           options={{ animation: 'fade', animationDuration: 180, orientation: 'all' }}
         />
+        <Stack.Screen
+          name="Search"
+          component={SearchScreen}
+          options={{ animation: 'slide_from_right', animationDuration: 220 }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -221,10 +190,6 @@ export const AppNavigator: React.FC = () => (
 // Styles
 // =============================================================================
 const styles = StyleSheet.create({
-  tabIcon: {
-    width: 24,
-    height: 24,
-  },
   fallbackContainer: {
     flex: 1,
   },

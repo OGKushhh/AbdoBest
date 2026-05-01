@@ -47,6 +47,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   loadCategory,
+  sortByNewest,
 } from '../services/metadataService';
 import { trySyncViews } from '../services/viewService';
 import { ContentItem, TrendingItem } from '../types';
@@ -381,14 +382,16 @@ export const HomeScreen: React.FC = () => {
         const items = safeFilter(
           Object.values(data) as (ContentItem | null | undefined)[],
         );
-        categoryMap[cat] = items;
-        merged.push(...items);
+        const sorted = sortByNewest(items);
+        categoryMap[cat] = sorted;
+        merged.push(...sorted);
       });
 
       setMovies(categoryMap['movies']?.slice(0, 20) ?? []);
       setSeries(categoryMap['series']?.slice(0, 20) ?? []);
       setAnime(categoryMap['anime']?.slice(0, 20) ?? []);
       setTvshows(categoryMap['tvshows']?.slice(0, 20) ?? []);
+      // allItems already sorted newest-first from the loop above
       setAllItems(merged);
 
       lastLoadTime.current = Date.now();
@@ -427,6 +430,11 @@ export const HomeScreen: React.FC = () => {
 
   const goToCategory = useCallback(
     (cat: string) => navigation.navigate('Category', { category: cat }),
+    [navigation],
+  );
+
+  const goToSearch = useCallback(
+    () => navigation.navigate('Search' as any),
     [navigation],
   );
 

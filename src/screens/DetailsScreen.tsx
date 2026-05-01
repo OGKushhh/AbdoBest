@@ -80,6 +80,9 @@ interface SeasonData {
   season_number?: string | number;
   season_name?: string;
   episodes?: EpisodeData[];
+  image?: string;
+  poster?: string;
+  thumbnail?: string;
   [key: string]: any;
 }
 
@@ -335,8 +338,8 @@ export const DetailsScreen: React.FC = () => {
             }
           }
         }
-      } catch (err) {
-        console.log('[Details] Failed to fetch episodes:', err);
+      } catch (err: any) {
+        console.warn('[Details] Failed to fetch episodes:', err?.response?.status, err?.response?.data || err?.message);
       } finally {
         setEpisodesLoading(false);
       }
@@ -373,10 +376,11 @@ export const DetailsScreen: React.FC = () => {
           throw new Error(t('video_unavailable') || 'Video unavailable');
         }
 
-        // Record the play event — void sync function, no .catch()
-        recordPlay(item?.id || '', item?.Category || 'movies');
-
         const result = await extractVideoUrl(pageUrl);
+
+        // Record the play event AFTER successful extraction — void sync function, no .catch()
+        // Only count if we actually got a valid stream URL
+        recordPlay(item?.id || '', item?.Category || 'movies');
 
         if (rotateTimerRef.current) {
           clearInterval(rotateTimerRef.current);
@@ -410,6 +414,7 @@ export const DetailsScreen: React.FC = () => {
           title: episodeTitle,
           contentId: item?.id,
           category: item?.Category || 'movies',
+          pageUrl: pageUrl, // for cache-bust retry on expired URLs
         });
       } catch (err: any) {
         if (rotateTimerRef.current) {
@@ -437,6 +442,9 @@ export const DetailsScreen: React.FC = () => {
     };
   }, []);
 
+  // ── Series poster for season thumbnails ────────────────────────
+  const seriesPosterUrl = item?.['Image Source'] || '';
+
   // ── Episode render ──────────────────────────────────────────────────
   const renderEpisode = useCallback(
     ({ ep, index }: { item: EpisodeData; index: number }) => {
@@ -445,6 +453,7 @@ export const DetailsScreen: React.FC = () => {
       const epQuality = ep?.quality || '';
       const isSelected = selectedEpisode === ep?.source;
       const canPlay = !!ep?.source;
+      const epImage = ep?.image || '';
 
       return (
         <TouchableOpacity
@@ -454,23 +463,38 @@ export const DetailsScreen: React.FC = () => {
           activeOpacity={canPlay ? 0.7 : 1}
           disabled={!canPlay}
         >
-          {/* Episode number */}
-          <View style={S.episodeNumWrap}>
-            <Text style={S.episodeNum}>{index + 1}</Text>
-            {epQuality ? (
+          {/* Episode thumbnail or number */}
+          {epImage ? (
+            <FastImage
+              source={{ uri: epImage }}
+              style={S.epThumbnail}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          ) : (
+            <View style={S.episodeNumWrap}>
+              <Text style={S.episodeNum}>{index + 1}</Text>
+              {epQuality ? (
+                <View style={S.epQualityBadge}>
+                  <Text style={S.epQualityText}>
+                    {epQuality.split(' ')[0]}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {/* Episode title + quality */}
+          <View style={S.episodeInfo}>
+            <Text style={S.episodeTitle} numberOfLines={2}>
+              {epTitle}
+            </Text>
+            {epQuality && epImage ? (
               <View style={S.epQualityBadge}>
                 <Text style={S.epQualityText}>
                   {epQuality.split(' ')[0]}
                 </Text>
               </View>
             ) : null}
-          </View>
-
-          {/* Episode title */}
-          <View style={S.episodeInfo}>
-            <Text style={S.episodeTitle} numberOfLines={2}>
-              {epTitle}
-            </Text>
           </View>
 
           {/* Play icon or coming soon */}
@@ -496,6 +520,7 @@ export const DetailsScreen: React.FC = () => {
     ({ season, index }: { item: SeasonData; index: number }) => {
       const isExpanded = expandedSeason === index;
       const epCount = season?.episodes?.length || 0;
+      const seasonImage = season?.image || season?.poster || season?.thumbnail || '';
 
       return (
         <TouchableOpacity
@@ -504,17 +529,28 @@ export const DetailsScreen: React.FC = () => {
           onPress={() => setExpandedSeason(isExpanded ? null : index)}
           activeOpacity={0.7}
         >
-          <Image
-            source={require('../../assets/icons/tv.png')}
-            style={[
-              S.seasonIcon,
-              {
-                tintColor: isExpanded
-                  ? colors.primary
-                  : colors.textSecondary,
-              },
-            ]}
-          />
+          {/* Season poster thumbnail — season image or series fallback */}
+          {seasonImage ? (
+            <FastImage
+              source={{ uri: seasonImage }}
+              style={S.seasonPosterThumb}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          ) : seriesPosterUrl ? (
+            <FastImage
+              source={{ uri: seriesPosterUrl }}
+              style={S.seasonPosterThumb}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          ) : (
+            <View style={S.seasonPosterFallback}>
+              <Image
+                source={require('../../assets/icons/tv.png')}
+                style={{ width: 18, height: 18, tintColor: colors.textMuted }}
+              />
+            </View>
+          )}
+
           <Text style={[S.seasonTitle, isExpanded && S.seasonTitleActive]}>
             {season?.season_name ||
               `${t('season')} ${season?.season_number || index + 1}`}
@@ -537,7 +573,7 @@ export const DetailsScreen: React.FC = () => {
         </TouchableOpacity>
       );
     },
-    [expandedSeason, t, S, colors],
+    [expandedSeason, t, S, colors, seriesPosterUrl],
   );
 
   // ════════════════════════════════════════════════════════════════════
@@ -735,12 +771,7 @@ export const DetailsScreen: React.FC = () => {
             activeOpacity={0.82}
           >
             {extracting ? (
-              <>
-                <ActivityIndicator color="#fff" size="small" />
-                <Text style={S.playBtnText} numberOfLines={1}>
-                  {EXTRACT_STATUSES[statusIdx]}
-                </Text>
-              </>
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
                 <Image
@@ -810,17 +841,25 @@ export const DetailsScreen: React.FC = () => {
               )}
             </View>
 
-            {/* Empty state */}
+            {/* Empty state — episodes not loaded from backend */}
             {seasons.length === 0 && !episodesLoading ? (
               <View style={S.emptyEpisodes}>
-                <Image
-                  source={require('../../assets/icons/files.png')}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    tintColor: colors.textMuted,
-                  }}
-                />
+                {seriesPosterUrl ? (
+                  <FastImage
+                    source={{ uri: seriesPosterUrl }}
+                    style={S.emptyEpPoster}
+                    resizeMode={FastImage.resizeMode.cover}
+                  />
+                ) : (
+                  <Image
+                    source={require('../../assets/icons/files.png')}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      tintColor: colors.textMuted,
+                    }}
+                  />
+                )}
                 <Text style={S.emptyEpisodesText}>
                   {t('not_available')}
                 </Text>
@@ -869,6 +908,16 @@ export const DetailsScreen: React.FC = () => {
           ) : null;
         })()}
       </ScrollView>
+
+      {/* ─── Full-screen extracting overlay ─────────────────────── */}
+      {extracting && (
+        <View style={S.extractingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={S.extractingStatus} numberOfLines={2}>
+            {EXTRACT_STATUSES[statusIdx]}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -886,6 +935,31 @@ const createStyles = (colors: ThemeColors) =>
     },
     scrollContent: {
       paddingTop: 0,
+    },
+
+    // ── Extracting overlay (full-screen spinner) ───────────────────────
+    extractingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+    },
+    extractingCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: SPACING.xxl,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: SPACING.md,
+      minWidth: 200,
+    },
+    extractingStatus: {
+      color: colors.textSecondary,
+      ...FONTS.body,
+      textAlign: 'center',
+      marginTop: SPACING.md,
     },
 
     // ── Error state ─────────────────────────────────────────────────────
@@ -1147,6 +1221,12 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: SPACING.xxl,
       gap: SPACING.sm,
     },
+    emptyEpPoster: {
+      width: 80,
+      height: 120,
+      borderRadius: 12,
+      opacity: 0.4,
+    },
     emptyEpisodesText: {
       color: colors.textMuted,
       ...FONTS.body,
@@ -1163,7 +1243,21 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
-      gap: SPACING.sm,
+      gap: SPACING.md,
+    },
+    seasonPosterThumb: {
+      width: 44,
+      height: 62,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
+    },
+    seasonPosterFallback: {
+      width: 44,
+      height: 62,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     seasonHeaderActive: {
       backgroundColor: `${colors.primary}15`,
@@ -1213,6 +1307,12 @@ const createStyles = (colors: ThemeColors) =>
     episodeCardActive: {
       borderColor: `${colors.primary}40`,
       backgroundColor: `${colors.primary}10`,
+    },
+    epThumbnail: {
+      width: 50,
+      height: 50,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
     },
     episodeNumWrap: {
       flexDirection: 'row',

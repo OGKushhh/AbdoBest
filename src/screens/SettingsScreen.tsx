@@ -18,6 +18,7 @@ import {useTheme} from '../hooks/useTheme';
 import {useTranslation} from 'react-i18next';
 import {getSettings, saveSettings} from '../storage';
 import {syncIfNeeded, getLastSyncTime} from '../services/metadataService';
+import {clearAllMetadataCache} from '../storage/cache';
 import {checkForUpdate, openUpdateUrl} from '../services/updateService';
 import {APP_VERSION} from '../constants/endpoints';
 
@@ -334,11 +335,12 @@ export const SettingsScreen: React.FC = () => {
         style: 'destructive',
         onPress: () => {
           try {
-            // Clear any runtime caches here if needed
+            clearAllMetadataCache();
+            refreshLastSync();
             Alert.alert(t('cache_cleared'));
           } catch {
-            // Silent fail
-          }
+            Alert.alert(t('error'), t('cache_cleared_fail') || 'Failed to clear cache');
+ }
         },
       },
     ]);

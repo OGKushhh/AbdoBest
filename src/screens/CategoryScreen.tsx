@@ -43,7 +43,7 @@ import {
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ContentItem } from '../types';
-import { loadCategory } from '../services/metadataService';
+import { loadCategory, sortByNewest } from '../services/metadataService';
 import { MovieCard } from '../components/MovieCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorView } from '../components/ErrorView';
@@ -152,7 +152,7 @@ export const CategoryScreen: React.FC = () => {
 
         // Plain array response
         if (Array.isArray(data)) {
-          setItems(data);
+          setItems(sortByNewest(data));
           return;
         }
 
@@ -162,7 +162,7 @@ export const CategoryScreen: React.FC = () => {
           Object.keys(dict).forEach(id => {
             if (dict[id]) dict[id].id = id;
           });
-          setItems(Object.values(dict));
+          setItems(sortByNewest(Object.values(dict)));
         }
       } catch (e: any) {
         setError(e.message || t('error_loading') || 'Failed to load content');

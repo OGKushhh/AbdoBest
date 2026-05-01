@@ -10,6 +10,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme} from '../hooks/useTheme';
 import {FONTS} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
+import {refreshVideoUrl} from '../services/api';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
@@ -33,7 +34,9 @@ const ICON_NLP = require('../../assets/icons/nlp.png');
 export const PlayerScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const {url, title, contentId, category, qualities: paramQualities} = route.params || {};
+  const {url: initialUrl, title, contentId, category, qualities: paramQualities, pageUrl} = route.params || {};
+  const [url, setUrl] = useState(initialUrl);
+  const [reExtracting, setReExtracting] = useState(false);
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -48,6 +51,7 @@ export const PlayerScreen: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qualityList = useMemo(() => {
     if (paramQualities && paramQualities.length > 0) {
@@ -70,13 +74,17 @@ export const PlayerScreen: React.FC = () => {
     if (!url) return undefined;
     return {
       uri: url,
+      // Do NOT set type — let react-native-video auto-detect (m3u8/mp4/mpd)
+      // If bitrate is selected (not Auto), pass it so ExoPlayer/AVPlayer can
+      // pick the matching HLS variant instead of the default.
+      ...(selectedQuality.bitrate > 0 ? { bitrate: selectedQuality.bitrate } : {}),
       headers: {
         'Referer': 'https://www.fasel-hd.cam/',
         'Origin': 'https://www.fasel-hd.cam',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       },
     };
-  }, [url]);
+  }, [url, selectedQuality.bitrate]);
 
   // ─── View tracking handled in DetailsScreen before navigation ─────────
   // (avoids double-counting: DetailsScreen.recordPlay + PlayerScreen.mount)
@@ -85,6 +93,7 @@ export const PlayerScreen: React.FC = () => {
   useEffect(() => {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
     };
   }, []);
 
@@ -110,10 +119,23 @@ export const PlayerScreen: React.FC = () => {
     console.log('[Player] Load started for:', url?.substring(0, 100));
     setLoading(true);
     setBuffering(true);
+    // If video doesn't load within 25s, treat it as a timeout error
+    if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+    loadTimerRef.current = setTimeout(() => {
+      console.error('[Player] Loading timed out after 25s');
+      setLoading(false);
+      setBuffering(false);
+      setError('timeout');
+      setErrorMsg('Video failed to load. The stream URL may have expired. Please tap Retry to get a fresh link.');
+    }, 25000);
   }, [url]);
 
   const handleLoad = useCallback((meta: any) => {
     console.log('[Player] Video loaded, duration:', meta?.duration);
+    if (loadTimerRef.current) {
+      clearTimeout(loadTimerRef.current);
+      loadTimerRef.current = null;
+    }
     if (meta?.duration !== undefined) setDuration(meta.duration);
     setLoading(false);
     setBuffering(false);
@@ -169,16 +191,41 @@ export const PlayerScreen: React.FC = () => {
     setError(t('video_unavailable'));
     setBuffering(false);
     setLoading(false);
+    if (loadTimerRef.current) {
+      clearTimeout(loadTimerRef.current);
+      loadTimerRef.current = null;
+    }
   }, [t, url]);
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = useCallback(async () => {
     setError(null);
     setErrorMsg('');
     setBuffering(true);
     setLoading(true);
+
+    // If we have pageUrl, try cache-bust re-extraction first
+    if (pageUrl) {
+      setReExtracting(true);
+      try {
+        const fresh = await refreshVideoUrl(pageUrl);
+        if (fresh.video_url && fresh.video_url !== url) {
+          console.log('[Player] Re-extracted fresh URL:', url?.substring(0, 60), '->', fresh.video_url.substring(0, 60));
+          setUrl(fresh.video_url);
+          setPlaying(false);
+          setTimeout(() => setPlaying(true), 100);
+          setReExtracting(false);
+          return;
+        }
+      } catch (err: any) {
+        console.warn('[Player] Re-extraction failed:', err?.message);
+      }
+      setReExtracting(false);
+    }
+
+    // Fallback: just restart same URL
     setPlaying(false);
     setTimeout(() => setPlaying(true), 100);
-  }, []);
+  }, [url, pageUrl]);
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   const formatTime = (seconds: number) => {
@@ -225,28 +272,32 @@ export const PlayerScreen: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (error || reExtracting) {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
         <View style={styles.errorCard}>
           <Image source={ICON_NLP} style={styles.errorIcon} />
           <Text style={[styles.errorTitle, FONTS.heading3]}>
-            {error === 'timeout' ? 'Playback Timeout' : error}
+            {reExtracting ? 'Re-extracting stream...' : error === 'timeout' ? 'Playback Timeout' : error}
           </Text>
-          {errorMsg ? (
+          {reExtracting ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 16}} />
+          ) : errorMsg ? (
             <Text style={[styles.errorSub, FONTS.bodySmall]} numberOfLines={5}>
               {errorMsg}
             </Text>
           ) : null}
-          <View style={styles.errorActions}>
-            <TouchableOpacity style={styles.errorButtonPrimary} onPress={handleRetry}>
-              <Text style={[styles.errorButtonLabel, FONTS.bodyLarge]}>Retry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.errorButtonSecondary} onPress={() => navigation.goBack()}>
-              <Text style={[styles.errorButtonLabelSecondary, FONTS.bodyLarge]}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
+          {!reExtracting && (
+            <View style={styles.errorActions}>
+              <TouchableOpacity style={styles.errorButtonPrimary} onPress={handleRetry}>
+                <Text style={[styles.errorButtonLabel, FONTS.bodyLarge]}>Retry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.errorButtonSecondary} onPress={() => navigation.goBack()}>
+                <Text style={[styles.errorButtonLabelSecondary, FONTS.bodyLarge]}>Go Back</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -260,9 +311,10 @@ export const PlayerScreen: React.FC = () => {
       <StatusBar hidden />
 
       {/* ── Video — TouchableWithoutFeedback (NOT TouchableOpacity) ───── */}
-      <TouchableWithoutFeedback onPress={toggleControls} style={StyleSheet.absoluteFill}>
+      <TouchableWithoutFeedback onPress={toggleControls}>
         <View style={styles.videoContainer}>
           <Video
+            key={url}
             ref={videoRef}
             source={videoSource}
             resizeMode="contain"
