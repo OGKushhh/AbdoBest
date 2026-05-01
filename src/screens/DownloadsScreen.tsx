@@ -62,7 +62,7 @@ export const DownloadsScreen: React.FC = () => {
       }}
     >
       <FastImage
-        source={item.imageUrl ? {uri: item.imageUrl} : require('../../assets/placeholder.png')}
+        source={item.imageUrl ? {uri: item.imageUrl} : undefined}
         style={styles.thumb}
         resizeMode={FastImage.resizeMode.cover}
         fallback

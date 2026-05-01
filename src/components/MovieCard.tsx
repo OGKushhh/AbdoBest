@@ -84,12 +84,18 @@ const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CA
       activeOpacity={0.78}
     >
       <View style={styles.imageWrap}>
-        <FastImage
-          source={imageUri ? {uri: imageUri, priority: FastImage.priority.normal} : require('../../assets/placeholder.png')}
-          style={{width, height: h, borderRadius: 11}}
-          resizeMode={FastImage.resizeMode.cover}
-          fallback
-        />
+        {imageUri ? (
+          <FastImage
+            source={{uri: imageUri, priority: FastImage.priority.normal}}
+            style={{width, height: h, borderRadius: 11}}
+            resizeMode={FastImage.resizeMode.cover}
+            fallback
+          />
+        ) : (
+          <View style={[styles.placeholderImg, {width, height: h}]}>
+            <Text style={styles.placeholderText}>?</Text>
+          </View>
+        )}
 
         {/* ── TOP-LEFT: Rating + Views ── */}
         {(rating || views) ? (
@@ -167,6 +173,18 @@ const styles = StyleSheet.create({
   },
   imageWrap: {
     position: 'relative',
+  },
+  placeholderImg: {
+    borderRadius: 11,
+    backgroundColor: Colors.dark.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: Colors.dark.textMuted,
+    fontSize: 32,
+    fontWeight: '700',
+    fontFamily: 'Rubik',
   },
   scrim: {
     position: 'absolute',
