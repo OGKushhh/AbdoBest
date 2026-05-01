@@ -52,8 +52,6 @@ export const PlayerScreen: React.FC = () => {
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const hideTimer = useRef<any>(null);
   const viewTracked = useRef(false);
-  const loadTimeout = useRef<any>(null);
-  const videoReady = useRef(false);
 
   // Build source — NO type prop!
   // react-native-video v5 uses type:'m3u8', v6 uses type:'hls'.
@@ -82,25 +80,8 @@ export const PlayerScreen: React.FC = () => {
   useEffect(() => {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      if (loadTimeout.current) clearTimeout(loadTimeout.current);
     };
   }, []);
-
-  // Safety timeout: if video hasn't rendered in 20s, show actionable error
-  useEffect(() => {
-    if (!url || error) return;
-    loadTimeout.current = setTimeout(() => {
-      if (!videoReady.current) {
-        setErrorMsg('Video took too long to load. Check your connection and try again.');
-        setBuffering(false);
-        setLoading(false);
-        setError('timeout');
-      }
-    }, 20000);
-    return () => {
-      if (loadTimeout.current) clearTimeout(loadTimeout.current);
-    };
-  }, [url, error]);
 
   const triggerHideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -132,11 +113,10 @@ export const PlayerScreen: React.FC = () => {
     triggerHideControls();
   }, [triggerHideControls]);
 
+  // onReadyForDisplay: v6-only callback (silently ignored in v5.2.1).
+  // Kept for forward-compatibility — will fire when upgrading to v6.
   const handleReadyForDisplay = useCallback(() => {
     console.log('[Player] Video surface ready for display');
-    videoReady.current = true;
-    setLoading(false);
-    setBuffering(false);
   }, []);
 
   const handleBuffer = useCallback((data: any) => {
@@ -179,7 +159,6 @@ export const PlayerScreen: React.FC = () => {
     setErrorMsg('');
     setBuffering(true);
     setLoading(true);
-    videoReady.current = false;
     setPlaying(false);
     setTimeout(() => setPlaying(true), 100);
   }, []);
@@ -259,7 +238,8 @@ export const PlayerScreen: React.FC = () => {
             onProgress={handleProgress}
             onLoadStart={handleLoadStart}
             onLoad={handleLoad}
-            onReadyForDisplay={handleReadyForDisplay}
+            // onReadyForDisplay: v6-only, safely ignored in v5.2.1
+            {...(Platform.OS === 'ios' ? {onReadyForDisplay: handleReadyForDisplay} : {})}
             onBuffer={handleBuffer}
             onEnd={handleEnd}
             onError={handleError}
