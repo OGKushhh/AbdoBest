@@ -69,5 +69,6 @@ export const saveDownloadState = (downloads: any[]) => {
  */
 export const getDownloadState = (): any[] => {
   const raw = storage.getString(storageKeys.DOWNLOADS_LIST);
-  return raw ? JSON.parse(raw) : [];
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
 };

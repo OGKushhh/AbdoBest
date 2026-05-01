@@ -33,7 +33,7 @@ export const loadCategory = async (
 ): Promise<ContentDict | TrendingContent | null> => {
   // 1. Return fresh cache unless forced
   if (!forceRefresh) {
-    const fresh = getMetadataIfFresh(category);
+    const fresh = await getMetadataIfFresh(category);
     if (fresh !== null) return fresh;
   }
 
@@ -130,6 +130,8 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
 
   for (const data of dicts) {
     if (!data || typeof data !== 'object') continue;
+    // Skip TrendingContent shape (has .movies, .episodes arrays) — not a flat ContentItem dict
+    if ((data as any).movies && !data.Title) continue;
     const items = Object.values(data) as ContentItem[];
     const matches = items.filter(item => {
       const titleMatch = item.Title?.toLowerCase().includes(lowerQuery);

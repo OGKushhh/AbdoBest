@@ -8,11 +8,13 @@ import Video from 'react-native-video';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Colors} from '../theme/colors';
+import {FONTS} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
 import {recordPlay} from '../services/viewService';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
+// ─── HLS Quality Presets ─────────────────────────────────────────────────────
 const HLS_QUALITIES = [
   {label: 'Auto',  bitrate: 0},
   {label: '1080p', bitrate: 8000000},
@@ -21,6 +23,14 @@ const HLS_QUALITIES = [
   {label: '360p',  bitrate: 800000},
 ];
 
+// ─── Icon helpers ────────────────────────────────────────────────────────────
+const ICON_BACK = require('../../assets/icons/arrow.png');
+const ICON_CLAPBOARD = require('../../assets/icons/clapboard.png');
+const ICON_NLP = require('../../assets/icons/nlp.png');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PlayerScreen
+// ═══════════════════════════════════════════════════════════════════════════════
 export const PlayerScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -53,10 +63,9 @@ export const PlayerScreen: React.FC = () => {
   const hideTimer = useRef<any>(null);
   const viewTracked = useRef(false);
 
-  // Build source — NO type prop!
-  // react-native-video v5 uses type:'m3u8', v6 uses type:'hls'.
-  // Omitting type entirely lets the library auto-detect (works for BOTH versions).
-  // CRITICAL: The CDN (scdns.io) requires Referer + Origin headers or it returns 403.
+  // ─── Video Source ────────────────────────────────────────────────────────
+  // NO `type` prop — lets react-native-video auto-detect (v5=m3u8, v6=hls).
+  // CRITICAL: CDN (scdns.io) requires Referer + Origin headers or returns 403.
   const videoSource = useMemo(() => {
     if (!url) return undefined;
     return {
@@ -68,7 +77,7 @@ export const PlayerScreen: React.FC = () => {
     };
   }, [url]);
 
-  // Track view
+  // ─── Track view (void sync — call with NO .catch()) ─────────────────────
   useEffect(() => {
     if (contentId && category && !viewTracked.current) {
       viewTracked.current = true;
@@ -76,13 +85,14 @@ export const PlayerScreen: React.FC = () => {
     }
   }, [contentId, category]);
 
-  // Cleanup
+  // ─── Cleanup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, []);
 
+  // ─── Controls auto-hide ──────────────────────────────────────────────────
   const triggerHideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setShowControls(false), 4000);
@@ -95,6 +105,7 @@ export const PlayerScreen: React.FC = () => {
     });
   }, [triggerHideControls]);
 
+  // ─── Video event handlers ────────────────────────────────────────────────
   const handleProgress = useCallback((data: any) => {
     if (data?.currentTime !== undefined) setCurrentTime(data.currentTime);
   }, []);
@@ -114,7 +125,7 @@ export const PlayerScreen: React.FC = () => {
   }, [triggerHideControls]);
 
   // onReadyForDisplay: v6-only callback (silently ignored in v5.2.1).
-  // Kept for forward-compatibility — will fire when upgrading to v6.
+  // Only applied on iOS to avoid potential Android quirks.
   const handleReadyForDisplay = useCallback(() => {
     console.log('[Player] Video surface ready for display');
   }, []);
@@ -129,9 +140,8 @@ export const PlayerScreen: React.FC = () => {
     setShowControls(true);
   }, []);
 
+  // ─── Error handler — check multiple paths, never show [object Object] ──
   const handleError = useCallback((err: any) => {
-    // ExoPlayer (Android) error structures vary across react-native-video versions.
-    // Must check multiple paths to avoid showing "[object Object]".
     let errStr = '';
     const e = err?.error ?? err;
     if (typeof e === 'string') {
@@ -163,6 +173,7 @@ export const PlayerScreen: React.FC = () => {
     setTimeout(() => setPlaying(true), 100);
   }, []);
 
+  // ─── Helpers ─────────────────────────────────────────────────────────────
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -188,17 +199,21 @@ export const PlayerScreen: React.FC = () => {
     triggerHideControls();
   };
 
-  // ── Error / No URL states ──
+  // ════════════════════════════════════════════════════════════════════════
+  // ─── ERROR / NO-URL STATES ──────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
   if (!url) {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
-        <Image source={require('../../assets/icons/nlp.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
-        <Text style={styles.errorText}>{t('video_unavailable')}</Text>
-        <Text style={styles.errorSub}>No URL provided</Text>
-        <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.errorButtonText}>{t('retry')}</Text>
-        </TouchableOpacity>
+        <View style={styles.errorCard}>
+          <Image source={ICON_NLP} style={styles.errorIcon} />
+          <Text style={[styles.errorTitle, FONTS.heading3]}>{t('video_unavailable')}</Text>
+          <Text style={[styles.errorSub, FONTS.bodySmall]}>No URL provided</Text>
+          <TouchableOpacity style={styles.errorButtonPrimary} onPress={() => navigation.goBack()}>
+            <Text style={[styles.errorButtonLabel, FONTS.bodyLarge]}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -207,28 +222,37 @@ export const PlayerScreen: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
-        <Image source={require('../../assets/icons/nlp.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
-        <Text style={styles.errorText}>{error === 'timeout' ? 'Playback Timeout' : error}</Text>
-        {errorMsg ? <Text style={styles.errorSub} numberOfLines={5}>{errorMsg}</Text> : null}
-        <View style={styles.errorActions}>
-          <TouchableOpacity style={styles.errorButton} onPress={handleRetry}>
-            <Text style={styles.errorButtonText}>Retry</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.errorButton, {backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border}]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.errorButtonText, {color: Colors.dark.text}]}>Go Back</Text>
-          </TouchableOpacity>
+        <View style={styles.errorCard}>
+          <Image source={ICON_NLP} style={styles.errorIcon} />
+          <Text style={[styles.errorTitle, FONTS.heading3]}>
+            {error === 'timeout' ? 'Playback Timeout' : error}
+          </Text>
+          {errorMsg ? (
+            <Text style={[styles.errorSub, FONTS.bodySmall]} numberOfLines={5}>
+              {errorMsg}
+            </Text>
+          ) : null}
+          <View style={styles.errorActions}>
+            <TouchableOpacity style={styles.errorButtonPrimary} onPress={handleRetry}>
+              <Text style={[styles.errorButtonLabel, FONTS.bodyLarge]}>Retry</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.errorButtonSecondary} onPress={() => navigation.goBack()}>
+              <Text style={[styles.errorButtonLabelSecondary, FONTS.bodyLarge]}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
   }
 
-  // ── Main player ──
+  // ════════════════════════════════════════════════════════════════════════
+  // ─── MAIN PLAYER ────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
   return (
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* TouchableWithoutFeedback wraps ONLY the video — no visual overlay.
-          The gesture responder system prevents double-firing with control buttons above. */}
+      {/* ── Video — TouchableWithoutFeedback (NOT TouchableOpacity) ───── */}
       <TouchableWithoutFeedback onPress={toggleControls} style={StyleSheet.absoluteFill}>
         <View style={styles.videoContainer}>
           <Video
@@ -238,7 +262,7 @@ export const PlayerScreen: React.FC = () => {
             onProgress={handleProgress}
             onLoadStart={handleLoadStart}
             onLoad={handleLoad}
-            // onReadyForDisplay: v6-only, safely ignored in v5.2.1
+            // onReadyForDisplay: v6-only, safely ignored in v5.2.1 — iOS only
             {...(Platform.OS === 'ios' ? {onReadyForDisplay: handleReadyForDisplay} : {})}
             onBuffer={handleBuffer}
             onEnd={handleEnd}
@@ -249,6 +273,7 @@ export const PlayerScreen: React.FC = () => {
             style={styles.video}
             repeat={false}
             controls={false}
+            // bufferConfig: Android only (crashes / ignored on iOS)
             bufferConfig={
               Platform.OS === 'android'
                 ? {
@@ -263,86 +288,118 @@ export const PlayerScreen: React.FC = () => {
         </View>
       </TouchableWithoutFeedback>
 
-      {/* Buffering — rendered OUTSIDE the touchable so it doesn't interfere */}
+      {/* ── Buffering overlay — blurred dark scrim ────────────────────── */}
       {(buffering || loading) && (
         <View style={styles.bufferingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color={Colors.dark.primary} />
-          <Text style={styles.bufferingText}>{loading ? 'Connecting...' : 'Buffering...'}</Text>
+          <View style={styles.bufferingSpinnerRing}>
+            <ActivityIndicator size="large" color={Colors.dark.primary} />
+          </View>
+          <Text style={[styles.bufferingLabel, FONTS.caption]}>
+            {loading ? 'Connecting...' : 'Buffering...'}
+          </Text>
         </View>
       )}
 
-      {/* Controls overlay — pointerEvents="box-none" lets taps on empty areas
-          fall through to the TouchableWithoutFeedback below for toggle. */}
+      {/* ── Controls overlay — pointerEvents="box-none" for pass-through ─ */}
       {showControls && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* Top bar */}
-          <View style={[styles.topControls, {paddingTop: insets.top + 4}]}>
-            <TouchableOpacity style={styles.topButton} onPress={() => navigation.goBack()}>
-              <Image source={require('../../assets/icons/arrow.png')} style={{width: 26, height: 26, tintColor: '#fff'}} />
-            </TouchableOpacity>
-            <Text style={styles.titleText} numberOfLines={1}>{title}</Text>
-            <TouchableOpacity
-              style={styles.qualityButton}
-              onPress={() => {
-                setShowQualityPicker(true);
-                if (hideTimer.current) clearTimeout(hideTimer.current);
-              }}
-            >
-              <Text style={styles.qualityButtonText}>{selectedQuality.label}</Text>
-              <Image source={require('../../assets/icons/arrow.png')} style={{width: 14, height: 14, tintColor: '#00E5FF', transform: [{rotate: '90deg'}]}} />
-            </TouchableOpacity>
+
+          {/* ──── Top Bar ──────────────────────────────────────────────── */}
+          <View style={[styles.topGradient, {paddingTop: insets.top + 4}]}>
+            <View style={styles.topRow}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.7}
+              >
+                <Image source={ICON_BACK} style={styles.iconBack} />
+              </TouchableOpacity>
+
+              <View style={styles.titleContainer}>
+                <Image source={ICON_CLAPBOARD} style={styles.iconClapboard} />
+                <Text style={[styles.titleText, FONTS.bodySmall]} numberOfLines={1}>
+                  {title || 'Now Playing'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.qualityChip}
+                onPress={() => {
+                  setShowQualityPicker(true);
+                  if (hideTimer.current) clearTimeout(hideTimer.current);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.qualityChipLabel}>{selectedQuality.label}</Text>
+                <Text style={styles.qualityChipArrow}>{'\u25BC'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Bottom controls */}
-          <View style={[styles.bottomControls, {paddingBottom: insets.bottom + 16}]}>
+          {/* ──── Bottom Controls (glassmorphism) ─────────────────────── */}
+          <View style={[styles.bottomGlass, {paddingBottom: insets.bottom + 16}]}>
+            {/* Seek bar */}
             <TouchableOpacity
-              style={styles.seekBarContainer}
+              style={styles.seekBarTouchArea}
               onPress={handleSeekBarPress}
-              activeOpacity={0.9}
+              activeOpacity={1}
             >
               <View style={styles.seekBarTrack}>
-                <View style={[styles.seekBarProgress, {width: `${progress * 100}%`}]}>
+                <View style={[styles.seekBarFilled, {width: `${Math.min(progress, 1) * 100}%`}]}>
                   <View style={styles.seekBarThumb} />
                 </View>
               </View>
             </TouchableOpacity>
 
+            {/* Time row */}
             <View style={styles.timeRow}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              <Text style={[styles.timeText, FONTS.mono]}>{formatTime(currentTime)}</Text>
+              <Text style={[styles.timeText, FONTS.mono]}>{formatTime(duration)}</Text>
             </View>
 
+            {/* Playback row */}
             <View style={styles.playbackRow}>
+              {/* Rewind 10s */}
               <TouchableOpacity
                 style={styles.skipButton}
                 onPress={() => videoRef.current?.seek(Math.max(currentTime - 10, 0))}
+                activeOpacity={0.7}
               >
-                <Image source={require('../../assets/icons/arrow.png')} style={{width: 24, height: 24, tintColor: '#fff', transform: [{scaleX: -1}]}} />
-                <Text style={styles.skipLabel}>10</Text>
+                <Image source={ICON_BACK} style={styles.iconRewind} />
+                <Text style={[styles.skipLabel, FONTS.micro]}>10</Text>
               </TouchableOpacity>
 
+              {/* Play / Pause */}
               <TouchableOpacity
                 style={styles.playPauseButton}
                 onPress={() => { setPlaying(!playing); triggerHideControls(); }}
+                activeOpacity={0.8}
               >
-                <Text style={{color: '#fff', fontSize: 30, textAlign: 'center', lineHeight: 34}}>
+                <Text style={styles.playPauseGlyph}>
                   {playing ? '\u275A\u275A' : '\u25B6'}
                 </Text>
               </TouchableOpacity>
 
+              {/* Forward 10s */}
               <TouchableOpacity
                 style={styles.skipButton}
                 onPress={() => videoRef.current?.seek(Math.min(currentTime + 10, duration))}
+                activeOpacity={0.7}
               >
-                <Image source={require('../../assets/icons/arrow.png')} style={{width: 24, height: 24, tintColor: '#fff'}} />
-                <Text style={styles.skipLabel}>10</Text>
+                <Image source={ICON_BACK} style={styles.iconForward} />
+                <Text style={[styles.skipLabel, FONTS.micro]}>10</Text>
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* ──── Tap-away deadzone (prevents immediate hide on control tap) ── */}
+          <TouchableWithoutFeedback onPress={toggleControls}>
+            <View style={styles.tapDeadzone} />
+          </TouchableWithoutFeedback>
         </View>
       )}
 
-      {/* Quality Picker Modal */}
+      {/* ─── Quality Picker Modal (glassmorphism) ─────────────────────────── */}
       <Modal
         visible={showQualityPicker}
         transparent
@@ -354,30 +411,34 @@ export const PlayerScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setShowQualityPicker(false)}
         >
-          <View style={styles.qualityModal}>
-            <Text style={styles.qualityModalTitle}>{t('select_quality')}</Text>
-            {qualityList.map((q: any) => (
-              <TouchableOpacity
-                key={q.label}
-                style={[
-                  styles.qualityOption,
-                  selectedQuality.label === q.label && styles.qualityOptionActive,
-                ]}
-                onPress={() => handleQualitySelect(q)}
-              >
-                <Text
-                  style={[
-                    styles.qualityOptionText,
-                    selectedQuality.label === q.label && styles.qualityOptionTextActive,
-                  ]}
+          <View style={styles.qualityGlassCard}>
+            <Text style={[styles.qualityModalTitle, FONTS.heading3]}>
+              {t('select_quality')}
+            </Text>
+            {qualityList.map((q: any) => {
+              const isActive = selectedQuality.label === q.label;
+              return (
+                <TouchableOpacity
+                  key={q.label}
+                  style={[styles.qualityOption, isActive && styles.qualityOptionActive]}
+                  onPress={() => handleQualitySelect(q)}
+                  activeOpacity={0.7}
                 >
-                  {q.label}
-                </Text>
-                {selectedQuality.label === q.label && (
-                  <Text style={{color: Colors.dark.primary, fontSize: 16, fontWeight: '700'}}>{'\u2713'}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.qualityOptionText,
+                      isActive && styles.qualityOptionTextActive,
+                      FONTS.bodyLarge,
+                    ]}
+                  >
+                    {q.label}
+                  </Text>
+                  {isActive && (
+                    <Text style={styles.qualityCheckmark}>{'\u2713'}</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -385,11 +446,17 @@ export const PlayerScreen: React.FC = () => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Styles
+// ═══════════════════════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
+  // ─── Container ────────────────────────────────────────────────────────
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
+
+  // ─── Video ────────────────────────────────────────────────────────────
   videoContainer: {
     position: 'absolute',
     top: 0,
@@ -406,220 +473,325 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
     backgroundColor: '#000',
   },
+
+  // ─── Buffering overlay ────────────────────────────────────────────────
   bufferingOverlay: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  bufferingText: {
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 10,
-    fontSize: 14,
-    fontFamily: 'Rubik',
-  },
-  topControls: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
+    bottom: 0,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  topButton: {
-    width: 40,
-    height: 40,
+  bufferingSpinnerRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  titleText: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginHorizontal: 8,
-    fontFamily: 'Rubik',
+  bufferingLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 14,
   },
-  qualityButton: {
+
+  // ─── Top controls (semi-transparent gradient) ────────────────────────
+  topGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingBottom: 14,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#00E5FF50',
-    gap: 4,
   },
-  qualityButtonText: {
-    color: '#00E5FF',
-    fontSize: 13,
+  iconButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  iconBack: {
+    width: 22,
+    height: 22,
+    tintColor: '#FFFFFF',
+    resizeMode: 'contain',
+  },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 10,
+    overflow: 'hidden',
+  },
+  iconClapboard: {
+    width: 16,
+    height: 16,
+    tintColor: 'rgba(255,255,255,0.6)',
+    resizeMode: 'contain',
+    marginRight: 6,
+  },
+  titleText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  qualityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(229,57,53,0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(229,57,53,0.5)',
+    gap: 5,
+  },
+  qualityChipLabel: {
+    color: '#FF5252',
+    fontSize: 12,
     fontWeight: '700',
     fontFamily: 'Rubik',
   },
-  bottomControls: {
+  qualityChipArrow: {
+    color: '#FF5252',
+    fontSize: 8,
+  },
+
+  // ─── Bottom controls (glassmorphism) ─────────────────────────────────
+  bottomGlass: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingTop: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
-  seekBarContainer: {
+
+  // ─── Seek bar ────────────────────────────────────────────────────────
+  seekBarTouchArea: {
     width: '100%',
-    height: 28,
+    height: 32,
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   seekBarTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 3,
     overflow: 'hidden',
   },
-  seekBarProgress: {
+  seekBarFilled: {
     height: '100%',
     backgroundColor: Colors.dark.primary,
-    borderRadius: 2,
+    borderRadius: 3,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   seekBarThumb: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#fff',
-    marginRight: -7,
-    shadowColor: Colors.dark.primary,
-    shadowRadius: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    marginRight: -8,
+    shadowColor: '#E53935',
+    shadowOffset: {width: 0, height: 0},
+    shadowRadius: 6,
     shadowOpacity: 0.8,
-    elevation: 4,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#E53935',
   },
+
+  // ─── Time row ────────────────────────────────────────────────────────
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   timeText: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    fontFamily: 'Rubik',
+    color: 'rgba(255,255,255,0.7)',
   },
+
+  // ─── Playback row ────────────────────────────────────────────────────
   playbackRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 28,
+    gap: 36,
   },
   skipButton: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: 48,
+    height: 48,
+  },
+  iconRewind: {
+    width: 22,
+    height: 22,
+    tintColor: '#FFFFFF',
+    resizeMode: 'contain',
+    transform: [{scaleX: -1}],
+  },
+  iconForward: {
+    width: 22,
+    height: 22,
+    tintColor: '#FFFFFF',
+    resizeMode: 'contain',
   },
   skipLabel: {
-    color: '#fff',
-    fontSize: 10,
-    marginTop: -2,
-    fontFamily: 'Rubik',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   playPauseButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(229,9,20,0.9)',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: Colors.dark.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.dark.primary,
-    shadowRadius: 8,
-    shadowOpacity: 0.6,
-    elevation: 8,
+    ...Colors.dark.shadowGlow,
   },
+  playPauseGlyph: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+
+  // ─── Tap deadzone ────────────────────────────────────────────────────
+  tapDeadzone: {
+    position: 'absolute',
+    top: 90,
+    left: 0,
+    right: 0,
+    bottom: 140,
+  },
+
+  // ─── Quality picker modal (glassmorphism) ────────────────────────────
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qualityModal: {
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 20,
-    width: 240,
+  qualityGlassCard: {
+    width: 260,
+    borderRadius: 20,
+    padding: 6,
+    backgroundColor: 'rgba(20,24,32,0.92)',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
   },
   qualityModalTitle: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-    marginBottom: 14,
+    color: '#FFFFFF',
     textAlign: 'center',
+    paddingVertical: 16,
   },
   qualityOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginBottom: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    marginHorizontal: 4,
+    marginVertical: 2,
   },
   qualityOptionActive: {
-    backgroundColor: `${Colors.dark.primary}20`,
+    backgroundColor: 'rgba(229,57,53,0.15)',
     borderWidth: 1,
-    borderColor: `${Colors.dark.primary}60`,
+    borderColor: 'rgba(229,57,53,0.4)',
   },
   qualityOptionText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 15,
-    fontFamily: 'Rubik',
+    color: 'rgba(255,255,255,0.6)',
   },
   qualityOptionTextActive: {
-    color: Colors.dark.primary,
+    color: '#FF5252',
     fontWeight: '700',
   },
+  qualityCheckmark: {
+    color: '#FF5252',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // ─── Error / No-URL screen ───────────────────────────────────────────
   errorContainer: {
     flex: 1,
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
     padding: 32,
   },
-  errorText: {
-    color: '#fff',
-    fontSize: 16,
+  errorCard: {
+    backgroundColor: 'rgba(20,24,32,0.95)',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  errorIcon: {
+    width: 56,
+    height: 56,
+    tintColor: Colors.dark.error,
+    resizeMode: 'contain',
+    marginBottom: 8,
+  },
+  errorTitle: {
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginTop: 16,
-    fontFamily: 'Rubik',
   },
   errorSub: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
-    marginTop: 8,
-    fontFamily: 'Rubik',
-    marginHorizontal: 20,
+    marginTop: 6,
+    marginHorizontal: 12,
   },
   errorActions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 22,
+    marginTop: 24,
   },
-  errorButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 12,
+  errorButtonPrimary: {
+    flex: 1,
+    paddingVertical: 14,
     backgroundColor: Colors.dark.primary,
-    borderRadius: 10,
+    borderRadius: 14,
+    alignItems: 'center',
+    ...Colors.dark.shadowGlow,
   },
-  errorButtonText: {
-    color: '#fff',
-    fontSize: 15,
+  errorButtonLabel: {
+    color: '#FFFFFF',
     fontWeight: '700',
-    fontFamily: 'Rubik',
+  },
+  errorButtonSecondary: {
+    flex: 1,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  errorButtonLabelSecondary: {
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '700',
   },
 });

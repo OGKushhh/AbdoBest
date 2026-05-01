@@ -1,52 +1,55 @@
 import React from 'react';
-import {View, Text, StyleSheet} from 'react-native';
-import {Typography} from '../theme/typography';
+import { View, Text, StyleSheet } from 'react-native';
+import { BadgeColors, BadgeVariant } from '../theme/colors';
+import { FONTS } from '../theme/typography';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 interface QualityBadgeProps {
-  quality: string;
-  size?: 'small' | 'normal';
-  variant?: 'default' | 'category';
+  /** Label displayed inside the badge */
+  label: string;
+  /** Colour variant – maps to BadgeColors from the theme */
+  variant?: BadgeVariant;
 }
 
-export const QualityBadge: React.FC<QualityBadgeProps> = ({quality, size = 'normal', variant = 'default'}) => {
-  const isHD = quality.includes('1080');
-  const isSD = quality.includes('480') || quality.includes('360');
-
-  const getBadgeColor = () => {
-    if (variant === 'category') return '#FFD700';
-    if (isHD) return '#FFD700';
-    if (isSD) return '#888';
-    return '#00E5FF';
-  };
-
-  const getTextColor = () => {
-    if (variant === 'category') return '#000';
-    return '#000';
-  };
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+export const QualityBadge: React.FC<QualityBadgeProps> = ({
+  label,
+  variant = 'quality',
+}) => {
+  // Guard against unknown variant
+  const colors = BadgeColors[variant] ?? BadgeColors.quality;
 
   return (
-    <View style={[styles.badge, {backgroundColor: getBadgeColor()}, size === 'small' && styles.badgeSmall]}>
-      <Text style={[styles.text, {color: getTextColor()}, size === 'small' && styles.textSmall]}>{quality.split(' ')[0]}</Text>
+    <View style={[styles.badge, { backgroundColor: colors.backgroundColor }]}>
+      <Text
+        style={[
+          styles.text,
+          FONTS.caption,
+          { color: colors.color },
+        ]}
+        numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 };
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 4,
-    marginRight: 6,
-  },
-  badgeSmall: {
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+    alignSelf: 'flex-start',
   },
   text: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.bold as any,
-  },
-  textSmall: {
-    fontSize: Typography.sizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

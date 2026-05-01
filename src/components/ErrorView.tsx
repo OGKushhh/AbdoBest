@@ -1,53 +1,148 @@
 import React from 'react';
-import {View, Text, TouchableOpacity, StyleSheet, Image} from 'react-native';
-import {Colors} from '../theme/colors';
-import {Typography} from '../theme/typography';
-import {useTranslation} from 'react-i18next';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  SafeAreaView,
+} from 'react-native';
+import { Colors, RADIUS, SPACING } from '../theme/colors';
+import { FONTS } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 interface ErrorViewProps {
-  message?: string;
+  /** Primary error heading – displayed in heading3 */
+  errorText?: string;
+  /** Optional subtitle for additional context – displayed in bodySmall */
+  subtitle?: string;
+  /** Optional retry callback – shows the red Retry button when provided */
   onRetry?: () => void;
+  /** Optional "Go Back" callback – shows the secondary Go Back button */
+  onGoBack?: () => void;
 }
 
-export const ErrorView: React.FC<ErrorViewProps> = ({message, onRetry}) => {
-  const {t} = useTranslation();
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+export const ErrorView: React.FC<ErrorViewProps> = ({
+  errorText,
+  subtitle,
+  onRetry,
+  onGoBack,
+}) => {
+  const { t } = useTranslation();
+
   return (
-    <View style={styles.container}>
-      <Image source={require('../../assets/icons/nlp.png')} style={{width: 64, height: 64, tintColor: Colors.dark.textMuted}} />
-      <Text style={styles.message}>{message || t('error_loading')}</Text>
-      {onRetry && (
-        <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-          <Text style={styles.retryText}>{t('retry')}</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Error icon */}
+        <Image
+          source={require('../../assets/icons/nlp.png')}
+          style={[styles.icon, { tintColor: Colors.dark.error }]}
+        />
+
+        {/* Title */}
+        <Text style={[styles.title, FONTS.heading3]}>
+          {errorText ?? t('error_loading')}
+        </Text>
+
+        {/* Optional subtitle */}
+        {subtitle ? (
+          <Text style={[styles.subtitle, FONTS.bodySmall]}>{subtitle}</Text>
+        ) : null}
+
+        {/* Action buttons */}
+        {onRetry ? (
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={onRetry}
+            activeOpacity={0.8}
+            accessibilityLabel={t('retry')}
+            accessibilityRole="button">
+            <Text style={[styles.retryText, FONTS.bodyLarge]}>
+              {t('retry')}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {onGoBack ? (
+          <TouchableOpacity
+            style={styles.goBackButton}
+            onPress={onGoBack}
+            activeOpacity={0.7}
+            accessibilityLabel={t('go_back')}
+            accessibilityRole="button">
+            <Text style={[styles.goBackText, FONTS.body]}>
+              {t('go_back')}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </SafeAreaView>
   );
 };
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.dark.background,
-    padding: 32,
+    paddingHorizontal: SPACING.xl,
   },
-  message: {
-    color: Colors.dark.textSecondary,
-    fontSize: Typography.sizes.lg,
+  icon: {
+    width: 56,
+    height: 56,
+    resizeMode: 'contain',
+    marginBottom: SPACING.lg,
+  },
+  title: {
+    color: Colors.dark.text,
     textAlign: 'center',
-    marginTop: 16,
+  },
+  subtitle: {
+    color: Colors.dark.textMuted,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
   },
   retryButton: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    marginTop: SPACING.xl,
     backgroundColor: Colors.dark.primary,
-    borderRadius: 8,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.xxl,
+    paddingVertical: SPACING.md,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Colors.dark.shadowSm,
   },
   retryText: {
-    color: '#fff',
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semibold,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  goBackButton: {
+    marginTop: SPACING.md,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    paddingHorizontal: SPACING.xxl,
+    paddingVertical: SPACING.md,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goBackText: {
+    color: Colors.dark.textSecondary,
   },
 });

@@ -1,294 +1,322 @@
 /**
- * MovieCard — outside thumbnail view
+ * MovieCard — Netflix/Disney+ inspired poster card
  *
- * Badges top-right:
- *   1. Quality  (full Format string, white text, dark bg)
- *   2. Category label  (Movie / Anime / Series / Dubbed / etc, orange bg)
- *   3. Seasons count   (episodic content only)
- *   4. Episodes count  (anime only)
+ * Layout:
+ *   ┌─────────────────────┐
+ *   │                     │
+ *   │     Poster Image    │
+ *   │   (2:3 ratio)       │
+ *   │                     │
+ *   │ ┌─────┐      ┌────┐│
+ *   │ │ 4K  │      │★7.8││
+ *   └─┴─────┴──────┴────┴┘
+ *   │ Movie Title        │
+ *   │ 2024 · Series      │
+ *   └────────────────────┘
  *
- * Bottom info:
- *   - Title (center, auto-shrinks to fit, NO extra category/status words)
- *   - Year  (small, muted, center)
- *
- * Rating + views are shown top-LEFT with star/eye icons.
+ * Badges:
+ *   - Bottom-left:  Quality pill (semi-transparent dark bg)
+ *   - Bottom-right: Rating with star icon
  */
 
-import React, {memo} from 'react';
+import React, { memo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Dimensions, Image,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
-import {ContentItem} from '../types';
-import {Colors} from '../theme/colors';
+import { ContentItem } from '../types';
+import { Colors } from '../theme/colors';
+import { heading3, caption } from '../theme/typography';
 
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 interface MovieCardProps {
   item: ContentItem;
-  onPress: (item: ContentItem) => void;
+  /** Card width in px — height is derived as width × 1.5 (2:3 poster ratio) */
   width?: number;
+  /** Card press handler */
+  onPress?: () => void;
+  /** Show the rating badge (star + number) */
+  showRating?: boolean;
+  /** Show the format/year subtitle line */
+  showFormat?: boolean;
 }
 
-const SW = Dimensions.get('window').width;
-export const CARD_WIDTH  = (SW - 42) / 2;   // 14px padding each side, 14px between
-export const CARD_HEIGHT = CARD_WIDTH * 1.52;
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const DEFAULT_WIDTH = 130;
+const POSTER_RATIO = 1.5; // height = width × 1.5  →  2:3 poster aspect
 
-// Map category key → short display label
-const CATEGORY_LABELS: Record<string, string> = {
-  movies:          'Movie',
-  'dubbed-movies': 'Dubbed',
-  hindi:           'Hindi',
-  'asian-movies':  'Asian',
-  anime:           'Anime',
-  'anime-movies':  'Anime Film',
-  series:          'Series',
-  tvshows:         'TV Show',
-  'asian-series':  'K-Drama',
+/** Backward-compatible export used by HomeScreen / CategoryScreen FlatList layouts */
+export const CARD_WIDTH = DEFAULT_WIDTH;
+
+// Local PNG icon assets
+const ICON_STAR = require('../../assets/icons/star.png');
+const ICON_CLAPBOARD = require('../../assets/icons/clapboard.png');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Extract a short quality label (e.g. "1080p WEB-DL" → "1080p") */
+const getQualityLabel = (format?: string): string => {
+  if (!format) return '';
+  return format.split(' ')[0] || format;
 };
 
-const getCategoryLabel = (item: ContentItem): string => {
-  const cat = (item.Category || '').toLowerCase();
-  return CATEGORY_LABELS[cat] ?? item.Category ?? '';
+/** Build subtitle text: "2024 · Series" or "1080p · Movie · 2023" */
+const getSubtitle = (
+  item: ContentItem,
+  showFormat: boolean,
+): string | null => {
+  const parts: string[] = [];
+
+  if (showFormat) {
+    const format = item?.Format;
+    if (format) {
+      parts.push(format);
+    }
+  }
+
+  const year = item?.Year;
+  if (year) {
+    parts.push(year);
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : null;
 };
 
-const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CARD_WIDTH}) => {
-  const imageUri = item['Image Source'];
-  const rating   = (item as any).Rating   || (item as any).imdb_rating || '';
-  const views    = (item as any).Views    || (item as any).views       || '';
-  const year     = (item as any).Year     || '';
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+const MovieCardComponent: React.FC<MovieCardProps> = ({
+  item,
+  width = DEFAULT_WIDTH,
+  onPress,
+  showRating = true,
+  showFormat = true,
+}) => {
+  // ── Guard: no item → render empty spacer ──
+  if (!item) {
+    return <View style={[styles.container, { width }]} />;
+  }
 
-  // Full quality string from Format field (e.g. "1080p WEB-DL")
-  const quality  = item.Format || '';
+  const posterHeight = width * POSTER_RATIO;
 
-  const categoryLabel = getCategoryLabel(item);
+  const imageUri = item?.['Image Source'];
+  const title = item?.Title || 'Untitled';
+  const rating = item?.Rating;
+  const qualityLabel = getQualityLabel(item?.Format);
+  const subtitle = getSubtitle(item, showFormat);
 
-  // Seasons / Episodes badges (episodic content)
-  const seasons  = (item as any)['Seasons']
-    ? Object.keys((item as any)['Seasons']).length
-    : null;
-  const episodes = (item as any)['Number Of Episodes'] ?? null;
-
-  // Determine if anime (to show episodes badge)
-  const isAnime  = (item.Category || '').toLowerCase().includes('anime');
-
-  // Clean title — strip trailing status words like "مترجم اون لاين فيلم مسلسل"
-  const cleanTitle = (item.Title || '')
-    .replace(/\s*(مترجم|اون لاين|مسلسل|فيلم|online|مدبلج)\s*/gi, '')
-    .trim();
-
-  const h = width * 1.52;
+  const hasImage = !!imageUri;
+  const hasRating = showRating && !!rating;
+  const hasQuality = !!qualityLabel;
 
   return (
     <TouchableOpacity
-      style={[styles.card, {width}]}
-      onPress={() => onPress(item)}
-      activeOpacity={0.78}
+      style={[styles.container, { width }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={!onPress}
     >
-      <View style={styles.imageWrap}>
-        {imageUri ? (
+      {/* ── Poster ── */}
+      <View style={[styles.posterWrap, { height: posterHeight }]}>
+        {hasImage ? (
           <FastImage
-            source={{uri: imageUri, priority: FastImage.priority.normal}}
-            style={{width, height: h, borderRadius: 11}}
+            source={{
+              uri: imageUri,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
+            style={styles.posterImage}
             resizeMode={FastImage.resizeMode.cover}
             fallback
           />
         ) : (
-          <View style={{width, height: h, borderRadius: 11, backgroundColor: Colors.dark.surface, justifyContent: 'center', alignItems: 'center'}}>
-            <Image source={require('../../assets/icons/clapboard.png')} style={{width: 40, height: 40, tintColor: Colors.dark.textMuted, opacity: 0.5}} />
+          <View style={[styles.placeholder, { height: posterHeight }]}>
+            <Image
+              source={ICON_CLAPBOARD}
+              style={styles.placeholderIcon}
+              resizeMode="contain"
+            />
           </View>
         )}
 
-        {/* ── TOP-LEFT: Rating + Views ── */}
-        {(rating || views) ? (
-          <View style={styles.topLeft}>
-            {rating ? (
-              <View style={styles.pill}>
-                <Text style={styles.starGlyph}>★</Text>
-                <Text style={styles.pillText}>{rating}</Text>
-              </View>
-            ) : null}
-            {views ? (
-              <View style={styles.pill}>
-                <Text style={styles.eyeGlyph}>👁</Text>
-                <Text style={styles.pillText}>{views}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* ── TOP-RIGHT: Quality → Category → Seasons → Episodes ── */}
-        <View style={styles.topRight}>
-          {quality ? (
+        {/* ── Quality Badge — bottom-left ── */}
+        {hasQuality && (
+          <View style={styles.qualityBadgeWrap}>
             <View style={styles.qualityBadge}>
-              <Text style={styles.qualityText} numberOfLines={1}>{quality}</Text>
+              <Text style={styles.qualityBadgeText} numberOfLines={1}>
+                {qualityLabel}
+              </Text>
             </View>
-          ) : null}
-          {categoryLabel ? (
-            <View style={styles.catBadge}>
-              <Text style={styles.catText} numberOfLines={1}>{categoryLabel}</Text>
-            </View>
-          ) : null}
-          {seasons && seasons > 0 ? (
-            <View style={styles.seasonsBadge}>
-              <Text style={styles.seasonsText}>{seasons}S</Text>
-            </View>
-          ) : null}
-          {isAnime && episodes && episodes > 0 ? (
-            <View style={styles.epsBadge}>
-              <Text style={styles.epsText}>{episodes}EP</Text>
-            </View>
-          ) : null}
-        </View>
+          </View>
+        )}
 
-        {/* Gradient scrim at bottom for readability */}
-        <View style={[styles.scrim, {width, height: h * 0.35, top: h * 0.65, borderBottomLeftRadius: 11, borderBottomRightRadius: 11}]} />
+        {/* ── Rating Badge — bottom-right ── */}
+        {hasRating && (
+          <View style={styles.ratingBadgeWrap}>
+            <View style={styles.ratingBadge}>
+              <Image
+                source={ICON_STAR}
+                style={styles.starIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.ratingText}>{rating}</Text>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* ── Title + Year ── */}
-      <View style={styles.info}>
-        <Text
-          style={styles.title}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.68}
-        >
-          {cleanTitle}
+      {/* ── Title ── */}
+      <View style={styles.infoSection}>
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
         </Text>
-        {year ? <Text style={styles.year}>{year}</Text> : null}
+
+        {/* ── Subtitle (format · year) ── */}
+        {subtitle && (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );
 };
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 16,
+  // ── Card container ──
+  container: {
     borderRadius: 12,
-    backgroundColor: Colors.dark.card,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 3},
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    backgroundColor: Colors.dark.surfaceElevated,
+    ...Colors.dark.shadowMd,
     overflow: 'hidden',
   },
-  imageWrap: {
+
+  // ── Poster wrapper (holds image + badges) ──
+  posterWrap: {
     position: 'relative',
-  },
-  scrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    // dark-to-transparent gradient via a semi-transparent black
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    width: '100%',
+    overflow: 'hidden',
   },
 
-  // ── Top-left pills
-  topLeft: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    gap: 3,
-    alignItems: 'flex-start',
+  posterImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
-  pill: {
-    flexDirection: 'row',
+
+  // ── Shimmer / skeleton placeholder ──
+  placeholder: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: Colors.dark.surfaceElevated,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 5,
-    gap: 2,
   },
-  starGlyph: {color: '#FFD700', fontSize: 9},
-  eyeGlyph:  {fontSize: 9},
-  pillText:  {color: '#FFF', fontSize: 10, fontWeight: '600', fontFamily: 'Rubik'},
+  placeholderIcon: {
+    width: 36,
+    height: 36,
+    tintColor: Colors.dark.textMuted,
+    opacity: 0.5,
+  },
 
-  // ── Top-right badges
-  topRight: {
+  // ── Quality badge — bottom-left ──
+  qualityBadgeWrap: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    alignItems: 'flex-end',
-    gap: 3,
+    bottom: 6,
+    left: 6,
   },
   qualityBadge: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 5,
-    maxWidth: 90,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 999,
+    maxWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  qualityText: {
-    color: '#FFFFFF',          // white as requested
-    fontSize: 10,
+  qualityBadgeText: {
+    ...caption,
+    color: Colors.dark.text,
     fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  catBadge: {
-    backgroundColor: Colors.dark.primaryLight,  // orange
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    maxWidth: 80,
-  },
-  catText: {
-    color: '#000',
     fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  seasonsBadge: {
-    backgroundColor: Colors.dark.accent,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  seasonsText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  epsBadge: {
-    backgroundColor: Colors.dark.accentLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  epsText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
   },
 
-  // ── Info below image
-  info: {
-    paddingHorizontal: 7,
-    paddingTop: 7,
-    paddingBottom: 8,
+  // ── Rating badge — bottom-right ──
+  ratingBadgeWrap: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+  },
+  ratingBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 42,
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 999,
     gap: 2,
   },
-  title: {
-    color: Colors.dark.text,
-    fontSize: 12.5,
-    fontWeight: '600',
-    lineHeight: 17,
-    textAlign: 'center',
-    fontFamily: 'Rubik',
+  starIcon: {
+    width: 10,
+    height: 10,
+    tintColor: Colors.dark.rating,
   },
-  year: {
-    color: Colors.dark.textMuted,
+  ratingText: {
+    ...caption,
+    color: Colors.dark.rating,
+    fontWeight: '700',
     fontSize: 10,
-    fontFamily: 'Rubik',
-    textAlign: 'center',
+  },
+
+  // ── Info section below poster ──
+  infoSection: {
+    paddingTop: 8,
+    paddingHorizontal: 4,
+    paddingBottom: 10,
+  },
+  title: {
+    ...heading3,
+    color: Colors.dark.text,
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: -0.1,
+  },
+  subtitle: {
+    ...caption,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
   },
 });
 
-export const MovieCard = memo(MovieCardComponent);
+// ---------------------------------------------------------------------------
+// Memoized export with custom comparison
+// ---------------------------------------------------------------------------
+const arePropsEqual = (
+  prevProps: MovieCardProps,
+  nextProps: MovieCardProps,
+): boolean => {
+  // Only re-render if the item identity (by id) or interactive props change
+  return (
+    prevProps.item?.id === nextProps.item?.id &&
+    prevProps.width === nextProps.width &&
+    prevProps.showRating === nextProps.showRating &&
+    prevProps.showFormat === nextProps.showFormat &&
+    prevProps.onPress === nextProps.onPress
+  );
+};
+
+export const MovieCard = memo(MovieCardComponent, arePropsEqual);
 export default MovieCard;

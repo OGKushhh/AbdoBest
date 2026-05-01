@@ -1,305 +1,423 @@
 import React, {useState, useCallback} from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, StatusBar, Alert, Image,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  Image,
+  Alert,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import FastImage from 'react-native-fast-image';
-import {Colors} from '../theme/colors';
+import {useFocusEffect} from '@react-navigation/native';
+import {Colors, SPACING, RADIUS, Shadows} from '../theme/colors';
+import {FONTS} from '../theme/typography';
+import {getDownloadState, saveDownloadState} from '../services/videoService';
 import {useTranslation} from 'react-i18next';
-import {getDownloadState} from '../services/videoService';
-import {DownloadItem} from '../types';
 
-const getStatusIndicator = (status: DownloadItem['status']): {emoji: string; color: string} => {
-  switch (status) {
-    case 'completed': return {emoji: '✓', color: Colors.dark.success};
-    case 'downloading': return {emoji: '↓', color: Colors.dark.accentLight};
-    case 'paused': return {emoji: '⏸', color: Colors.dark.warning};
-    case 'failed': return {emoji: '!', color: Colors.dark.error};
-    default: return {emoji: '···', color: Colors.dark.textMuted};
-  }
+// ---------------------------------------------------------------------------
+// Types (local — videoService returns any[], we guard downstream)
+// ---------------------------------------------------------------------------
+interface DownloadEntry {
+  id?: string;
+  title?: string;
+  imageUrl?: string;
+  quality?: string;
+  progress?: number;
+  status?: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed';
+  localPath?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const STATUS_COLORS: Record<string, string> = {
+  completed: Colors.dark.success,
+  downloading: Colors.dark.accent,
+  paused: Colors.dark.warning,
+  failed: Colors.dark.error,
+  pending: Colors.dark.textMuted,
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  completed: 'downloaded',
+  downloading: 'downloading',
+  paused: 'paused',
+  failed: 'failed',
+  pending: 'pending',
+};
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export const DownloadsScreen: React.FC = () => {
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [downloads, setDownloads] = useState<DownloadEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // ── Load downloads every time the screen gains focus ─────────────────
   useFocusEffect(
     useCallback(() => {
-      setDownloads(getDownloadState());
-    }, [])
+      let cancelled = false;
+      setLoading(true);
+
+      try {
+        const raw: any[] = getDownloadState() ?? [];
+        // Guard: ensure every item is a non-null object
+        const safe: DownloadEntry[] = raw.filter(
+          (item): item is DownloadEntry => item != null && typeof item === 'object',
+        );
+        if (!cancelled) {
+          setDownloads(safe);
+          setLoading(false);
+        }
+      } catch {
+        // getDownloadState has try-catch internally, but we still wrap
+        if (!cancelled) {
+          setDownloads([]);
+          setLoading(false);
+        }
+      }
+
+      return () => {
+        cancelled = true;
+      };
+    }, []),
   );
 
-  // Search only downloads (as requested)
-  const filtered = downloads.filter(d =>
-    !searchQuery.trim() ||
-    d.title.toLowerCase().includes(searchQuery.toLowerCase())
+  // ── Delete a download ─────────────────────────────────────────────────
+  const handleDelete = useCallback(
+    (index: number) => {
+      const item = downloads[index];
+      if (!item) return;
+
+      Alert.alert(
+        t('delete') ?? 'Delete',
+        t('delete_download_confirm') ?? `Delete "${item.title ?? 'this download'}"?`,
+        [
+          {text: t('cancel') ?? 'Cancel', style: 'cancel'},
+          {
+            text: t('delete') ?? 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              setDownloads(prev => {
+                const next = prev.filter((_, i) => i !== index);
+                // Persist the updated list back to storage
+                try {
+                  saveDownloadState(next);
+                } catch {
+                  /* silent — storage write failure is non-critical here */
+                }
+                return next;
+              });
+            },
+          },
+        ],
+      );
+    },
+    [downloads, t],
   );
 
-  const renderItem = ({item}: {item: DownloadItem}) => {
-    const statusInfo = getStatusIndicator(item.status);
+  // ── Render helpers ────────────────────────────────────────────────────
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      {/* Background circle */}
+      <View style={styles.emptyIconRing}>
+        <Image
+          source={require('../../assets/icons/files.png')}
+          style={styles.emptyIcon}
+          resizeMode="contain"
+        />
+      </View>
+      <Text style={[FONTS.heading3, styles.emptyTitle]}>
+        {t('no_downloads') ?? 'No downloads yet'}
+      </Text>
+      <Text style={[FONTS.body, styles.emptySubtitle]}>
+        {t('no_downloads_sub') ?? 'Your downloaded movies and series will appear here'}
+      </Text>
+    </View>
+  );
+
+  const renderCard = ({item, index}: {item: DownloadEntry; index: number}) => {
+    const status = item.status ?? 'pending';
+    const statusColor = STATUS_COLORS[status] ?? Colors.dark.textMuted;
+    const statusLabel = t(STATUS_LABELS[status] ?? 'pending') ?? status;
+    const progressPct = clamp(item.progress ?? 0, 0, 1);
+    const isDownloading = status === 'downloading';
+
     return (
       <TouchableOpacity
-        style={styles.downloadCard}
-        activeOpacity={0.8}
-        onPress={() => {
-          if (item.status === 'completed' && item.localPath) {
-            navigation.navigate('Player', {url: item.localPath, title: item.title});
-          }
-        }}
+        activeOpacity={0.75}
+        onLongPress={() => handleDelete(index)}
+        delayLongPress={400}
+        style={styles.card}
       >
+        {/* Poster thumbnail */}
         {item.imageUrl ? (
-          <FastImage
+          <Image
             source={{uri: item.imageUrl}}
-            style={styles.thumb}
-            resizeMode={FastImage.resizeMode.cover}
-            fallback
+            style={styles.poster}
+            resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumb, {justifyContent: 'center', alignItems: 'center'}]}>
-            <Image source={require('../../assets/icons/files.png')} style={{width: 24, height: 24, tintColor: Colors.dark.textMuted}} />
+          <View style={[styles.poster, styles.posterPlaceholder]}>
+            <Image
+              source={require('../../assets/icons/clapboard.png')}
+              style={styles.posterPlaceholderIcon}
+              resizeMode="contain"
+            />
           </View>
         )}
-        <View style={styles.info}>
-          <Text style={styles.downloadTitle} numberOfLines={2}>{item.title}</Text>
+
+        {/* Info column */}
+        <View style={styles.cardInfo}>
+          <Text style={[FONTS.heading3, styles.cardTitle]} numberOfLines={2}>
+            {item.title ?? 'Untitled'}
+          </Text>
+
+          {/* Status row */}
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, {backgroundColor: statusInfo.color}]}>
-              <Text style={styles.statusEmoji}>{statusInfo.emoji}</Text>
-            </View>
-            <Text style={[styles.statusText, {color: statusInfo.color}]}>
-              {t(item.status)}
-            </Text>
-            {item.quality ? <Text style={styles.quality}>{item.quality}</Text> : null}
+            <View style={[styles.statusDot, {backgroundColor: statusColor}]} />
+            <Text style={[FONTS.caption, {color: statusColor}]}>{statusLabel}</Text>
+            {item.quality ? (
+              <View style={styles.qualityBadge}>
+                <Text style={[FONTS.micro, styles.qualityText]}>{item.quality}</Text>
+              </View>
+            ) : null}
           </View>
-          {item.status === 'downloading' && (
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, {width: `${item.progress * 100}%`}]} />
+
+          {/* Progress bar (visible while downloading) */}
+          {isDownloading && (
+            <View style={styles.progressTrack}>
+              <View
+                style={[styles.progressFill, {width: `${Math.round(progressPct * 100)}%`}]}
+              />
             </View>
           )}
         </View>
-        {item.status === 'completed' && (
-          <Image source={require('../../assets/icons/clapboard.png')} style={{width: 28, height: 28, tintColor: Colors.dark.accentLight}} />
-        )}
+
+        {/* Delete hint icon */}
+        <TouchableOpacity
+          onPress={() => handleDelete(index)}
+          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+          style={styles.deleteButton}
+        >
+          <View style={styles.deleteIconBg}>
+            <Text style={styles.deleteIconText}>×</Text>
+          </View>
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
 
+  const keyExtractor = (item: DownloadEntry, index: number) =>
+    item.id ?? `dl-${index}`;
+
+  // ── Main render ───────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.dark.background} />
 
-      {/* Header */}
-      <View style={[styles.header, {paddingTop: insets.top + 6}]}>
-        <Text style={styles.headerTitle}>{t('downloads')}</Text>
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <View style={[styles.header, {paddingTop: insets.top + SPACING.md}]}>
+        <Text style={[FONTS.heading1, styles.headerTitle]}>
+          {t('downloads') ?? 'Downloads'}
+        </Text>
         {downloads.length > 0 && (
           <View style={styles.countBadge}>
-            <Text style={styles.countText}>{downloads.length}</Text>
+            <Text style={[FONTS.caption, styles.countText]}>{downloads.length}</Text>
           </View>
         )}
       </View>
 
-      {/* Search (searches downloads only) */}
-      <View style={styles.searchRow}>
-        <Image source={require('../../assets/icons/search.png')} style={[styles.searchIcon, {tintColor: Colors.dark.textMuted}]} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t('search_downloads')}
-          placeholderTextColor={Colors.dark.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Text style={styles.clearBtn}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {filtered.length === 0 ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Image source={require('../../assets/icons/files.png')} style={{width: 40, height: 40, tintColor: Colors.dark.textMuted}} />
-          </View>
-          <Text style={styles.emptyTitle}>{t('no_downloads')}</Text>
-          <Text style={styles.emptySub}>{t('no_downloads_sub')}</Text>
-        </View>
+      {/* ── Content ────────────────────────────────────────────────── */}
+      {!loading && downloads.length === 0 ? (
+        renderEmpty()
       ) : (
         <FlatList
-          data={filtered}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[styles.list, {paddingBottom: insets.bottom + 100}]}
+          data={downloads}
+          keyExtractor={keyExtractor}
+          renderItem={renderCard}
+          contentContainerStyle={[
+            styles.listContent,
+            {paddingBottom: insets.bottom + SPACING.xxxl + 60},
+          ]}
           showsVerticalScrollIndicator={false}
-          renderItem={renderItem}
+          ListEmptyComponent={loading ? null : renderEmpty}
         />
       )}
     </View>
   );
 };
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
+  // ── Container & background ────────────────────────────────────────
   container: {
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
+
+  // ── Header ────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 10,
+    paddingHorizontal: SPACING.xxl,
+    paddingBottom: SPACING.lg,
+    gap: SPACING.md,
   },
   headerTitle: {
     color: Colors.dark.text,
-    fontSize: 26,
-    fontWeight: '800',
-    fontFamily: 'Rubik',
     flex: 1,
   },
   countBadge: {
     backgroundColor: Colors.dark.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: SPACING.xs - 1,
+    borderRadius: RADIUS.full,
   },
   countText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
+    color: '#FFFFFF',
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
+
+  // ── List ──────────────────────────────────────────────────────────
+  listContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xs,
   },
-  searchIcon: {
-    width: 18,
-    height: 18,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    color: Colors.dark.text,
-    fontSize: 14,
-    paddingVertical: 10,
-    fontFamily: 'Rubik',
-  },
-  clearBtn: {
-    color: Colors.dark.textMuted,
-    fontSize: 16,
-    fontWeight: '700',
-    paddingHorizontal: 4,
-  },
-  list: {paddingHorizontal: 16, paddingTop: 4},
-  downloadCard: {
+
+  // ── Download card ─────────────────────────────────────────────────
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.dark.surface,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 12,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...Shadows.shadowMd,
   },
-  thumb: {
-    width: 60, height: 90,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.surfaceLight,
+
+  // Poster
+  poster: {
+    width: 64,
+    height: 96,
+    borderRadius: RADIUS.sm,
+    backgroundColor: Colors.dark.surfaceElevated,
   },
-  info: {flex: 1},
-  downloadTitle: {
-    color: Colors.dark.text,
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: 'Rubik',
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statusDot: {
-    width: 16, height: 16,
-    borderRadius: 8,
+  posterPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statusEmoji: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
+  posterPlaceholderIcon: {
+    width: 24,
+    height: 24,
+    tintColor: Colors.dark.textMuted,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Rubik',
+
+  // Info column
+  cardInfo: {
+    flex: 1,
+    marginLeft: SPACING.md,
+    marginRight: SPACING.sm,
+    justifyContent: 'center',
   },
-  quality: {
-    color: Colors.dark.accentLight,
-    fontSize: 11,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-    backgroundColor: `${Colors.dark.accent}20`,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+  cardTitle: {
+    color: Colors.dark.text,
+    marginBottom: SPACING.sm - 2,
+  },
+
+  // Status
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
     borderRadius: 4,
-    marginLeft: 4,
   },
-  progressBar: {
-    marginTop: 8,
-    height: 3,
+  qualityBadge: {
+    backgroundColor: `${Colors.dark.accent}20`,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 1,
+    borderRadius: RADIUS.sm,
+    marginLeft: SPACING.xs,
+  },
+  qualityText: {
+    color: Colors.dark.accent,
+  },
+
+  // Progress bar
+  progressTrack: {
+    marginTop: SPACING.sm,
+    height: 4,
     backgroundColor: Colors.dark.border,
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.dark.accentLight,
+    backgroundColor: Colors.dark.accent,
     borderRadius: 2,
   },
-  emptyState: {
+
+  // Delete button (× icon in a subtle circle)
+  deleteButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteIconBg: {
+    width: 30,
+    height: 30,
+    borderRadius: RADIUS.full,
+    backgroundColor: `${Colors.dark.error}18`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteIconText: {
+    color: Colors.dark.error,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
+  // ── Empty state ───────────────────────────────────────────────────
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: SPACING.xxxl + SPACING.lg,
   },
-  emptyIcon: {
-    width: 88, height: 88,
-    borderRadius: 44,
+  emptyIconRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: Colors.dark.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.xxl,
+  },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    tintColor: Colors.dark.textMuted,
   },
   emptyTitle: {
     color: Colors.dark.text,
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
-  emptySub: {
+  emptySubtitle: {
     color: Colors.dark.textMuted,
-    fontSize: 14,
     textAlign: 'center',
-    fontFamily: 'Rubik',
-    lineHeight: 20,
   },
 });
