@@ -381,6 +381,22 @@ export const DetailsScreen: React.FC = () => {
           clearInterval(rotateTimerRef.current);
           rotateTimerRef.current = null;
         }
+
+        // ── Validate extracted URL is actually a playable stream ──
+        const streamUrl = result.video_url || '';
+        const badPatterns = ['ping.gif', 'pixel.gif', 'tracking', 'doubleclick', '/ad/', '/ads/'];
+        const hasBadPattern = badPatterns.some(p => streamUrl.toLowerCase().includes(p));
+        const hasMediaExtension = /\.(m3u8|mp4|mkv|m4a|ts|mpd)(\?|$)/i.test(streamUrl);
+        const hasMediaHost = streamUrl.includes('.m3u8') || streamUrl.includes('scdns.io') || streamUrl.includes('master');
+        if (!streamUrl || hasBadPattern || (!hasMediaExtension && !hasMediaHost)) {
+          console.warn('[Details] Extracted URL looks invalid:', streamUrl.substring(0, 150));
+          setExtractError(
+            t('video_unavailable') || 'Could not extract a valid stream URL. The source may have changed.',
+          );
+          setExtracting(false);
+          return;
+        }
+
         setExtracting(false);
 
         const episodeTitle = episodeUrl
@@ -388,7 +404,7 @@ export const DetailsScreen: React.FC = () => {
           : item?.Title || '';
 
         navigation.navigate('Player', {
-          url: result.video_url,
+          url: streamUrl,
           qualities: result.quality_options,
           title: episodeTitle,
           contentId: item?.id,

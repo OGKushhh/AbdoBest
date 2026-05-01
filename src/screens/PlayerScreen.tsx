@@ -67,7 +67,7 @@ export const PlayerScreen: React.FC = () => {
 
   // ─── Video Source ────────────────────────────────────────────────────────
   // NO `type` prop — lets react-native-video auto-detect (v5=m3u8, v6=hls).
-  // CRITICAL: CDN (scdns.io) requires Referer + Origin headers or returns 403.
+  // CRITICAL: CDN (scdns.io) requires Referer + Origin + User-Agent headers or rejects.
   const videoSource = useMemo(() => {
     if (!url) return undefined;
     return {
@@ -75,6 +75,7 @@ export const PlayerScreen: React.FC = () => {
       headers: {
         'Referer': 'https://www.fasel-hd.cam/',
         'Origin': 'https://www.fasel-hd.cam',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       },
     };
   }, [url]);
@@ -145,6 +146,7 @@ export const PlayerScreen: React.FC = () => {
   // ─── Error handler — check multiple paths, never show [object Object] ──
   const handleError = useCallback((err: any) => {
     let errStr = '';
+    let errCode = '';
     const e = err?.error ?? err;
     if (typeof e === 'string') {
       errStr = e;
@@ -155,16 +157,26 @@ export const PlayerScreen: React.FC = () => {
     } else if (e?.localizedFailureReason) {
       errStr = e.localizedFailureReason;
     } else if (e?.code) {
-      errStr = `Error code: ${e.code}`;
-    } else {
+      errCode = String(e.code);
+    }
+    // Also check for nested error properties (ExoPlayer / AVPlayer)
+    if (!errStr) {
+      const nested = e?.error?.errorString || e?.error?.message || e?.error?.localizedFailureReason;
+      if (nested) errStr = nested;
+    }
+    if (!errStr) {
       try { errStr = JSON.stringify(e); } catch { errStr = 'Unknown playback error'; }
     }
-    console.error('[Player] Video error:', errStr, '| raw:', JSON.stringify(err)?.substring(0, 300));
-    setErrorMsg(errStr);
+    // Build detailed error with URL context for debugging
+    const urlHint = url ? `URL: ${url.substring(0, 120)}${url.length > 120 ? '...' : ''}` : 'No URL';
+    const detailMsg = errCode ? `${errStr} (code: ${errCode})` : errStr;
+    const fullMsg = `${detailMsg}\n${urlHint}`;
+    console.error('[Player] Video error:', fullMsg, '| raw:', JSON.stringify(err)?.substring(0, 500));
+    setErrorMsg(fullMsg);
     setError(t('video_unavailable'));
     setBuffering(false);
     setLoading(false);
-  }, [t]);
+  }, [t, url]);
 
   const handleRetry = useCallback(() => {
     setError(null);
