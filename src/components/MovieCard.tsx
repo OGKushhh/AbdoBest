@@ -92,8 +92,8 @@ const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CA
             fallback
           />
         ) : (
-          <View style={[styles.placeholderImg, {width, height: h}]}>
-            <Text style={styles.placeholderText}>?</Text>
+          <View style={{width, height: h, borderRadius: 11, backgroundColor: Colors.dark.surface, justifyContent: 'center', alignItems: 'center'}}>
+            <Image source={require('../../assets/icons/clapboard.png')} style={{width: 40, height: 40, tintColor: Colors.dark.textMuted, opacity: 0.5}} />
           </View>
         )}
 
@@ -173,18 +173,6 @@ const styles = StyleSheet.create({
   },
   imageWrap: {
     position: 'relative',
-  },
-  placeholderImg: {
-    borderRadius: 11,
-    backgroundColor: Colors.dark.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    color: Colors.dark.textMuted,
-    fontSize: 32,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
   },
   scrim: {
     position: 'absolute',

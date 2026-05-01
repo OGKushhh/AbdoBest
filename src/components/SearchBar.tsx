@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
-import {View, TextInput, StyleSheet, TouchableOpacity} from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import {View, TextInput, StyleSheet, TouchableOpacity, Image, Text} from 'react-native';
 import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 
@@ -26,14 +25,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   if (!show && !isFocused) {
     return (
       <TouchableOpacity style={styles.iconButton} onPress={onToggle}>
-        <Icon name="search" size={22} color={Colors.dark.textSecondary} />
+        <Image source={require('../../assets/icons/search.png')} style={{width: 22, height: 22, tintColor: Colors.dark.textSecondary}} />
       </TouchableOpacity>
     );
   }
 
   return (
     <View style={[styles.container, isFocused && styles.focused]}>
-      <Icon name="search" size={20} color={Colors.dark.textSecondary} style={styles.icon} />
+      <Image source={require('../../assets/icons/search.png')} style={[styles.iconImg, {tintColor: Colors.dark.textSecondary}]} />
       <TextInput
         style={styles.input}
         value={value}
@@ -47,12 +46,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={() => onChangeText('')} style={styles.clearButton}>
-          <Icon name="close-circle" size={20} color={Colors.dark.textSecondary} />
+          <Text style={styles.clearText}>✕</Text>
         </TouchableOpacity>
       )}
       {onToggle && (
         <TouchableOpacity onPress={() => { onChangeText(''); onToggle(); }} style={styles.clearButton}>
-          <Icon name="close" size={20} color={Colors.dark.textSecondary} />
+          <Text style={styles.clearText}>✕</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -74,7 +73,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.primary,
     borderWidth: 2,
   },
-  icon: {
+  iconImg: {
+    width: 20,
+    height: 20,
     marginRight: 8,
   },
   input: {
@@ -86,6 +87,11 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     marginLeft: 8,
+  },
+  clearText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 16,
+    fontWeight: '700',
   },
   iconButton: {
     width: 44,

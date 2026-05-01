@@ -1,16 +1,25 @@
 import React, {useState, useCallback} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, StatusBar, Alert,
+  TextInput, StatusBar, Alert, Image,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
 import {getDownloadState} from '../services/videoService';
 import {DownloadItem} from '../types';
+
+const getStatusIndicator = (status: DownloadItem['status']): {emoji: string; color: string} => {
+  switch (status) {
+    case 'completed': return {emoji: '✓', color: Colors.dark.success};
+    case 'downloading': return {emoji: '↓', color: Colors.dark.accentLight};
+    case 'paused': return {emoji: '⏸', color: Colors.dark.warning};
+    case 'failed': return {emoji: '!', color: Colors.dark.error};
+    default: return {emoji: '···', color: Colors.dark.textMuted};
+  }
+};
 
 export const DownloadsScreen: React.FC = () => {
   const {t} = useTranslation();
@@ -31,62 +40,53 @@ export const DownloadsScreen: React.FC = () => {
     d.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStatusIcon = (status: DownloadItem['status']) => {
-    switch (status) {
-      case 'completed': return 'checkmark-circle';
-      case 'downloading': return 'cloud-download';
-      case 'paused': return 'pause-circle';
-      case 'failed': return 'alert-circle';
-      default: return 'time-outline';
-    }
-  };
-
-  const getStatusColor = (status: DownloadItem['status']) => {
-    switch (status) {
-      case 'completed': return Colors.dark.success;
-      case 'downloading': return Colors.dark.accentLight;
-      case 'paused': return Colors.dark.warning;
-      case 'failed': return Colors.dark.error;
-      default: return Colors.dark.textMuted;
-    }
-  };
-
-  const renderItem = ({item}: {item: DownloadItem}) => (
-    <TouchableOpacity
-      style={styles.downloadCard}
-      activeOpacity={0.8}
-      onPress={() => {
-        if (item.status === 'completed' && item.localPath) {
-          navigation.navigate('Player', {url: item.localPath, title: item.title});
-        }
-      }}
-    >
-      <FastImage
-        source={item.imageUrl ? {uri: item.imageUrl} : undefined}
-        style={styles.thumb}
-        resizeMode={FastImage.resizeMode.cover}
-        fallback
-      />
-      <View style={styles.info}>
-        <Text style={styles.downloadTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.statusRow}>
-          <Icon name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
-          <Text style={[styles.statusText, {color: getStatusColor(item.status)}]}>
-            {t(item.status)}
-          </Text>
-          {item.quality ? <Text style={styles.quality}>{item.quality}</Text> : null}
-        </View>
-        {item.status === 'downloading' && (
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, {width: `${item.progress * 100}%`}]} />
+  const renderItem = ({item}: {item: DownloadItem}) => {
+    const statusInfo = getStatusIndicator(item.status);
+    return (
+      <TouchableOpacity
+        style={styles.downloadCard}
+        activeOpacity={0.8}
+        onPress={() => {
+          if (item.status === 'completed' && item.localPath) {
+            navigation.navigate('Player', {url: item.localPath, title: item.title});
+          }
+        }}
+      >
+        {item.imageUrl ? (
+          <FastImage
+            source={{uri: item.imageUrl}}
+            style={styles.thumb}
+            resizeMode={FastImage.resizeMode.cover}
+            fallback
+          />
+        ) : (
+          <View style={[styles.thumb, {justifyContent: 'center', alignItems: 'center'}]}>
+            <Image source={require('../../assets/icons/files.png')} style={{width: 24, height: 24, tintColor: Colors.dark.textMuted}} />
           </View>
         )}
-      </View>
-      {item.status === 'completed' && (
-        <Icon name="play-circle" size={28} color={Colors.dark.accentLight} />
-      )}
-    </TouchableOpacity>
-  );
+        <View style={styles.info}>
+          <Text style={styles.downloadTitle} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, {backgroundColor: statusInfo.color}]}>
+              <Text style={styles.statusEmoji}>{statusInfo.emoji}</Text>
+            </View>
+            <Text style={[styles.statusText, {color: statusInfo.color}]}>
+              {t(item.status)}
+            </Text>
+            {item.quality ? <Text style={styles.quality}>{item.quality}</Text> : null}
+          </View>
+          {item.status === 'downloading' && (
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, {width: `${item.progress * 100}%`}]} />
+            </View>
+          )}
+        </View>
+        {item.status === 'completed' && (
+          <Image source={require('../../assets/icons/clapboard.png')} style={{width: 28, height: 28, tintColor: Colors.dark.accentLight}} />
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -104,7 +104,7 @@ export const DownloadsScreen: React.FC = () => {
 
       {/* Search (searches downloads only) */}
       <View style={styles.searchRow}>
-        <Icon name="search-outline" size={18} color={Colors.dark.textMuted} style={{marginRight: 8}} />
+        <Image source={require('../../assets/icons/search.png')} style={[styles.searchIcon, {tintColor: Colors.dark.textMuted}]} />
         <TextInput
           style={styles.searchInput}
           placeholder={t('search_downloads')}
@@ -114,7 +114,7 @@ export const DownloadsScreen: React.FC = () => {
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close-circle" size={18} color={Colors.dark.textMuted} />
+            <Text style={styles.clearBtn}>✕</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -122,7 +122,7 @@ export const DownloadsScreen: React.FC = () => {
       {filtered.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Icon name="download-outline" size={48} color={Colors.dark.textMuted} />
+            <Image source={require('../../assets/icons/files.png')} style={{width: 40, height: 40, tintColor: Colors.dark.textMuted}} />
           </View>
           <Text style={styles.emptyTitle}>{t('no_downloads')}</Text>
           <Text style={styles.emptySub}>{t('no_downloads_sub')}</Text>
@@ -183,12 +183,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
+  searchIcon: {
+    width: 18,
+    height: 18,
+    marginRight: 8,
+  },
   searchInput: {
     flex: 1,
     color: Colors.dark.text,
     fontSize: 14,
     paddingVertical: 10,
     fontFamily: 'Rubik',
+  },
+  clearBtn: {
+    color: Colors.dark.textMuted,
+    fontSize: 16,
+    fontWeight: '700',
+    paddingHorizontal: 4,
   },
   list: {paddingHorizontal: 16, paddingTop: 4},
   downloadCard: {
@@ -220,6 +231,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+  },
+  statusDot: {
+    width: 16, height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusEmoji: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
   },
   statusText: {
     fontSize: 12,

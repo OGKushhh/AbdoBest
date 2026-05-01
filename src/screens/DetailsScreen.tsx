@@ -212,8 +212,8 @@ export const DetailsScreen: React.FC = () => {
     const s = (item as any).Source || (item as any).source || '';
     if (s && s.startsWith('http')) return s;
 
-    // Fallback: construct the fasel-hd page URL using WordPress-style permalink
-    // POST /extract { url: "https://www.fasel-hd.cam/?p={id}" }
+    // Fallback: construct WordPress-style permalink from the item id
+    // The /extract endpoint POST {url: ...} will fetch this page and extract the m3u8
     return `https://www.fasel-hd.cam/?p=${item.id}`;
   }, [item]);
 
@@ -266,7 +266,7 @@ export const DetailsScreen: React.FC = () => {
       // For episodes, use the episode's source URL directly
       const pageUrl = episodeUrl || getExtractionUrl();
 
-      if (!pageUrl) {
+      if (!pageUrl || pageUrl.startsWith('__id__')) {
         throw new Error(t('video_unavailable'));
       }
 
