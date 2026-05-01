@@ -1,5 +1,23 @@
+/**
+ * MovieCard — outside thumbnail view
+ *
+ * Badges top-right:
+ *   1. Quality  (full Format string, white text, dark bg)
+ *   2. Category label  (Movie / Anime / Series / Dubbed / etc, orange bg)
+ *   3. Seasons count   (episodic content only)
+ *   4. Episodes count  (anime only)
+ *
+ * Bottom info:
+ *   - Title (center, auto-shrinks to fit, NO extra category/status words)
+ *   - Year  (small, muted, center)
+ *
+ * Rating + views are shown top-LEFT with star/eye icons.
+ */
+
 import React, {memo} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity, Dimensions} from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Dimensions, Image,
+} from 'react-native';
 import FastImage from 'react-native-fast-image';
 import {ContentItem} from '../types';
 import {Colors} from '../theme/colors';
@@ -8,146 +26,179 @@ interface MovieCardProps {
   item: ContentItem;
   onPress: (item: ContentItem) => void;
   width?: number;
-  showTitle?: boolean;
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-// Slightly tighter gap between columns
-const CARD_WIDTH = (SCREEN_WIDTH - 40) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.5;
+const SW = Dimensions.get('window').width;
+export const CARD_WIDTH  = (SW - 42) / 2;   // 14px padding each side, 14px between
+export const CARD_HEIGHT = CARD_WIDTH * 1.52;
 
-export const MovieCard: React.FC<MovieCardProps> = ({item, onPress, width = CARD_WIDTH, showTitle = true}) => {
+// Map category key → short display label
+const CATEGORY_LABELS: Record<string, string> = {
+  movies:          'Movie',
+  'dubbed-movies': 'Dubbed',
+  hindi:           'Hindi',
+  'asian-movies':  'Asian',
+  anime:           'Anime',
+  'anime-movies':  'Anime Film',
+  series:          'Series',
+  tvshows:         'TV Show',
+  'asian-series':  'K-Drama',
+};
+
+const getCategoryLabel = (item: ContentItem): string => {
+  const cat = (item.Category || '').toLowerCase();
+  return CATEGORY_LABELS[cat] ?? item.Category ?? '';
+};
+
+const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CARD_WIDTH}) => {
   const imageUri = item['Image Source'];
-  const firstGenre = item.Genres?.[0] || '';
-  const rating = item.Rating || (item as any)['imdb_rating'] || '';
-  const views = item.Views || (item as any)['views'] || '';
-  const formatText = item.Format ? item.Format.split(' ')[0] : '';
+  const rating   = (item as any).Rating   || (item as any).imdb_rating || '';
+  const views    = (item as any).Views    || (item as any).views       || '';
+  const year     = (item as any).Year     || '';
+
+  // Full quality string from Format field (e.g. "1080p WEB-DL")
+  const quality  = item.Format || '';
+
+  const categoryLabel = getCategoryLabel(item);
+
+  // Seasons / Episodes badges (episodic content)
+  const seasons  = (item as any)['Seasons']
+    ? Object.keys((item as any)['Seasons']).length
+    : null;
+  const episodes = (item as any)['Number Of Episodes'] ?? null;
+
+  // Determine if anime (to show episodes badge)
+  const isAnime  = (item.Category || '').toLowerCase().includes('anime');
+
+  // Clean title — strip trailing status words like "مترجم اون لاين فيلم مسلسل"
+  const cleanTitle = (item.Title || '')
+    .replace(/\s*(مترجم|اون لاين|مسلسل|فيلم|online|مدبلج)\s*/gi, '')
+    .trim();
+
+  const h = width * 1.52;
 
   return (
-    <TouchableOpacity style={[styles.card, {width}]} onPress={() => onPress(item)} activeOpacity={0.8}>
-      <View style={styles.imageContainer}>
+    <TouchableOpacity
+      style={[styles.card, {width}]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.78}
+    >
+      <View style={styles.imageWrap}>
         <FastImage
-          source={imageUri ? {uri: imageUri} : require('../../assets/placeholder.png')}
-          style={[styles.image, {width, height: width * 1.5}]}
+          source={imageUri ? {uri: imageUri, priority: FastImage.priority.normal} : require('../../assets/placeholder.png')}
+          style={{width, height: h, borderRadius: 11}}
           resizeMode={FastImage.resizeMode.cover}
           fallback
         />
 
-        {/* Top LEFT: Rating + Views (with icons) */}
-        {(rating || views) && (
-          <View style={styles.topLeftBadges}>
+        {/* ── TOP-LEFT: Rating + Views ── */}
+        {(rating || views) ? (
+          <View style={styles.topLeft}>
             {rating ? (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.starIcon}>★</Text>
-                <Text style={styles.ratingText}>{rating}</Text>
+              <View style={styles.pill}>
+                <Text style={styles.starGlyph}>★</Text>
+                <Text style={styles.pillText}>{rating}</Text>
               </View>
             ) : null}
             {views ? (
-              <View style={styles.viewsBadge}>
-                <Text style={styles.eyeIcon}>👁</Text>
-                <Text style={styles.viewsText}>{views}</Text>
+              <View style={styles.pill}>
+                <Text style={styles.eyeGlyph}>👁</Text>
+                <Text style={styles.pillText}>{views}</Text>
               </View>
             ) : null}
           </View>
-        )}
+        ) : null}
 
-        {/* Top RIGHT: Quality badge (cyan) + Category badge (yellow/black) */}
-        <View style={styles.topRightBadges}>
-          {formatText ? (
+        {/* ── TOP-RIGHT: Quality → Category → Seasons → Episodes ── */}
+        <View style={styles.topRight}>
+          {quality ? (
             <View style={styles.qualityBadge}>
-              <Text style={styles.qualityText}>{formatText}</Text>
+              <Text style={styles.qualityText} numberOfLines={1}>{quality}</Text>
             </View>
           ) : null}
-          {firstGenre ? (
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText} numberOfLines={1}>{firstGenre}</Text>
+          {categoryLabel ? (
+            <View style={styles.catBadge}>
+              <Text style={styles.catText} numberOfLines={1}>{categoryLabel}</Text>
+            </View>
+          ) : null}
+          {seasons && seasons > 0 ? (
+            <View style={styles.seasonsBadge}>
+              <Text style={styles.seasonsText}>{seasons}S</Text>
+            </View>
+          ) : null}
+          {isAnime && episodes && episodes > 0 ? (
+            <View style={styles.epsBadge}>
+              <Text style={styles.epsText}>{episodes}EP</Text>
             </View>
           ) : null}
         </View>
+
+        {/* Gradient scrim at bottom for readability */}
+        <View style={[styles.scrim, {width, height: h * 0.35, top: h * 0.65, borderBottomLeftRadius: 11, borderBottomRightRadius: 11}]} />
       </View>
 
-      {showTitle && (
-        <View style={styles.info}>
-          <Text
-            style={styles.title}
-            numberOfLines={2}
-            adjustsFontSizeToFit
-            minimumFontScale={0.65}
-          >
-            {item.Title}
-          </Text>
-        </View>
-      )}
+      {/* ── Title + Year ── */}
+      <View style={styles.info}>
+        <Text
+          style={styles.title}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.68}
+        >
+          {cleanTitle}
+        </Text>
+        {year ? <Text style={styles.year}>{year}</Text> : null}
+      </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 14,
+    marginBottom: 16,
     borderRadius: 12,
-    overflow: 'hidden',
     backgroundColor: Colors.dark.card,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 3},
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    overflow: 'hidden',
   },
-  imageContainer: {
+  imageWrap: {
     position: 'relative',
   },
-  image: {
-    borderRadius: 12,
-    backgroundColor: Colors.dark.surfaceLight,
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    // dark-to-transparent gradient via a semi-transparent black
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  // Top LEFT: rating + views
-  topLeftBadges: {
+
+  // ── Top-left pills
+  topLeft: {
     position: 'absolute',
     top: 6,
     left: 6,
-    alignItems: 'flex-start',
     gap: 3,
+    alignItems: 'flex-start',
   },
-  ratingBadge: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 5,
+    gap: 2,
   },
-  starIcon: {
-    color: '#FFD700',
-    fontSize: 10,
-    marginRight: 2,
-  },
-  ratingText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  viewsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  eyeIcon: {
-    fontSize: 9,
-    marginRight: 2,
-  },
-  viewsText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '500',
-    fontFamily: 'Rubik',
-  },
-  // Top RIGHT: quality + category
-  topRightBadges: {
+  starGlyph: {color: '#FFD700', fontSize: 9},
+  eyeGlyph:  {fontSize: 9},
+  pillText:  {color: '#FFF', fontSize: 10, fontWeight: '600', fontFamily: 'Rubik'},
+
+  // ── Top-right badges
+  topRight: {
     position: 'absolute',
     top: 6,
     right: 6,
@@ -155,50 +206,83 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   qualityBadge: {
-    backgroundColor: 'rgba(0,0,0,0.82)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#00E5FF40',
+    maxWidth: 90,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   qualityText: {
-    color: Colors.dark.badge.quality,
+    color: '#FFFFFF',          // white as requested
     fontSize: 10,
     fontWeight: '700',
     fontFamily: 'Rubik',
   },
-  categoryBadge: {
-    backgroundColor: '#FFD700',
+  catBadge: {
+    backgroundColor: Colors.dark.primaryLight,  // orange
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
     maxWidth: 80,
   },
-  categoryText: {
-    color: '#000000',
+  catText: {
+    color: '#000',
     fontSize: 10,
     fontWeight: '700',
     fontFamily: 'Rubik',
   },
-  info: {
+  seasonsBadge: {
+    backgroundColor: Colors.dark.accent,
     paddingHorizontal: 6,
-    paddingTop: 6,
-    paddingBottom: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  seasonsText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Rubik',
+  },
+  epsBadge: {
+    backgroundColor: Colors.dark.accentLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  epsText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Rubik',
+  },
+
+  // ── Info below image
+  info: {
+    paddingHorizontal: 7,
+    paddingTop: 7,
+    paddingBottom: 8,
     alignItems: 'center',
-    minHeight: 38,
+    minHeight: 42,
     justifyContent: 'center',
+    gap: 2,
   },
   title: {
     color: Colors.dark.text,
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 12.5,
+    fontWeight: '600',
     lineHeight: 17,
     textAlign: 'center',
     fontFamily: 'Rubik',
   },
+  year: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    fontFamily: 'Rubik',
+    textAlign: 'center',
+  },
 });
 
-export {CARD_WIDTH, CARD_HEIGHT};
-
-export default memo(MovieCard);
+export const MovieCard = memo(MovieCardComponent);
+export default MovieCard;

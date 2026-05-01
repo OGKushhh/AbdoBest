@@ -25,7 +25,7 @@ const HLS_QUALITIES = [
 export const PlayerScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const {url, title, contentId, category} = route.params || {};
+  const {url, title, contentId, category, qualities: paramQualities} = route.params || {};
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -36,7 +36,18 @@ export const PlayerScreen: React.FC = () => {
   const [buffering, setBuffering] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedQuality, setSelectedQuality] = useState<{label: string; bitrate?: number}>(HLS_QUALITIES[0]);
+  // Build quality list: prefer qualities from extraction result, fallback to HLS defaults
+  const qualityList = useMemo(() => {
+    if (paramQualities && paramQualities.length > 0) {
+      return paramQualities.map((label: string) => {
+        const match = HLS_QUALITIES.find(q => q.label === label);
+        return match ?? {label, bitrate: undefined};
+      });
+    }
+    return HLS_QUALITIES;
+  }, [paramQualities]);
+
+  const [selectedQuality, setSelectedQuality] = useState<{label: string; bitrate?: number}>(qualityList[0] ?? HLS_QUALITIES[0]);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewTracked = useRef(false);
@@ -263,7 +274,7 @@ export const PlayerScreen: React.FC = () => {
         >
           <View style={styles.qualityModal}>
             <Text style={styles.qualityModalTitle}>{t('select_quality')}</Text>
-            {HLS_QUALITIES.map(q => (
+            {qualityList.map(q => (
               <TouchableOpacity
                 key={q.label}
                 style={[

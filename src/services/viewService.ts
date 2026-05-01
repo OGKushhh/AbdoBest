@@ -1,99 +1,87 @@
 /**
- * View Tracking Service for AbdoBest
+ * View Tracking Service
  *
- * Flow:
- *  1. On every play → increment local counter in MMKV storage
- *  2. Every 24h → sync pending counts to the backend API
- *  3. Backend adds the number to the global count
- *
- * The 24h sync is best-effort (fire-and-forget). Views are never lost —
- * they stay in local storage until successfully sent.
+ * On play → increment local pending count (MMKV)
+ * Every 24 h → batch-POST all pending counts to /api/view/:category/:id
+ * On app launch → also try sync if overdue
  */
 
-import {storage, storageKeys} from '../storage';
-import axios from 'axios';
-import {API_BASE} from '../constants/endpoints';
+import {storage} from '../storage';
+import {postViewCount} from './api';
 
-const VIEW_SYNC_KEY = 'view_pending_';
-const VIEW_LAST_SYNC_KEY = 'view_last_sync';
-const VIEW_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PENDING_PREFIX = 'vpend:';       // vpend:category:id → count
+const INDEX_KEY      = 'vpend_index';  // JSON array of "category:id" keys
+const LAST_SYNC_KEY  = 'view_last_sync';
+const SYNC_INTERVAL  = 24 * 60 * 60 * 1000; // 24 h
 
-interface PendingView {
-  contentId: string;
-  category: string;
-  count: number;
-}
+// ── Public API ───────────────────────────────────────────────────────
 
-/** Increment local view count. Call this when user presses play. */
-export const incrementViewCount = async (contentId: string, category: string): Promise<void> => {
-  const key = `${VIEW_SYNC_KEY}${category}:${contentId}`;
-  const current = storage.getNumber(key) || 0;
-  storage.set(key, current + 1);
+/** Call when user presses Play on any title. */
+export const recordPlay = (contentId: string, category: string): void => {
+  if (!contentId || !category) return;
+  const compositeKey = `${category}:${contentId}`;
+  const storageKey = `${PENDING_PREFIX}${compositeKey}`;
 
-  // Try to sync if it's been > 24h
-  await trySyncViews();
+  // Bump pending counter
+  const current = storage.getNumber(storageKey) ?? 0;
+  storage.set(storageKey, current + 1);
+
+  // Track in index
+  const index = readIndex();
+  if (!index.includes(compositeKey)) {
+    index.push(compositeKey);
+    writeIndex(index);
+  }
+
+  // Non-blocking sync attempt
+  trySyncViews().catch(() => {});
 };
 
-/** Sync pending view counts to backend if 24h has passed. */
-export const trySyncViews = async (): Promise<void> => {
-  const lastSync = storage.getNumber(VIEW_LAST_SYNC_KEY) || 0;
-  if (Date.now() - lastSync < VIEW_SYNC_INTERVAL_MS) return;
+/** Force-sync regardless of 24 h timer. Safe to call on startup. */
+export const forceSyncViews = async (): Promise<void> => {
+  const index = readIndex();
+  if (!index.length) return;
 
+  const results = await Promise.allSettled(
+    index.map(async (compositeKey) => {
+      const [category, ...rest] = compositeKey.split(':');
+      const contentId = rest.join(':');
+      const count = storage.getNumber(`${PENDING_PREFIX}${compositeKey}`) ?? 0;
+      if (count <= 0) return;
+      await postViewCount(category, contentId, count);
+      // Clear on success
+      storage.delete(`${PENDING_PREFIX}${compositeKey}`);
+      return compositeKey;
+    })
+  );
+
+  // Prune index — remove keys we successfully sent
+  const sent = results
+    .filter((r): r is PromiseFulfilledResult<string | undefined> => r.status === 'fulfilled' && !!r.value)
+    .map(r => r.value as string);
+  const remaining = index.filter(k => !sent.includes(k));
+  writeIndex(remaining);
+
+  storage.set(LAST_SYNC_KEY, Date.now());
+};
+
+/** Sync only if 24 h has elapsed since last sync. */
+export const trySyncViews = async (): Promise<void> => {
+  const lastSync = storage.getNumber(LAST_SYNC_KEY) ?? 0;
+  if (Date.now() - lastSync < SYNC_INTERVAL) return;
   await forceSyncViews();
 };
 
-/** Force sync all pending views to backend regardless of timing. */
-export const forceSyncViews = async (): Promise<void> => {
-  const pending = getPendingViews();
-  if (pending.length === 0) return;
+// ── Helpers ──────────────────────────────────────────────────────────
 
-  const api = axios.create({baseURL: API_BASE, timeout: 15000});
-
-  const results = await Promise.allSettled(
-    pending.map(({contentId, category, count}) =>
-      api.post(`/api/view/${category}/${contentId}`, {increment_by: count})
-    )
-  );
-
-  // Clear successfully synced entries
-  results.forEach((result, i) => {
-    if (result.status === 'fulfilled') {
-      const key = `${VIEW_SYNC_KEY}${pending[i].category}:${pending[i].contentId}`;
-      storage.delete(key);
-    }
-  });
-
-  storage.set(VIEW_LAST_SYNC_KEY, Date.now());
+const readIndex = (): string[] => {
+  try {
+    return JSON.parse(storage.getString(INDEX_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
 };
 
-/** Read all pending view entries from storage. */
-const getPendingViews = (): PendingView[] => {
-  const pending: PendingView[] = [];
-  // MMKV doesn't have getAllKeys natively — we track keys in a separate index
-  const indexRaw = storage.getString('view_pending_index') || '[]';
-  let index: string[] = [];
-  try { index = JSON.parse(indexRaw); } catch { index = []; }
-
-  for (const key of index) {
-    const count = storage.getNumber(`${VIEW_SYNC_KEY}${key}`) || 0;
-    if (count > 0) {
-      const [category, contentId] = key.split(':');
-      if (category && contentId) {
-        pending.push({contentId, category, count});
-      }
-    }
-  }
-  return pending;
-};
-
-/** Track a new view key in the pending index. */
-const trackViewKey = (category: string, contentId: string) => {
-  const key = `${category}:${contentId}`;
-  const indexRaw = storage.getString('view_pending_index') || '[]';
-  let index: string[] = [];
-  try { index = JSON.parse(indexRaw); } catch { index = []; }
-  if (!index.includes(key)) {
-    index.push(key);
-    storage.set('view_pending_index', JSON.stringify(index));
-  }
+const writeIndex = (index: string[]) => {
+  storage.set(INDEX_KEY, JSON.stringify(index));
 };

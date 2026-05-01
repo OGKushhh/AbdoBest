@@ -1,508 +1,419 @@
+/**
+ * DetailsScreen
+ *
+ * Play flow:
+ *   1. User taps Play
+ *   2. Show "Connecting…" status immediately
+ *   3. POST /extract { url: item.Source }  (always — no hasSource gate)
+ *   4. On success → navigate to Player
+ *   5. On error   → show dismissable error banner with Retry
+ *
+ * The /extract endpoint handles everything server-side.
+ * We never disable the Play button based on Source field presence.
+ */
+
 import React, {useState, useCallback, useMemo} from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Share, ActivityIndicator, Dimensions, StatusBar,
+  ActivityIndicator, Share, Dimensions, StatusBar, Image,
 } from 'react-native';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
 import {ContentItem} from '../types';
-import {getStreamUrl} from '../services/videoService';
+import {extractVideoUrl} from '../services/api';
+import {recordPlay} from '../services/viewService';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
-import {localizeGenres} from '../i18n/genres';
-import {getSettings} from '../storage';
 
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
-const POSTER_WIDTH = Math.min(SCREEN_WIDTH * 0.55, 240);
-const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
+const {width: SW} = Dimensions.get('window');
+const POSTER_W = Math.min(SW * 0.50, 210);
+const POSTER_H = POSTER_W * 1.52;
+
+// ── Reusable info table row ─────────────────────────────────────────
+interface InfoRowProps {
+  label: string;
+  value: string;
+  accent?: boolean;
+}
+const InfoRow: React.FC<InfoRowProps> = ({label, value, accent}) => (
+  <View style={rowS.row}>
+    <Text style={rowS.label}>{label}</Text>
+    <Text style={[rowS.value, accent && rowS.valueAccent]} numberOfLines={2}>{value}</Text>
+  </View>
+);
+
+const rowS = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.dark.border,
+  },
+  label: {
+    flex: 1.1,
+    color: Colors.dark.textSecondary,
+    fontSize: 13.5,
+    fontFamily: 'Rubik',
+  },
+  value: {
+    flex: 2,
+    color: Colors.dark.text,
+    fontSize: 13.5,
+    fontFamily: 'Rubik',
+    textAlign: 'right',
+  },
+  valueAccent: {
+    color: Colors.dark.accentLight,
+  },
+});
+
+// ── Status messages during extraction ──────────────────────────────
+const EXTRACT_STATUSES = [
+  'Connecting to server…',
+  'Fetching page…',
+  'Extracting stream URL…',
+  'Almost there…',
+];
 
 export const DetailsScreen: React.FC = () => {
-  const route = useRoute<any>();
+  const route      = useRoute<any>();
   const navigation = useNavigation<any>();
-  const item: ContentItem = route.params?.item;
   const {t, i18n} = useTranslation();
-  const insets = useSafeAreaInsets();
-  const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
+  const insets     = useSafeAreaInsets();
 
-  const hasSource = item.Source && item.Source.length > 0;
-  const lang = (i18n.language === 'ar' ? 'ar' : 'en') as 'ar' | 'en';
+  const item: ContentItem = route.params?.item;
 
-  const displayGenres = useMemo(() => localizeGenres(item.Genres || [], lang), [item.Genres, lang]);
+  const [extracting,    setExtracting]    = useState(false);
+  const [statusIdx,     setStatusIdx]     = useState(0);
+  const [extractError,  setExtractError]  = useState<string | null>(null);
+  const [qualityChoice, setQualityChoice] = useState<string | null>(null);
 
-  const description = useMemo(() => {
-    if (lang === 'ar') return item.DescriptionAr || item.Description || '';
-    return item.Description || item.DescriptionAr || '';
-  }, [item.Description, item.DescriptionAr, lang]);
+  const lang = i18n.language === 'ar' ? 'ar' : 'en';
 
-  const hasDescription = description && description.trim().length > 0;
+  if (!item) {
+    return (
+      <View style={S.container}>
+        <TouchableOpacity style={[S.navBtn, {margin: 20, marginTop: insets.top + 20}]} onPress={() => navigation.goBack()}>
+          <Image source={require('../../assets/icons/arrow.png')} style={S.iconNav} />
+        </TouchableOpacity>
+        <Text style={{color: Colors.dark.textMuted, textAlign: 'center', fontFamily: 'Rubik'}}>{t('error_loading')}</Text>
+      </View>
+    );
+  }
 
-  const formatRuntime = (minutes: number | null) => {
-    if (!minutes) return null;
-    if (minutes >= 60) {
-      const h = Math.floor(minutes / 60);
-      const m = minutes % 60;
-      return m > 0 ? `${h}${t('hours')} ${m}${t('minutes')}` : `${h}${t('hours')}`;
-    }
-    return `${minutes}${t('minutes')}`;
+  // ── Resolve source URL ──────────────────────────────────────────
+  const sourceUrl: string = useMemo(() => {
+    const s = (item as any).Source || (item as any).source || '';
+    return Array.isArray(s) ? (s[0] ?? '') : s;
+  }, [item]);
+
+  // ── Helpers ─────────────────────────────────────────────────────
+  const genresDisplay = useMemo(() => {
+    const list = lang === 'ar'
+      ? (item.GenresAr?.length ? item.GenresAr : item.Genres)
+      : (item.Genres?.length   ? item.Genres   : item.GenresAr);
+    return (list || []).join(' • ');
+  }, [item.Genres, item.GenresAr, lang]);
+
+  const directors = useMemo(() => {
+    const d = (item as any).Directors || (item as any).directors || [];
+    return (Array.isArray(d) ? d : [d]).filter(Boolean).join('  ');
+  }, [item]);
+
+  const description = lang === 'ar'
+    ? (item.DescriptionAr || item.Description || '')
+    : (item.Description   || item.DescriptionAr   || '');
+
+  const formatRuntime = (min: number | null) => {
+    if (!min) return '';
+    const h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`;
   };
 
+  const rating     = (item as any).Rating     || '';
+  const views      = (item as any).Views      || '';
+  const year       = (item as any).Year       || '';
+  const country    = item.Country             || '';
+  const language   = (item as any).Language   || '';
+  const format     = item.Format              || '';
+  const numEps     = (item as any)['Number Of Episodes'] ?? null;
+  const runtime    = formatRuntime(item.Runtime);
+
+  // ── Play handler ─────────────────────────────────────────────────
+  // NO hasSource gate — the server handles extraction
   const handlePlay = useCallback(async () => {
-    if (!hasSource) { Alert.alert(t('video_unavailable'), t('not_available')); return; }
     setExtracting(true);
     setExtractError(null);
+    setStatusIdx(0);
+
+    // Rotate status message every ~4 s to show progress
+    const rotateTimer = setInterval(() => {
+      setStatusIdx(prev => (prev + 1) % EXTRACT_STATUSES.length);
+    }, 4000);
+
     try {
-      const result = await getStreamUrl(item.id, item.Source);
-      if (result.video_url) {
-        navigation.navigate('Player', {
-          url: result.video_url,
-          title: item.Title,
-          contentId: item.id,
-          category: item.Category || 'movies',
-        });
-      } else {
-        setExtractError(t('video_unavailable'));
-      }
+      const result = await extractVideoUrl(sourceUrl || item.id);
+
+      clearInterval(rotateTimer);
+      setExtracting(false);
+
+      // Record play for view tracking (fire-and-forget)
+      recordPlay(item.id, item.Category || 'movies');
+
+      navigation.navigate('Player', {
+        url:       result.video_url,
+        qualities: result.quality_options,
+        title:     item.Title,
+        contentId: item.id,
+        category:  item.Category || 'movies',
+      });
     } catch (err: any) {
+      clearInterval(rotateTimer);
       setExtractError(err.message || t('server_error'));
-    } finally {
       setExtracting(false);
     }
-  }, [hasSource, item, navigation, t]);
+  }, [sourceUrl, item, navigation, t]);
 
-  const handleDownload = useCallback(async () => {
-    if (!hasSource) { Alert.alert(t('video_unavailable'), t('not_available')); return; }
-    setExtracting(true);
-    setExtractError(null);
-    try {
-      const result = await getStreamUrl(item.id, item.Source);
-      if (result.video_url) {
-        Alert.alert(t('download'), t('coming_soon'), [{text: 'OK'}]);
-      }
-    } catch (err: any) {
-      setExtractError(err.message || t('server_error'));
-    } finally {
-      setExtracting(false);
-    }
-  }, [hasSource, item, t]);
+  const handleShare = () =>
+    Share.share({message: `${item.Title} — AbdoBest`, url: sourceUrl || ''});
 
-  const handleShare = useCallback(() => {
-    if (item.Source) Share.share({message: item.Title, url: item.Source});
-  }, [item.Source, item.Title]);
-
-  const rating = item.Rating || '';
-  const views = item.Views || '';
-
+  // ── Render ───────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={S.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.dark.background} />
 
       <ScrollView
-        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, {paddingBottom: insets.bottom + 50}]}
+        contentContainerStyle={[S.scroll, {paddingBottom: insets.bottom + 60}]}
       >
-        {/* Header buttons */}
-        <View style={[styles.headerRow, {paddingTop: insets.top + 10}]}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={24} color="#fff" />
+        {/* Nav row */}
+        <View style={[S.topNav, {paddingTop: insets.top + 10}]}>
+          <TouchableOpacity style={S.navBtn} onPress={() => navigation.goBack()}>
+            <Image source={require('../../assets/icons/arrow.png')} style={S.iconNav} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-            <Icon name="share-outline" size={22} color="#fff" />
+          <TouchableOpacity style={S.navBtn} onPress={handleShare}>
+            <Image source={require('../../assets/icons/share.png')} style={S.iconNav} />
           </TouchableOpacity>
         </View>
 
-        {/* Title */}
-        <Text style={styles.title} numberOfLines={3}>{item.Title}</Text>
+        {/* Full title (can include original/extra info) */}
+        <Text style={S.title} numberOfLines={4}>{item.Title}</Text>
 
         {/* Poster */}
-        <View style={styles.posterContainer}>
+        <View style={S.posterWrap}>
           {item['Image Source'] ? (
             <FastImage
               source={{uri: item['Image Source']}}
-              style={styles.poster}
+              style={S.poster}
               resizeMode={FastImage.resizeMode.cover}
               fallback
             />
           ) : (
-            <View style={styles.posterPlaceholder}>
-              <Icon name="film-outline" size={60} color={Colors.dark.textMuted} />
+            <View style={[S.poster, S.posterPlaceholder]}>
+              <Image source={require('../../assets/icons/clapboard.png')} style={{width: 52, height: 52, tintColor: Colors.dark.textMuted}} />
             </View>
           )}
-          {/* Floating quality badge on poster */}
-          {item.Format && (
-            <View style={styles.posterQualityBadge}>
-              <Text style={styles.posterQualityText}>{item.Format.split(' ')[0]}</Text>
+          {format ? (
+            <View style={S.formatChip}>
+              <Text style={S.formatChipText}>{format}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
-        {/* Play + Download buttons */}
-        <View style={styles.actions}>
+        {/* Rating + Views pills */}
+        {(rating || views) ? (
+          <View style={S.metaRow}>
+            {rating ? (
+              <View style={S.pill}>
+                <Image source={require('../../assets/icons/star.png')} style={S.iconPill} />
+                <Text style={S.pillRating}>{rating}</Text>
+                <Text style={S.pillSub}>{t('of_10') || '/ 10'}</Text>
+              </View>
+            ) : null}
+            {views ? (
+              <View style={S.pill}>
+                <Image source={require('../../assets/icons/eyes.png')} style={S.iconPill} />
+                <Text style={S.pillViews}>{views}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Action buttons */}
+        <View style={S.actions}>
+          {/* PLAY — always enabled */}
           <TouchableOpacity
-            style={[styles.playButton, !hasSource && styles.disabledButton]}
+            style={S.playBtn}
             onPress={handlePlay}
-            disabled={extracting || !hasSource}
+            disabled={extracting}
+            activeOpacity={0.82}
           >
             {extracting ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <>
+                <ActivityIndicator color="#fff" size="small" style={{marginRight: 8}} />
+                <Text style={S.playBtnText} numberOfLines={1}>
+                  {EXTRACT_STATUSES[statusIdx]}
+                </Text>
+              </>
             ) : (
               <>
-                <Icon name="play" size={22} color="#fff" />
-                <Text style={styles.playText}>{t('play')}</Text>
+                <Text style={S.playIcon}>▶</Text>
+                <Text style={S.playBtnText}>{t('play')}</Text>
               </>
             )}
           </TouchableOpacity>
 
+          {/* DOWNLOAD */}
           <TouchableOpacity
-            style={[styles.downloadButton, !hasSource && styles.disabledButton]}
-            onPress={handleDownload}
-            disabled={extracting || !hasSource}
+            style={S.dlBtn}
+            disabled={extracting}
+            onPress={() => {/* TODO */}}
+            activeOpacity={0.82}
           >
-            <Icon name="download-outline" size={22} color={Colors.dark.accentLight} />
-            <Text style={styles.downloadText}>{t('download')}</Text>
+            <Image
+              source={require('../../assets/icons/files.png')}
+              style={[S.iconMed, {tintColor: Colors.dark.accentLight}]}
+            />
+            <Text style={S.dlBtnText}>{t('download')}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Extract error */}
-        {extractError && (
-          <View style={styles.errorBanner}>
-            <Icon name="alert-circle-outline" size={16} color={Colors.dark.error} />
-            <Text style={styles.errorBannerText}>{extractError}</Text>
-            <TouchableOpacity onPress={handlePlay}>
-              <Text style={styles.retryText}>{t('retry')}</Text>
+        {/* Extraction error */}
+        {extractError ? (
+          <View style={S.errorBanner}>
+            <Text style={S.errorText} numberOfLines={3}>{extractError}</Text>
+            <TouchableOpacity style={S.retryBtn} onPress={handlePlay}>
+              <Image source={require('../../assets/icons/undoreturn.png')} style={{width: 14, height: 14, tintColor: Colors.dark.primary}} />
+              <Text style={S.retryText}>{t('retry')}</Text>
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
-        {!hasSource && (
-          <View style={styles.unavailableBanner}>
-            <Icon name="information-circle-outline" size={16} color={Colors.dark.warning} />
-            <Text style={styles.unavailableText}>{t('not_available')}</Text>
+        {/* Description */}
+        {description ? (
+          <View style={S.descBox}>
+            <Text style={S.descText}>{description}</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Info box */}
-        <View style={styles.infoBox}>
-          {/* Quick meta chips */}
-          <View style={styles.metaRow}>
-            {rating ? (
-              <View style={styles.metaChip}>
-                <Text style={styles.starIcon}>★</Text>
-                <Text style={styles.metaChipText}>{rating}</Text>
+        {/* ── Info table (matches screenshot) ── */}
+        <View style={S.infoTable}>
+          {year        ? <InfoRow label={t('year')        || 'سنة الإنتاج'} value={year}        accent /> : null}
+          {item.Category ? <InfoRow label={t('category')   || 'القسم'}       value={item.Category} accent /> : null}
+          {genresDisplay ? <InfoRow label={t('genres')}                       value={genresDisplay} accent /> : null}
+          {language    ? <InfoRow label={t('language')    || 'اللغة'}        value={language}              /> : null}
+          {format      ? <InfoRow label={t('quality')}                       value={format}                /> : null}
+          {country     ? <InfoRow label={t('country')}                       value={country}       accent /> : null}
+          {directors   ? <InfoRow label={t('directors')   || 'المخرجين'}     value={directors}     accent /> : null}
+          {numEps      ? <InfoRow label={t('episodes')}                      value={String(numEps)}        /> : null}
+          {runtime     ? <InfoRow label={t('duration')}                      value={runtime}               /> : null}
+          {/* Rating row — custom with star icon */}
+          {rating ? (
+            <View style={rowS.row}>
+              <Text style={rowS.label}>{t('rating') || 'التقييم'}</Text>
+              <View style={{flex: 2, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6}}>
+                <Text style={rowS.value}>{rating} {t('of_10') || 'من 10'}</Text>
+                <Image source={require('../../assets/icons/star.png')} style={{width: 16, height: 16, tintColor: '#FFD700'}} />
               </View>
-            ) : null}
-            {views ? (
-              <View style={styles.metaChip}>
-                <Text style={styles.eyeIcon}>👁</Text>
-                <Text style={styles.metaChipText}>{views}</Text>
-              </View>
-            ) : null}
-            {item.Runtime ? (
-              <View style={styles.metaChip}>
-                <Icon name="time-outline" size={12} color={Colors.dark.textSecondary} />
-                <Text style={styles.metaChipText}>{formatRuntime(item.Runtime)}</Text>
-              </View>
-            ) : null}
-            {item.Country ? (
-              <View style={styles.metaChip}>
-                <Icon name="location-outline" size={12} color={Colors.dark.textSecondary} />
-                <Text style={styles.metaChipText}>{item.Country}</Text>
-              </View>
-            ) : null}
-            {item.Year ? (
-              <View style={styles.metaChip}>
-                <Icon name="calendar-outline" size={12} color={Colors.dark.textSecondary} />
-                <Text style={styles.metaChipText}>{item.Year}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Episodes count */}
-          {item['Number Of Episodes'] ? (
-            <View style={styles.infoRow}>
-              <Icon name="tv-outline" size={15} color={Colors.dark.accentLight} />
-              <Text style={styles.infoText}>{item['Number Of Episodes']} {t('episodes')}</Text>
             </View>
           ) : null}
-
-          {/* Description */}
-          {hasDescription && (
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionLabel}>{t('description')}</Text>
-              <Text style={styles.descriptionText} numberOfLines={6}>{description}</Text>
-            </View>
-          )}
-
-          {/* Genres */}
-          {displayGenres.length > 0 && (
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionLabel}>{t('genres')}</Text>
-              <View style={styles.genreChips}>
-                {displayGenres.map((genre, idx) => (
-                  <View key={idx} style={styles.genreChip}>
-                    <Text style={styles.genreChipText}>{genre}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Quality */}
-          {item.Format && (
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionLabel}>{t('quality')}</Text>
-              <Text style={styles.infoValue}>{item.Format}</Text>
-            </View>
-          )}
         </View>
       </ScrollView>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  scrollView: {flex: 1},
-  scrollContent: {paddingTop: 0},
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 6,
-  },
-  headerButton: {
-    width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+// ── Styles ───────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+  container:  {flex: 1, backgroundColor: Colors.dark.background},
+  scroll:     {paddingTop: 0},
+  topNav:     {flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12},
+  navBtn:     {width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.dark.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.dark.border},
+  iconNav:    {width: 20, height: 20, tintColor: Colors.dark.text},
+  iconPill:   {width: 13, height: 13, tintColor: Colors.dark.text},
+  iconMed:    {width: 20, height: 20},
   title: {
     color: Colors.dark.text,
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
     textAlign: 'center',
     paddingHorizontal: 20,
-    marginBottom: 18,
+    marginBottom: 20,
     fontFamily: 'Rubik',
-    lineHeight: 30,
+    lineHeight: 29,
   },
-  posterContainer: {
-    alignSelf: 'center',
-    marginBottom: 22,
-    position: 'relative',
-  },
+  posterWrap: {alignSelf: 'center', marginBottom: 16, position: 'relative'},
   poster: {
-    width: POSTER_WIDTH,
-    height: POSTER_HEIGHT,
-    borderRadius: 18,
+    width: POSTER_W,
+    height: POSTER_H,
+    borderRadius: 16,
     backgroundColor: Colors.dark.surfaceLight,
+    elevation: 14,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
   },
-  posterPlaceholder: {
-    width: POSTER_WIDTH,
-    height: POSTER_HEIGHT,
-    borderRadius: 18,
-    backgroundColor: Colors.dark.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  posterQualityBadge: {
+  posterPlaceholder: {justifyContent: 'center', alignItems: 'center'},
+  formatChip: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    bottom: 10, right: 10,
+    backgroundColor: 'rgba(0,0,0,0.87)',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 7,
     borderWidth: 1,
-    borderColor: `${Colors.dark.accentLight}50`,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  posterQualityText: {
-    color: Colors.dark.accentLight,
-    fontSize: 11,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
+  formatChipText: {color: '#FFFFFF', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
+  metaRow: {
+    flexDirection: 'row', justifyContent: 'center',
+    gap: 10, marginBottom: 18, paddingHorizontal: 20,
   },
-  actions: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    gap: 12,
+  pill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.dark.surface,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 22, gap: 5,
+    borderWidth: 1, borderColor: Colors.dark.border,
   },
-  playButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 54,
-    borderRadius: 16,
+  pillRating: {color: '#FFD700', fontSize: 13, fontWeight: '700', fontFamily: 'Rubik'},
+  pillSub:    {color: Colors.dark.textMuted, fontSize: 11, fontFamily: 'Rubik'},
+  pillViews:  {color: Colors.dark.textSecondary, fontSize: 13, fontWeight: '600', fontFamily: 'Rubik'},
+  actions:    {flexDirection: 'row', paddingHorizontal: 18, marginBottom: 12, gap: 12},
+  playBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    height: 54, borderRadius: 16,
     backgroundColor: Colors.dark.primary,
-    gap: 8,
+    gap: 8, elevation: 8,
     shadowColor: Colors.dark.primary,
     shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.5, shadowRadius: 10,
   },
-  playText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  downloadButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 54,
-    borderRadius: 16,
+  playIcon:    {color: '#fff', fontSize: 15},
+  playBtnText: {color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Rubik', flexShrink: 1},
+  dlBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    height: 54, borderRadius: 16,
     backgroundColor: Colors.dark.surface,
-    borderWidth: 1.5,
+    gap: 8, borderWidth: 1.5,
     borderColor: Colors.dark.accentLight,
-    gap: 8,
   },
-  downloadText: {
-    color: Colors.dark.accentLight,
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  disabledButton: {opacity: 0.45},
+  dlBtnText: {color: Colors.dark.accentLight, fontSize: 15, fontWeight: '700', fontFamily: 'Rubik'},
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    padding: 12,
-    backgroundColor: `${Colors.dark.error}18`,
-    borderRadius: 10,
-    marginBottom: 12,
-    gap: 8,
+    marginHorizontal: 18, marginBottom: 12,
+    backgroundColor: `${Colors.dark.error}16`,
+    borderRadius: 12, padding: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: `${Colors.dark.error}30`,
+    gap: 10,
   },
-  errorBannerText: {
-    flex: 1,
-    color: Colors.dark.error,
-    fontSize: 13,
-  },
-  retryText: {
-    color: Colors.dark.primary,
-    fontSize: 13,
-    fontWeight: '700',
-    fontFamily: 'Rubik',
-  },
-  unavailableBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    padding: 12,
-    backgroundColor: `${Colors.dark.warning}15`,
-    borderRadius: 10,
-    marginBottom: 12,
-    gap: 8,
-  },
-  unavailableText: {
-    color: Colors.dark.warning,
-    fontSize: 13,
-    fontFamily: 'Rubik',
-  },
-  infoBox: {
-    marginHorizontal: 16,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dark.background,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  starIcon: {color: '#FFD700', fontSize: 11},
-  eyeIcon: {fontSize: 11},
-  metaChipText: {
-    color: Colors.dark.text,
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Rubik',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 6,
-  },
-  infoText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 14,
-    fontFamily: 'Rubik',
-  },
-  infoSection: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.dark.border,
-  },
-  sectionLabel: {
-    color: Colors.dark.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-    fontFamily: 'Rubik',
-  },
-  descriptionText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 14,
-    lineHeight: 22,
-    fontFamily: 'Rubik',
-  },
-  genreChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  genreChip: {
-    backgroundColor: `${Colors.dark.accent}25`,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: `${Colors.dark.accentLight}40`,
-  },
-  genreChipText: {
-    color: Colors.dark.accentLight,
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Rubik',
-  },
-  infoValue: {
-    color: Colors.dark.text,
-    fontSize: 14,
-    fontFamily: 'Rubik',
-  },
+  errorText:  {flex: 1, color: Colors.dark.error, fontSize: 13, fontFamily: 'Rubik'},
+  retryBtn:   {flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: `${Colors.dark.primary}22`},
+  retryText:  {color: Colors.dark.primary, fontSize: 13, fontWeight: '700', fontFamily: 'Rubik'},
+  descBox:    {marginHorizontal: 16, marginBottom: 14, backgroundColor: Colors.dark.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.dark.border},
+  descText:   {color: Colors.dark.textSecondary, fontSize: 14, lineHeight: 22, fontFamily: 'Rubik'},
+  infoTable:  {marginHorizontal: 16, backgroundColor: Colors.dark.surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: Colors.dark.border, marginBottom: 24},
 });
