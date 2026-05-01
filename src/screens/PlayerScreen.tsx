@@ -1,7 +1,8 @@
 import React, {useState, useRef, useEffect, useCallback, useMemo} from 'react';
 import {
   View, StyleSheet, Dimensions, TouchableOpacity, Text,
-  ActivityIndicator, StatusBar, Modal, Image,
+  ActivityIndicator, StatusBar, Modal, Image, Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import Video from 'react-native-video';
 import {useRoute, useNavigation} from '@react-navigation/native';
@@ -32,6 +33,7 @@ export const PlayerScreen: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffering, setBuffering] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -51,16 +53,21 @@ export const PlayerScreen: React.FC = () => {
   const hideTimer = useRef<any>(null);
   const viewTracked = useRef(false);
   const loadTimeout = useRef<any>(null);
+  const videoReady = useRef(false);
 
-  // Build the source object — let react-native-video auto-detect type
+  // Build source — NO type prop!
+  // react-native-video v5 uses type:'m3u8', v6 uses type:'hls'.
+  // Omitting type entirely lets the library auto-detect (works for BOTH versions).
+  // CRITICAL: The CDN (scdns.io) requires Referer + Origin headers or it returns 403.
   const videoSource = useMemo(() => {
     if (!url) return undefined;
-    // If URL ends with .m3u8, hint the type; otherwise let it auto-detect
-    const lower = url.toLowerCase().split('?')[0];
-    if (lower.endsWith('.m3u8') || lower.includes('.m3u8')) {
-      return {uri: url, type: 'm3u8'};
-    }
-    return {uri: url};
+    return {
+      uri: url,
+      headers: {
+        'Referer': 'https://www.fasel-hd.cam/',
+        'Origin': 'https://www.fasel-hd.cam',
+      },
+    };
   }, [url]);
 
   // Track view
@@ -79,19 +86,21 @@ export const PlayerScreen: React.FC = () => {
     };
   }, []);
 
-  // Safety timeout: if video hasn't loaded in 20s, show error
+  // Safety timeout: if video hasn't rendered in 20s, show actionable error
   useEffect(() => {
     if (!url || error) return;
     loadTimeout.current = setTimeout(() => {
-      if (buffering) {
+      if (!videoReady.current) {
         setErrorMsg('Video took too long to load. Check your connection and try again.');
         setBuffering(false);
+        setLoading(false);
+        setError('timeout');
       }
     }, 20000);
     return () => {
       if (loadTimeout.current) clearTimeout(loadTimeout.current);
     };
-  }, [url, buffering, error]);
+  }, [url, error]);
 
   const triggerHideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -109,12 +118,26 @@ export const PlayerScreen: React.FC = () => {
     if (data?.currentTime !== undefined) setCurrentTime(data.currentTime);
   }, []);
 
+  const handleLoadStart = useCallback(() => {
+    console.log('[Player] Load started for:', url?.substring(0, 100));
+    setLoading(true);
+    setBuffering(true);
+  }, [url]);
+
   const handleLoad = useCallback((meta: any) => {
-    console.log('[Player] Video loaded:', JSON.stringify(meta)?.substring(0, 200));
+    console.log('[Player] Video loaded, duration:', meta?.duration);
     if (meta?.duration !== undefined) setDuration(meta.duration);
+    setLoading(false);
     setBuffering(false);
     triggerHideControls();
   }, [triggerHideControls]);
+
+  const handleReadyForDisplay = useCallback(() => {
+    console.log('[Player] Video surface ready for display');
+    videoReady.current = true;
+    setLoading(false);
+    setBuffering(false);
+  }, []);
 
   const handleBuffer = useCallback((data: any) => {
     const isBuf = data?.isBuffering ?? data?.buffering ?? false;
@@ -127,12 +150,39 @@ export const PlayerScreen: React.FC = () => {
   }, []);
 
   const handleError = useCallback((err: any) => {
-    const errStr = err?.error?.errorString || err?.error?.toString?.() || err?.message || JSON.stringify(err) || 'Unknown error';
-    console.error('[Player] Video error:', errStr);
+    // ExoPlayer (Android) error structures vary across react-native-video versions.
+    // Must check multiple paths to avoid showing "[object Object]".
+    let errStr = '';
+    const e = err?.error ?? err;
+    if (typeof e === 'string') {
+      errStr = e;
+    } else if (e?.errorString) {
+      errStr = e.errorString;
+    } else if (e?.message) {
+      errStr = e.message;
+    } else if (e?.localizedFailureReason) {
+      errStr = e.localizedFailureReason;
+    } else if (e?.code) {
+      errStr = `Error code: ${e.code}`;
+    } else {
+      try { errStr = JSON.stringify(e); } catch { errStr = 'Unknown playback error'; }
+    }
+    console.error('[Player] Video error:', errStr, '| raw:', JSON.stringify(err)?.substring(0, 300));
     setErrorMsg(errStr);
     setError(t('video_unavailable'));
     setBuffering(false);
+    setLoading(false);
   }, [t]);
+
+  const handleRetry = useCallback(() => {
+    setError(null);
+    setErrorMsg('');
+    setBuffering(true);
+    setLoading(true);
+    videoReady.current = false;
+    setPlaying(false);
+    setTimeout(() => setPlaying(true), 100);
+  }, []);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -179,11 +229,16 @@ export const PlayerScreen: React.FC = () => {
       <View style={styles.errorContainer}>
         <StatusBar hidden />
         <Image source={require('../../assets/icons/nlp.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>{error === 'timeout' ? 'Playback Timeout' : error}</Text>
         {errorMsg ? <Text style={styles.errorSub} numberOfLines={5}>{errorMsg}</Text> : null}
-        <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.errorButtonText}>{t('retry')}</Text>
-        </TouchableOpacity>
+        <View style={styles.errorActions}>
+          <TouchableOpacity style={styles.errorButton} onPress={handleRetry}>
+            <Text style={styles.errorButtonText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.errorButton, {backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border}]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.errorButtonText, {color: Colors.dark.text}]}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -193,43 +248,53 @@ export const PlayerScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* Video — NOT wrapped in TouchableOpacity (causes white screen on Android) */}
-      <View style={styles.videoContainer}>
-        <Video
-          ref={videoRef}
-          source={videoSource}
-          resizeMode="contain"
-          onProgress={handleProgress}
-          onLoad={handleLoad}
-          onBuffer={handleBuffer}
-          onEnd={handleEnd}
-          onError={handleError}
-          playInBackground={false}
-          playWhenInactive={false}
-          paused={!playing}
-          style={styles.video}
-          repeat={false}
-          controls={false}
-        />
+      {/* TouchableWithoutFeedback wraps ONLY the video — no visual overlay.
+          The gesture responder system prevents double-firing with control buttons above. */}
+      <TouchableWithoutFeedback onPress={toggleControls} style={StyleSheet.absoluteFill}>
+        <View style={styles.videoContainer}>
+          <Video
+            ref={videoRef}
+            source={videoSource}
+            resizeMode="contain"
+            onProgress={handleProgress}
+            onLoadStart={handleLoadStart}
+            onLoad={handleLoad}
+            onReadyForDisplay={handleReadyForDisplay}
+            onBuffer={handleBuffer}
+            onEnd={handleEnd}
+            onError={handleError}
+            playInBackground={false}
+            playWhenInactive={false}
+            paused={!playing}
+            style={styles.video}
+            repeat={false}
+            controls={false}
+            bufferConfig={
+              Platform.OS === 'android'
+                ? {
+                    minBufferMs: 15000,
+                    maxBufferMs: 50000,
+                    bufferForPlaybackMs: 2500,
+                    bufferForPlaybackAfterRebufferMs: 5000,
+                  }
+                : undefined
+            }
+          />
+        </View>
+      </TouchableWithoutFeedback>
 
-        {/* Tap overlay for controls toggle */}
-        <TouchableOpacity
-          style={styles.tapOverlay}
-          activeOpacity={1}
-          onPress={toggleControls}
-        />
+      {/* Buffering — rendered OUTSIDE the touchable so it doesn't interfere */}
+      {(buffering || loading) && (
+        <View style={styles.bufferingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={Colors.dark.primary} />
+          <Text style={styles.bufferingText}>{loading ? 'Connecting...' : 'Buffering...'}</Text>
+        </View>
+      )}
 
-        {buffering && (
-          <View style={styles.bufferingOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color={Colors.dark.primary} />
-            <Text style={styles.bufferingText}>Loading...</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Controls overlay */}
+      {/* Controls overlay — pointerEvents="box-none" lets taps on empty areas
+          fall through to the TouchableWithoutFeedback below for toggle. */}
       {showControls && (
-        <>
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {/* Top bar */}
           <View style={[styles.topControls, {paddingTop: insets.top + 4}]}>
             <TouchableOpacity style={styles.topButton} onPress={() => navigation.goBack()}>
@@ -294,7 +359,7 @@ export const PlayerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </>
+        </View>
       )}
 
       {/* Quality Picker Modal */}
@@ -346,9 +411,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   videoContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: '#000',
   },
   video: {
@@ -359,19 +426,11 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
     backgroundColor: '#000',
   },
-  tapOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    // transparent, just for tap detection
-  },
   bufferingOverlay: {
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   bufferingText: {
     color: 'rgba(255,255,255,0.8)',
@@ -566,8 +625,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Rubik',
     marginHorizontal: 20,
   },
-  errorButton: {
+  errorActions: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 22,
+  },
+  errorButton: {
     paddingHorizontal: 28,
     paddingVertical: 12,
     backgroundColor: Colors.dark.primary,
