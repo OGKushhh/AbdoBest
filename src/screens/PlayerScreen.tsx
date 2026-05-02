@@ -19,11 +19,11 @@ import {useWindowDimensions} from 'react-native';
 type QualityLevel = 'auto' | '1080' | '720' | '480' | '360';
 
 const QUALITY_OPTIONS: {label: string; value: QualityLevel; resolution?: number}[] = [
-  {label: 'quality_master', value: 'auto'},
-  {label: 'quality_fhd', value: '1080', resolution: 1080},
-  {label: 'quality_hd', value: '720', resolution: 720},
-  {label: 'quality_sd', value: '480', resolution: 480},
-  {label: 'quality_low', value: '360', resolution: 360},
+  {label: 'quality_auto', value: 'auto'},
+  {label: 'quality_1080', value: '1080', resolution: 1080},
+  {label: 'quality_720', value: '720', resolution: 720},
+  {label: 'quality_480', value: '480', resolution: 480},
+  {label: 'quality_360', value: '360', resolution: 360},
 ];
 
 export const PlayerScreen: React.FC = () => {
@@ -46,7 +46,7 @@ export const PlayerScreen: React.FC = () => {
   // FIX 4: Load saved quality preference SYNCHRONOUSLY before first render
   const [qualityLevel, setQualityLevel] = useState<QualityLevel>(() => {
     const settings = getSettings();
-    return settings.playerQuality || 'auto';
+    return settings.playerQuality || settings.qualityPreference || 'auto';
   });
   const [seekBarWidth, setSeekBarWidth] = useState(0);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
@@ -162,7 +162,7 @@ export const PlayerScreen: React.FC = () => {
 
   const getCurrentQualityLabel = (): string => {
     const found = QUALITY_OPTIONS.find(q => q.value === qualityLevel);
-    return found ? t(found.label) : t('quality_master');
+    return found ? t(found.label) : t('quality_auto');
   };
 
   const toggleQualityPicker = () => {

@@ -144,7 +144,7 @@ export const SettingsScreen: React.FC = () => {
             toggle
           />
           <TouchableOpacity style={styles.row} onPress={() => {
-            const prefs = ['auto', 'high', 'medium', 'low'] as const;
+            const prefs = ['auto', '1080', '720', '480', '360'] as const;
             const current = prefs.indexOf(settings.qualityPreference as any);
             const next = prefs[(current + 1) % prefs.length];
             updateSetting('qualityPreference', next);

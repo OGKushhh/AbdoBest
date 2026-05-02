@@ -74,6 +74,7 @@ export const ar = {
   quality_720: '720p',
   quality_480: '480p',
   quality_360: '360p',
+  quality_auto: 'تلقائي',
   // تحديث OTA
   update_available: 'تحديث متاح',
   update_description: 'يتوفر إصدار جديد من AbdoBest!',
@@ -93,10 +94,12 @@ export const ar = {
   appearance: 'المظهر',
   cache_cleared: 'تم مسح ذاكرة التخزين المؤقت',
   clear_cache: 'مسح ذاكرة التخزين المؤقت',
+  clear_cache_confirm: 'هل أنت متأكد من مسح ذاكرة التخزين المؤقت؟',
   // المزامنة
   sync_database: 'مزامنة قاعدة البيانات',
   last_sync: 'آخر مزامنة',
   never: 'أبداً',
+  sync_failed: 'فشلت المزامنة، تحقق من اتصالك بالإنترنت',
   // شاشة التفاصيل
   description: 'الوصف',
   episode_count: 'الحلقات',
@@ -106,10 +109,6 @@ export const ar = {
   theme_light: 'فاتح',
   // تفضيل الجودة
   quality_preference: 'تفضيل الجودة',
-  quality_high: 'عالية (1080p)',
-  quality_medium: 'متوسطة (720p)',
-  quality_low: 'منخفضة (480p)',
-  quality_auto: 'تلقائي',
   // الترجمة
   subtitles: 'الترجمة',
   subtitles_enabled: 'تفعيل الترجمة',
@@ -156,4 +155,9 @@ export const ar = {
   // مختار الموسم
   select_season: 'اختر الموسم',
   select_episode: 'اختر حلقة',
+  // عام
+  success: 'تم بنجاح',
+  error: 'خطأ',
+  ok: 'حسناً',
+  update_check_failed: 'فشل التحقق من التحديثات، حاول لاحقاً',
 };

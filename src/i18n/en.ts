@@ -74,6 +74,7 @@ export const en = {
   quality_720: '720p',
   quality_480: '480p',
   quality_360: '360p',
+  quality_auto: 'Auto',
   // OTA Update
   update_available: 'Update Available',
   update_description: 'A new version of AbdoBest is available!',
@@ -93,10 +94,12 @@ export const en = {
   appearance: 'Appearance',
   cache_cleared: 'Cache cleared',
   clear_cache: 'Clear Cache',
+  clear_cache_confirm: 'Are you sure you want to clear the cache?',
   // Sync
   sync_database: 'Sync Database',
   last_sync: 'Last Sync',
   never: 'Never',
+  sync_failed: 'Sync failed, check your internet connection',
   // Details screen
   description: 'Description',
   episode_count: 'Episodes',
@@ -106,10 +109,6 @@ export const en = {
   theme_light: 'Light',
   // Quality preference
   quality_preference: 'Quality Preference',
-  quality_high: 'High (1080p)',
-  quality_medium: 'Medium (720p)',
-  quality_low: 'Low (480p)',
-  quality_auto: 'Auto',
   // Subtitles
   subtitles: 'Subtitles',
   subtitles_enabled: 'Subtitles Enabled',
@@ -156,4 +155,9 @@ export const en = {
   // Season picker
   select_season: 'Select Season',
   select_episode: 'Select Episode',
+  // General
+  success: 'Success',
+  error: 'Error',
+  ok: 'OK',
+  update_check_failed: 'Update check failed, try again later',
 };
