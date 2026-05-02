@@ -56,6 +56,45 @@ const SORT_OPTIONS = [
 
 const MAX_ITEMS = 200;
 
+// Helper: robust year sorting (missing years go to end)
+const sortByYearDesc = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => {
+    const ya = (a as any).ReleaseDate || (a as any).Year || '';
+    const yb = (b as any).ReleaseDate || (b as any).Year || '';
+    if (!ya && !yb) return 0;
+    if (!ya) return 1;
+    if (!yb) return -1;
+    return parseInt(yb, 10) - parseInt(ya, 10);
+  });
+};
+
+const sortByYearAsc = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => {
+    const ya = (a as any).ReleaseDate || (a as any).Year || '';
+    const yb = (b as any).ReleaseDate || (b as any).Year || '';
+    if (!ya && !yb) return 0;
+    if (!ya) return 1;
+    if (!yb) return -1;
+    return parseInt(ya, 10) - parseInt(yb, 10);
+  });
+};
+
+const sortByAZ = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+};
+
+const sortByZA = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => (b.Title || '').localeCompare(a.Title || ''));
+};
+
+const sortByRatingDesc = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => {
+    const ra = parseFloat((a as any).Rating || '0');
+    const rb = parseFloat((b as any).Rating || '0');
+    return rb - ra;
+  });
+};
+
 export const CategoryScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -99,22 +138,26 @@ export const CategoryScreen: React.FC = () => {
         }
       }
       if (!data) { setItems([]); return; }
+      let itemsArray: ContentItem[] = [];
       if (data.movies && !data.Title) {
-        setItems((data.movies || []).slice(0, 60).map((m: any, i: number) => ({
+        itemsArray = (data.movies || []).slice(0, 60).map((m: any, i: number) => ({
           id: `trending_${i}`, Title: m.title,
           Category: m.content_type || 'movies',
           'Image Source': m.image, Source: m.link,
           Genres: [], GenresAr: [],
           Format: m.quality || '', Runtime: null, Country: null,
           Rating: m.imdb_rating || '', Views: m.views || '',
-        })));
+        }));
       } else if (Array.isArray(data)) {
-        setItems(data.slice(0, MAX_ITEMS));
+        itemsArray = data;
       } else if (typeof data === 'object') {
         const dict = data as Record<string, ContentItem>;
         Object.keys(dict).forEach(id => { if (dict[id]) dict[id].id = id; });
-        setItems(Object.values(dict).slice(0, MAX_ITEMS));
+        itemsArray = Object.values(dict);
       }
+      // Apply default sort (year_desc) immediately
+      itemsArray = sortByYearDesc(itemsArray).slice(0, MAX_ITEMS);
+      setItems(itemsArray);
     } catch (e: any) {
       setError(e.message || t('error_loading'));
     } finally {
@@ -134,7 +177,7 @@ export const CategoryScreen: React.FC = () => {
     setDebouncedQuery('');
   }, []);
 
-  // ── Apply all filters ──────────────────────────────────────────────
+  // ── Apply all filters (sorts now use the robust helpers) ─────────
   const filteredItems = useMemo(() => {
     let result = items;
 
@@ -156,34 +199,25 @@ export const CategoryScreen: React.FC = () => {
       );
     }
 
+    // Apply sort using robust helpers
     switch (selectedSort) {
       case 'az':
-        result = [...result].sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+        result = sortByAZ(result);
         break;
       case 'za':
-        result = [...result].sort((a, b) => (b.Title || '').localeCompare(a.Title || ''));
+        result = sortByZA(result);
         break;
       case 'year_desc':
-        result = [...result].sort((a, b) => {
-          const ya = (a as any).ReleaseDate || (a as any).Year || '';
-          const yb = (b as any).ReleaseDate || (b as any).Year || '';
-          return yb.localeCompare(ya);
-        });
+        result = sortByYearDesc(result);
         break;
       case 'year_asc':
-        result = [...result].sort((a, b) => {
-          const ya = (a as any).ReleaseDate || (a as any).Year || '';
-          const yb = (b as any).ReleaseDate || (b as any).Year || '';
-          return ya.localeCompare(yb);
-        });
+        result = sortByYearAsc(result);
         break;
       case 'rating_desc':
-        result = [...result].sort((a, b) => {
-          const ra = parseFloat((a as any).Rating || '0');
-          const rb = parseFloat((b as any).Rating || '0');
-          return rb - ra;
-        });
+        result = sortByRatingDesc(result);
         break;
+      default:
+        result = sortByYearDesc(result);
     }
 
     return result;

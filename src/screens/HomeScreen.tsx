@@ -1,5 +1,5 @@
 import React, {useState, useCallback, useMemo, memo, useRef} from 'react';
-import {View, Text, StyleSheet, FlatList, RefreshControl, StatusBar, SafeAreaView} from 'react-native';
+import {View, Text, StyleSheet, FlatList, RefreshControl, StatusBar} from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {loadCategory, loadFeatured, getMoviesArray, searchContent} from '../services/metadataService';
 import {ContentItem, TrendingContent, TrendingItem} from '../types';
@@ -12,7 +12,7 @@ import {Colors} from '../theme/colors';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTranslation} from 'react-i18next';
 
-// ─── Memoized horizontal row for performance ──────────────────────
+// ─── Memoized horizontal row ──────────────────────────────────────
 interface HorizontalSectionProps {
   title: string;
   items: ContentItem[];
@@ -51,6 +51,27 @@ const HorizontalSection = memo<HorizontalSectionProps>(
 );
 HorizontalSection.displayName = 'HorizontalSection';
 
+// Helper: sort by year (newest first, missing years at end)
+const sortByYearDesc = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => {
+    const ya = (a as any).ReleaseDate || (a as any).Year || '';
+    const yb = (b as any).ReleaseDate || (b as any).Year || '';
+    if (!ya && !yb) return 0;
+    if (!ya) return 1;
+    if (!yb) return -1;
+    return parseInt(yb, 10) - parseInt(ya, 10);
+  });
+};
+
+// Helper: sort by views (most viewed first)
+const sortByViewsDesc = (items: ContentItem[]): ContentItem[] => {
+  return [...items].sort((a, b) => {
+    const va = parseInt((a as any).Views || '0', 10);
+    const vb = parseInt((b as any).Views || '0', 10);
+    return vb - va;
+  });
+};
+
 export const HomeScreen: React.FC = () => {
   const {t} = useTranslation();
   const navigation = useNavigation<any>();
@@ -78,12 +99,9 @@ export const HomeScreen: React.FC = () => {
         loadCategory('trending', forceRefresh),
         loadFeatured(forceRefresh),
       ]);
-      const moviesArr = getMoviesArray(moviesDict as Record<string, any>);
-      moviesArr.sort((a, b) => {
-        const ya = (a as any).ReleaseDate || (a as any).Year || '';
-        const yb = (b as any).ReleaseDate || (b as any).Year || '';
-        return yb.localeCompare(ya);
-      });
+      let moviesArr = getMoviesArray(moviesDict as Record<string, any>);
+      // Sort by year (newest first) on initial load
+      moviesArr = sortByYearDesc(moviesArr);
       setMovies(moviesArr);
       setTrending(trendingData as TrendingContent);
       setFeatured(featuredData as TrendingContent);
@@ -155,7 +173,6 @@ export const HomeScreen: React.FC = () => {
     }));
   }, []);
 
-  // Use useRef-based stable data to prevent flickering
   const stableTrending = useMemo(
     () => (trending?.movies ? trendingToItems(trending.movies, 'trending') : []),
     [trending?.movies, trendingToItems],
@@ -167,7 +184,7 @@ export const HomeScreen: React.FC = () => {
   );
 
   const latestMovies = useMemo(() => movies.slice(0, 20), [movies]);
-  const recentAdded = useMemo(() => movies.slice(-20).reverse(), [movies]);
+  const mostViewed = useMemo(() => sortByViewsDesc(movies).slice(0, 20), [movies]);
 
   if (loading) return <LoadingSpinner />;
   if (error && movies.length === 0) return <ErrorView message={error} onRetry={() => loadData(true)} />;
@@ -250,7 +267,7 @@ export const HomeScreen: React.FC = () => {
             />
             <HorizontalSection
               title={t('most_viewed')}
-              items={recentAdded}
+              items={mostViewed}
               onSeeAll={() => navigateToCategory('movies')}
               onPressItem={navigateToDetails}
             />

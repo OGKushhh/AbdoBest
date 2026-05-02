@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Text,
   ActivityIndicator, StatusBar, Animated, Image,
-  I18nManager, Dimensions, Modal, GestureResponderEvent, Platform,
+  I18nManager, Modal, GestureResponderEvent, Platform,
 } from 'react-native';
 import Video, { VideoRef, OnProgressData, OnBufferData } from 'react-native-video';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
 import { useWindowDimensions } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import ImmersiveMode from 'react-native-immersive-mode';
 
 type QualityLevel = 'auto' | '1080' | '720' | '480' | '360';
 
@@ -30,7 +29,7 @@ export const PlayerScreen: React.FC = () => {
   const { url, title } = route.params || {};
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const isRTL = I18nManager.isRTL;
 
   const videoRef = useRef<VideoRef>(null);
@@ -54,48 +53,29 @@ export const PlayerScreen: React.FC = () => {
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
 
-  // Hide system navigation bar (Android)
-  const hideSystemUI = useCallback(() => {
-    if (Platform.OS === 'android') {
-      ImmersiveMode.on();
-    }
-  }, []);
-
-  const showSystemUI = useCallback(() => {
-    if (Platform.OS === 'android') {
-      ImmersiveMode.off();
-    }
-  }, []);
-
   useEffect(() => {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      if (Platform.OS === 'android') ImmersiveMode.off();
     };
   }, []);
 
   const showControlsTemporarily = useCallback(() => {
     setShowControls(true);
     controlsOpacity.setValue(1);
-    showSystemUI(); // show nav bar when controls appear
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       Animated.timing(controlsOpacity, {
         toValue: 0,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => {
-        setShowControls(false);
-        if (playing) hideSystemUI(); // re‑hide nav bar when controls disappear and video is playing
-      });
+      }).start(() => setShowControls(false));
     }, 5000);
-  }, [controlsOpacity, playing, hideSystemUI, showSystemUI]);
+  }, [controlsOpacity]);
 
   const handleVideoTap = () => {
     if (showControls) {
       setShowControls(false);
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      if (playing) hideSystemUI();
     } else {
       showControlsTemporarily();
     }
@@ -106,19 +86,16 @@ export const PlayerScreen: React.FC = () => {
     setDuration(meta.duration);
     setBuffering(false);
     showControlsTemporarily();
-    if (playing) hideSystemUI();
   };
   const handleBuffer = (data: OnBufferData) => setBuffering(data.isBuffering);
   const handleEnd = () => {
     setPlaying(false);
     setShowControls(true);
-    showSystemUI();
   };
   const handleError = (err: any) => {
     console.error('[Player] Video error:', err?.error?.errorString || err?.error || err);
     setError(t('video_unavailable'));
     setBuffering(false);
-    showSystemUI();
   };
 
   const formatTime = (seconds: number) => {
@@ -169,7 +146,6 @@ export const PlayerScreen: React.FC = () => {
     const settings = getSettings();
     settings.playerQuality = quality;
     saveSettings(settings);
-    // Actual quality change will be handled by maxBitRate prop (or via new URL if needed)
   };
 
   const getCurrentQualityLabel = (): string => {
@@ -232,7 +208,6 @@ export const PlayerScreen: React.FC = () => {
               e.stopPropagation();
               setPlaying(true);
               showControlsTemporarily();
-              hideSystemUI();
             }}
           >
             <Image source={require('../../assets/icons/play.png')} style={{ width: 48, height: 48, tintColor: '#fff' }} />
@@ -310,7 +285,6 @@ export const PlayerScreen: React.FC = () => {
                 onPress={() => {
                   setPlaying(!playing);
                   showControlsTemporarily();
-                  if (!playing) hideSystemUI(); else showSystemUI();
                 }}
               >
                 <Image
