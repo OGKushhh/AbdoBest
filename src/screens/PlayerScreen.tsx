@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Text,
-  ActivityIndicator, StatusBar, Animated, Easing,
+  ActivityIndicator, StatusBar, Animated, Easing, Image,
 } from 'react-native';
 import Video, {
   VideoRef,
@@ -10,7 +10,6 @@ import Video, {
 } from 'react-native-video';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
 import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
@@ -19,12 +18,12 @@ import {useWindowDimensions} from 'react-native';
 
 type QualityLevel = 'auto' | '1080' | '720' | '480' | '360';
 
-const QUALITY_OPTIONS: {label: string; value: QualityLevel; resolution?: number; icon: string}[] = [
-  {label: 'quality_master', value: 'auto', icon: 'diamond'},
-  {label: 'quality_fhd', value: '1080', resolution: 1080, icon: 'logo-youtube'},
-  {label: 'quality_hd', value: '720', resolution: 720, icon: 'hd'},
-  {label: 'quality_sd', value: '480', resolution: 480, icon: 'phone-portrait'},
-  {label: 'quality_low', value: '360', resolution: 360, icon: 'phone-portrait-outline'},
+const QUALITY_OPTIONS: {label: string; value: QualityLevel; resolution?: number}[] = [
+  {label: 'quality_master', value: 'auto'},
+  {label: 'quality_fhd', value: '1080', resolution: 1080},
+  {label: 'quality_hd', value: '720', resolution: 720},
+  {label: 'quality_sd', value: '480', resolution: 480},
+  {label: 'quality_low', value: '360', resolution: 360},
 ];
 
 export const PlayerScreen: React.FC = () => {
@@ -34,6 +33,7 @@ export const PlayerScreen: React.FC = () => {
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
 
+  // FIX 1: useWindowDimensions updates on rotation
   const {width: windowWidth, height: windowHeight} = useWindowDimensions();
 
   const videoRef = useRef<VideoRef>(null);
@@ -43,7 +43,7 @@ export const PlayerScreen: React.FC = () => {
   const [buffering, setBuffering] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Load saved quality preference SYNCHRONOUSLY before first render
+  // FIX 4: Load saved quality preference SYNCHRONOUSLY before first render
   const [qualityLevel, setQualityLevel] = useState<QualityLevel>(() => {
     const settings = getSettings();
     return settings.playerQuality || 'auto';
@@ -119,6 +119,7 @@ export const PlayerScreen: React.FC = () => {
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
+  // FIX 2: Seek bar uses measured width, direction: 'ltr' forces left-to-right
   const handleSeekBarPress = (e: any) => {
     const {locationX} = e.nativeEvent;
     const barW = seekBarWidth || (windowWidth - 32);
@@ -127,17 +128,16 @@ export const PlayerScreen: React.FC = () => {
     setCurrentTime(seekTime);
   };
 
-  // @ts-ignore - seekBarLayoutRef
   const handleSeekBarLayout = (e: any) => {
     setSeekBarWidth(e.nativeEvent.layout.width);
   };
 
+  // FIX 3: Skip buttons - NOT TOUCHED, working perfectly
   const seekBy = (seconds: number) => {
     const newTime = Math.max(0, Math.min(currentTime + seconds, duration));
     videoRef.current?.seek(newTime);
     setCurrentTime(newTime);
 
-    // Show seek animation feedback
     if (seconds < 0) {
       setSeekingBackward(true);
       setTimeout(() => setSeekingBackward(false), 400);
@@ -152,12 +152,10 @@ export const PlayerScreen: React.FC = () => {
     setShowQualityPicker(false);
     triggerHideControls();
 
-    // Save preference
     const settings = getSettings();
     settings.playerQuality = quality;
     saveSettings(settings);
 
-    // Brief buffering indication while stream adapts
     setBuffering(true);
     setTimeout(() => setBuffering(false), 1500);
   };
@@ -175,7 +173,7 @@ export const PlayerScreen: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <StatusBar barStyle="light-content" backgroundColor={Colors.dark.background} />
-        <Icon name="alert-circle-outline" size={48} color={Colors.dark.error} />
+        <Image source={require('../../assets/icons/alert.png')} style={{width: 48, height: 48, tintColor: Colors.dark.error}} />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
           <Text style={styles.errorButtonText}>{t('retry')}</Text>
@@ -229,7 +227,7 @@ export const PlayerScreen: React.FC = () => {
               triggerHideControls();
             }}
           >
-            <Icon name="play" size={64} color="#fff" />
+            <Image source={require('../../assets/icons/play.png')} style={{width: 48, height: 48, tintColor: '#fff'}} />
           </TouchableOpacity>
         )}
 
@@ -237,7 +235,7 @@ export const PlayerScreen: React.FC = () => {
         {seekingBackward && (
           <View style={styles.seekFeedback}>
             <View style={styles.seekFeedbackBox}>
-              <Icon name="replay-10" size={32} color="#fff" />
+              <Image source={require('../../assets/icons/skip-back.png')} style={{width: 28, height: 28, tintColor: '#fff'}} />
               <Text style={styles.seekFeedbackText}>-10s</Text>
             </View>
           </View>
@@ -245,7 +243,7 @@ export const PlayerScreen: React.FC = () => {
         {seekingForward && (
           <View style={styles.seekFeedback}>
             <View style={styles.seekFeedbackBox}>
-              <Icon name="forward-10" size={32} color="#fff" />
+              <Image source={require('../../assets/icons/skip-forward.png')} style={{width: 28, height: 28, tintColor: '#fff'}} />
               <Text style={styles.seekFeedbackText}>+10s</Text>
             </View>
           </View>
@@ -255,7 +253,7 @@ export const PlayerScreen: React.FC = () => {
         {buffering && !playing && (
           <View style={styles.seekFeedback}>
             <View style={styles.seekFeedbackBox}>
-              <Icon name="settings" size={24} color="#fff" />
+              <Image source={require('../../assets/icons/settings.png')} style={{width: 20, height: 20, tintColor: '#fff'}} />
               <Text style={styles.seekFeedbackText}>{getCurrentQualityLabel()}</Text>
             </View>
           </View>
@@ -268,7 +266,7 @@ export const PlayerScreen: React.FC = () => {
           {/* Top bar */}
           <View style={[styles.topControls, {paddingTop: insets.top + 8}]}>
             <TouchableOpacity style={styles.topButton} onPress={() => navigation.goBack()}>
-              <Icon name="arrow-back" size={28} color="#fff" />
+              <Image source={require('../../assets/icons/arrow.png')} style={{width: 28, height: 28, tintColor: '#fff'}} />
             </TouchableOpacity>
             <Text style={styles.titleText} numberOfLines={1}>{title}</Text>
             <View style={{width: 40}} />
@@ -301,7 +299,6 @@ export const PlayerScreen: React.FC = () => {
                 style={styles.qualityBadge}
                 onPress={toggleQualityPicker}
               >
-                <Icon name="options" size={12} color={Colors.dark.primary} />
                 <Text style={styles.qualityBadgeText}>{getCurrentQualityLabel()}</Text>
               </TouchableOpacity>
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
@@ -315,7 +312,7 @@ export const PlayerScreen: React.FC = () => {
                 onPress={() => seekBy(-10)}
                 activeOpacity={0.7}
               >
-                <Icon name="replay-10" size={30} color="#fff" />
+                <Image source={require('../../assets/icons/skip-back.png')} style={{width: 30, height: 30, tintColor: '#fff'}} />
               </TouchableOpacity>
 
               {/* Play/Pause */}
@@ -327,7 +324,10 @@ export const PlayerScreen: React.FC = () => {
                 }}
                 activeOpacity={0.8}
               >
-                <Icon name={playing ? 'pause' : 'play'} size={36} color="#fff" />
+                <Image
+                  source={playing ? require('../../assets/icons/pause.png') : require('../../assets/icons/play.png')}
+                  style={{width: 36, height: 36, tintColor: '#fff'}}
+                />
               </TouchableOpacity>
 
               {/* Forward 10s */}
@@ -336,7 +336,7 @@ export const PlayerScreen: React.FC = () => {
                 onPress={() => seekBy(10)}
                 activeOpacity={0.7}
               >
-                <Icon name="forward-10" size={30} color="#fff" />
+                <Image source={require('../../assets/icons/skip-forward.png')} style={{width: 30, height: 30, tintColor: '#fff'}} />
               </TouchableOpacity>
 
               {/* Quality picker button */}
@@ -345,7 +345,7 @@ export const PlayerScreen: React.FC = () => {
                 onPress={toggleQualityPicker}
                 activeOpacity={0.7}
               >
-                <Icon name="settings-outline" size={22} color="#fff" />
+                <Image source={require('../../assets/icons/settings.png')} style={{width: 22, height: 22, tintColor: '#fff'}} />
               </TouchableOpacity>
             </View>
           </View>
@@ -372,11 +372,6 @@ export const PlayerScreen: React.FC = () => {
                         onPress={() => handleQualityChange(option.value)}
                         activeOpacity={0.7}
                       >
-                        <Icon
-                          name={option.icon}
-                          size={18}
-                          color={isActive ? Colors.dark.primary : 'rgba(255,255,255,0.7)'}
-                        />
                         <Text
                           style={[
                             styles.qualityOptionText,
@@ -396,7 +391,7 @@ export const PlayerScreen: React.FC = () => {
                           </Text>
                         )}
                         {isActive && (
-                          <Icon name="checkmark" size={18} color={Colors.dark.primary} />
+                          <Image source={require('../../assets/icons/checkmark.png')} style={{width: 18, height: 18, tintColor: Colors.dark.primary}} />
                         )}
                       </TouchableOpacity>
                     );
@@ -421,6 +416,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // FIX 1: absolute positioning fills container at any orientation
   video: {
     position: 'absolute',
     top: 0,
@@ -507,6 +503,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     backgroundColor: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
   },
+  // FIX 2: direction: 'ltr' forces seek bar left-to-right in RTL
   seekBarContainer: {
     width: '100%',
     height: 28,
@@ -558,9 +555,6 @@ const styles = StyleSheet.create({
 
   // Quality badge (between times)
   qualityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,

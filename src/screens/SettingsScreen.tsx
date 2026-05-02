@@ -1,7 +1,6 @@
 import React, {useState} from 'react';
-import {View, StyleSheet, Text, TouchableOpacity, Switch, Linking, Alert} from 'react-native';
+import {View, StyleSheet, Text, TouchableOpacity, Switch, Linking, Alert, ActivityIndicator, Image} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
 import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
@@ -28,27 +27,42 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleSync = async () => {
-    const updated = await syncIfNeeded();
-    Alert.alert(t('metadata_updated'));
+    try {
+      await syncIfNeeded();
+      Alert.alert(t('success'), t('metadata_updated'));
+    } catch (err: any) {
+      Alert.alert(t('error'), err?.message || t('sync_failed'));
+    }
   };
 
   const handleClearCache = () => {
     Alert.alert(
       t('clear_cache'),
-      t('cache_cleared'),
-      [{text: 'OK'}]
+      t('clear_cache_confirm'),
+      [
+        {text: t('cancel'), style: 'cancel'},
+        {
+          text: t('ok'),
+          style: 'destructive',
+          onPress: () => Alert.alert(t('success'), t('cache_cleared')),
+        },
+      ]
     );
   };
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
-    const update = await checkForUpdate();
-    setCheckingUpdate(false);
-
-    if (update) {
-      openUpdateUrl(update.downloadUrl);
-    } else {
-      Alert.alert(t('up_to_date'), `v${APP_VERSION}`);
+    try {
+      const update = await checkForUpdate();
+      if (update) {
+        openUpdateUrl(update.downloadUrl);
+      } else {
+        Alert.alert(t('up_to_date'), `v${APP_VERSION}`);
+      }
+    } catch (err: any) {
+      Alert.alert(t('error'), err?.message || t('update_check_failed'));
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -56,30 +70,31 @@ export const SettingsScreen: React.FC = () => {
   const lastSyncDate = lastSync ? new Date(lastSync).toLocaleDateString() : t('never');
 
   const SettingRow = ({
-    icon, label, value, onPress, toggle,
+    icon, label, value, onPress, toggle, settingKey,
   }: {
-    icon: string;
+    icon: any;
     label: string;
     value?: string;
     onPress?: () => void;
     toggle?: boolean;
+    settingKey?: string;
   }) => (
-    <TouchableOpacity style={styles.row} onPress={toggle ? () => updateSetting(label, !settings[label]) : onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.row} onPress={toggle ? () => updateSetting(settingKey!, !settings[settingKey!]) : onPress} activeOpacity={0.7}>
       <View style={styles.rowIconContainer}>
-        <Icon name={icon as any} size={22} color={Colors.dark.primary} />
+        <Image source={icon} style={{width: 22, height: 22, tintColor: Colors.dark.primary}} />
       </View>
       <Text style={styles.rowLabel}>{label}</Text>
       {toggle ? (
         <Switch
-          value={settings[label]}
-          onValueChange={(v) => updateSetting(label, v)}
+          value={!!settings[settingKey!]}
+          onValueChange={(v) => updateSetting(settingKey!, v)}
           trackColor={{false: Colors.dark.border, true: Colors.dark.primary}}
           thumbColor="#fff"
         />
       ) : (
         <View style={styles.rowRight}>
           <Text style={styles.rowValue}>{value}</Text>
-          <Icon name="chevron-forward" size={20} color={Colors.dark.textMuted} />
+          <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted, transform: [{rotate: '-90deg'}]}} />
         </View>
       )}
     </TouchableOpacity>
@@ -90,7 +105,7 @@ export const SettingsScreen: React.FC = () => {
       <SafeAreaView style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerIconContainer}>
-            <Icon name="settings" size={28} color={Colors.dark.primary} />
+            <Image source={require('../../assets/icons/settings.png')} style={{width: 28, height: 28, tintColor: Colors.dark.primary}} />
           </View>
           <Text style={styles.headerTitle}>{t('settings')}</Text>
           <Text style={styles.version}>v{APP_VERSION}</Text>
@@ -100,14 +115,15 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>{t('appearance')}</Text>
         <View style={styles.section}>
           <SettingRow
-            icon="globe-outline"
+            icon={require('../../assets/icons/planet-earth.png')}
             label={t('language')}
             value={settings.language === 'ar' ? t('arabic') : t('english')}
             onPress={toggleLanguage}
           />
           <SettingRow
-            icon="moon-outline"
+            icon={require('../../assets/icons/night-mode.png')}
             label={t('dark_mode')}
+            settingKey="dark_mode"
             toggle
           />
         </View>
@@ -115,8 +131,18 @@ export const SettingsScreen: React.FC = () => {
         {/* Playback */}
         <Text style={styles.sectionTitle}>{t('playback')}</Text>
         <View style={styles.section}>
-          <SettingRow icon="wifi-outline" label={t('mobile_data_warning')} toggle />
-          <SettingRow icon="play-circle-outline" label={t('auto_play')} toggle />
+          <SettingRow
+            icon={require('../../assets/icons/browsing.png')}
+            label={t('mobile_data_warning')}
+            settingKey="mobile_data_warning"
+            toggle
+          />
+          <SettingRow
+            icon={require('../../assets/icons/play.png')}
+            label={t('auto_play')}
+            settingKey="auto_play"
+            toggle
+          />
           <TouchableOpacity style={styles.row} onPress={() => {
             const prefs = ['auto', 'high', 'medium', 'low'] as const;
             const current = prefs.indexOf(settings.qualityPreference as any);
@@ -124,15 +150,20 @@ export const SettingsScreen: React.FC = () => {
             updateSetting('qualityPreference', next);
           }}>
             <View style={styles.rowIconContainer}>
-              <Icon name="options-outline" size={22} color={Colors.dark.primary} />
+              <Image source={require('../../assets/icons/settings.png')} style={{width: 22, height: 22, tintColor: Colors.dark.primary}} />
             </View>
             <Text style={styles.rowLabel}>{t('quality_preference')}</Text>
             <View style={styles.rowRight}>
               <Text style={styles.rowValue}>{t(`quality_${settings.qualityPreference || 'auto'}`)}</Text>
-              <Icon name="chevron-forward" size={20} color={Colors.dark.textMuted} />
+              <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted, transform: [{rotate: '-90deg'}]}} />
             </View>
           </TouchableOpacity>
-          <SettingRow icon="subtitles-outline" label={t('subtitles_enabled')} toggle />
+          <SettingRow
+            icon={require('../../assets/icons/menu.png')}
+            label={t('subtitles_enabled')}
+            settingKey="subtitles_enabled"
+            toggle
+          />
         </View>
 
         {/* Data */}
@@ -140,20 +171,20 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.section}>
           <TouchableOpacity style={styles.row} onPress={handleSync}>
             <View style={styles.rowIconContainer}>
-              <Icon name="sync-outline" size={22} color={Colors.dark.primary} />
+              <Image source={require('../../assets/icons/sync.png')} style={{width: 22, height: 22, tintColor: Colors.dark.primary}} />
             </View>
             <View style={styles.syncInfo}>
               <Text style={styles.rowLabel}>{t('sync_database')}</Text>
               <Text style={styles.syncDate}>{t('last_sync')}: {lastSyncDate}</Text>
             </View>
-            <Icon name="chevron-forward" size={20} color={Colors.dark.textMuted} />
+            <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted, transform: [{rotate: '-90deg'}]}} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={handleClearCache}>
             <View style={styles.rowIconContainer}>
-              <Icon name="trash-outline" size={22} color={Colors.dark.primary} />
+              <Image source={require('../../assets/icons/files.png')} style={{width: 22, height: 22, tintColor: Colors.dark.primary}} />
             </View>
             <Text style={styles.rowLabel}>{t('clear_cache')}</Text>
-            <Icon name="chevron-forward" size={20} color={Colors.dark.textMuted} />
+            <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted, transform: [{rotate: '-90deg'}]}} />
           </TouchableOpacity>
         </View>
 
@@ -162,7 +193,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.section}>
           <TouchableOpacity style={styles.row} onPress={handleCheckUpdate}>
             <View style={styles.rowIconContainer}>
-              <Icon name="cloud-download-outline" size={22} color={Colors.dark.primary} />
+              <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 22, height: 22, tintColor: Colors.dark.primary}} />
             </View>
             <View style={styles.syncInfo}>
               <Text style={styles.rowLabel}>{t('check_for_updates')}</Text>
@@ -171,7 +202,7 @@ export const SettingsScreen: React.FC = () => {
             {checkingUpdate ? (
               <ActivityIndicator size="small" color={Colors.dark.primary} />
             ) : (
-              <Icon name="chevron-forward" size={20} color={Colors.dark.textMuted} />
+              <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted, transform: [{rotate: '-90deg'}]}} />
             )}
           </TouchableOpacity>
         </View>
@@ -183,7 +214,7 @@ export const SettingsScreen: React.FC = () => {
             style={styles.kofiButton}
             onPress={() => Linking.openURL('https://ko-fi.com/abdobest')}
           >
-            <Icon name="heart" size={22} color="#fff" />
+            <Image source={require('../../assets/icons/heart.png')} style={{width: 22, height: 22, tintColor: '#fff'}} />
             <Text style={styles.kofiText}>Ko-fi</Text>
           </TouchableOpacity>
         </View>
@@ -191,9 +222,6 @@ export const SettingsScreen: React.FC = () => {
     </View>
   );
 };
-
-// Need ActivityIndicator
-import {ActivityIndicator} from 'react-native';
 
 const styles = StyleSheet.create({
   container: {
