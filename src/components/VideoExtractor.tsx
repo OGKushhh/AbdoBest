@@ -3,379 +3,508 @@
  *
  * On-device video extraction using a hidden WebView.
  *
- * Key fixes vs original:
- *   1. fetch/XHR interception via postMessage (onShouldStartLoadWithRequest
- *      only sees navigations, not XHR/fetch — which is how JWPlayer loads m3u8)
- *   2. IntersectionObserver spoofing so lazy-load fires even in a 1×1 WebView
- *   3. fetch/XHR patch in injectedJavaScriptBeforeContentLoaded so it's in
- *      place before JWPlayer's own scripts execute
- *   4. Scroll/click logic stays in injectedJavaScript (runs after DOM ready)
- *   5. Full viewport size (opacity:0) instead of 1×1 so lazy-load triggers
- *   6. injectedJavaScriptForMainFrameOnly={false} patches cross-origin iframes
- *   7. Verbose [VE] logging throughout — filter with: adb logcat | grep "\[VE\]"
+ * v5 — Critical fixes based on adb logcat:
+ *   - Added faselhdx.bid to ALLOWED_DOMAINS (site redirects to this domain!)
+ *   - Added all ad domains from live logs to BLOCKED_DOMAINS
+ *   - Block intent:// URLs (Android Chrome deep links from ads)
+ *   - Full navigation debug logging in handleShouldStartLoad
+ *   - JS redirect blocking in PATCH_JS (location.assign/replace/href setter)
+ *   - Ad element removal in MutationObserver
+ *   - Click event interception for ALL non-allowed links
+ *   - Increased timeout to 35s
+ *
+ * Key design decisions:
+ *   - fetch/XHR overrides in injectedJavaScriptBeforeContentLoaded (document-start)
+ *   - Scroll + click logic in injectedJavaScript (document-end)
+ *   - WebView is full-screen but invisible (opacity:0, pointerEvents:none)
+ *   - postMessage bridge sends intercepted m3u8 + debug info to RN
+ *
+ * Why on-device:
+ *   scdns.io CDN bakes the requesting IP into a signed token path.
+ *   Server extraction -> URL only works from server IP -> phone gets 403.
  */
 
-import React, {useRef, useEffect, useCallback} from 'react';
-import {Dimensions, View} from 'react-native';
-import {WebView, WebViewMessageEvent} from 'react-native-webview';
+import React, {useRef, useEffect} from 'react';
+import {View, Dimensions} from 'react-native';
+import {WebView} from 'react-native-webview';
 
 const {width: SW, height: SH} = Dimensions.get('window');
 
-// ── Ad/tracker domains to block at navigation level ──────────────────
-const BLOCKED_DOMAINS = [
-  'googletagmanager.com',
-  'doubleclick.net',
-  'googleadservices.com',
-  'google-analytics.com',
-  'popads.net',
-  'adsterra.com',
-  'exponential.com',
-  'outbrain.com',
-  'taboola.com',
-  'scorecardresearch.com',
-  'madurird.com',
-  'acscdn.com',
-  'crumpetprankerstench.com',
-  'propellerads.com',
-  'clickadu.com',
-  'ampproject.org',
-  'adnxs.com',
-  'ads.yahoo.com',
-];
-
-// ── PATCH JS — injected BEFORE any page scripts run ──────────────────
-// Must be early so fetch/XHR overrides are in place before JWPlayer loads.
-// Also spoofs IntersectionObserver so lazy-load fires in a small WebView.
+// ── JS injected at document-start (BEFORE any page scripts) ─────────
 const PATCH_JS = `
 (function() {
-  if (window.__vePatched) return;
-  window.__vePatched = true;
+  // Allowed domains — must match RN side ALLOWED_DOMAINS
+  var ALLOWED = [
+    'fasel-hd.cam', 'faselhd.com', 'faselhdx.bid',
+    'scdns.io', 'jwpcdn.com', 'jwplayer.com'
+  ];
 
-  console.log('[VE] patch running on', window.location.href);
-
-  // ── postMessage helper ─────────────────────────────────────────────
-  function sendM3u8(url) {
-    console.log('[VE] m3u8 detected via fetch/XHR:', url);
-    try {
-      window.ReactNativeWebView.postMessage(JSON.stringify({type: 'm3u8', url: url}));
-    } catch(e) {
-      console.log('[VE] postMessage error:', e);
+  function isAllowed(url) {
+    if (!url) return false;
+    if (url.indexOf('about:') === 0 || url.indexOf('data:') === 0 || url.indexOf('javascript:') === 0) return true;
+    for (var i = 0; i < ALLOWED.length; i++) {
+      if (url.indexOf(ALLOWED[i]) !== -1) return true;
     }
+    return false;
   }
 
-  function patchContext(win, label) {
-    if (!win || win.__vePatched) return;
-    win.__vePatched = true;
-    console.log('[VE] patching context:', label);
+  // Signal injection
+  try {
+    window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'PATCH: injected at document-start'}));
+  } catch(e) {}
 
-    // ── Patch fetch ────────────────────────────────────────────────
-    var origFetch = win.fetch;
-    if (origFetch) {
-      win.fetch = function(input, init) {
-        var url = typeof input === 'string' ? input
-                : (input && input.url) ? input.url : String(input);
-        console.log('[VE] fetch:', url);
-        if (url.includes('.m3u8')) sendM3u8(url);
-        return origFetch.apply(this, arguments);
-      };
-    }
-
-    // ── Patch XHR ──────────────────────────────────────────────────
-    var origOpen = win.XMLHttpRequest && win.XMLHttpRequest.prototype.open;
-    if (origOpen) {
-      win.XMLHttpRequest.prototype.open = function(method, url) {
-        if (typeof url === 'string') {
-          console.log('[VE] XHR open:', url);
-          if (url.includes('.m3u8')) sendM3u8(url);
-        }
-        return origOpen.apply(this, arguments);
-      };
-    }
-
-    // ── Kill popups ────────────────────────────────────────────────
-    win.open    = function() { console.log('[VE] blocked window.open'); return null; };
-    win.alert   = function() {};
-    win.confirm = function() { return false; };
-    win.prompt  = function() { return null; };
-
-    // ── Spoof IntersectionObserver ─────────────────────────────────
-    // Forces lazy-load iframes to think they're visible even in a tiny WebView
-    if (win.IntersectionObserver) {
-      var OrigIO = win.IntersectionObserver;
-      win.IntersectionObserver = function(callback, options) {
-        var io = new OrigIO(callback, options);
-        var origObserve = io.observe.bind(io);
-        io.observe = function(target) {
-          console.log('[VE] IntersectionObserver.observe spoofed for', target.tagName);
-          try {
-            callback([{
-              isIntersecting: true,
-              intersectionRatio: 1,
-              target: target,
-              boundingClientRect: target.getBoundingClientRect(),
-              intersectionRect: target.getBoundingClientRect(),
-              rootBounds: null,
-              time: performance.now(),
-            }]);
-          } catch(e) {}
-          return origObserve(target);
-        };
-        return io;
-      };
-      win.IntersectionObserver.prototype = OrigIO.prototype;
-    }
-  }
-
-  // Patch main frame
-  patchContext(window, 'main');
-
-  // ── Patch iframes as they appear ───────────────────────────────────
-  function tryPatchIframe(iframe) {
+  // ── Override fetch() ────────────────────────────────────────────
+  var origFetch = window.fetch;
+  window.fetch = function(input, init) {
     try {
-      var w = iframe.contentWindow;
-      var src = iframe.src || '(no src yet)';
-      if (w && !w.__vePatched) {
-        patchContext(w, 'iframe:' + src);
+      var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+      if (url && url.indexOf('.m3u8') !== -1) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({type:'m3u8', url: url}));
       }
-    } catch(e) {
-      console.log('[VE] cross-origin iframe, cannot patch directly:', iframe.src);
-    }
+    } catch(e) {}
+    return origFetch.apply(this, arguments);
+  };
+
+  // ── Override XMLHttpRequest.open() ──────────────────────────────
+  var origXHROpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    try {
+      if (url && url.indexOf('.m3u8') !== -1) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({type:'m3u8', url: url}));
+      }
+    } catch(e) {}
+    return origXHROpen.apply(this, arguments);
+  };
+
+  // ── Block ad redirects via location ────────────────────────────
+  try {
+    var _assign = window.location.assign.bind(window.location);
+    var _replace = window.location.replace.bind(window.location);
+
+    window.location.assign = function(url) {
+      if (isAllowed(url)) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'REDIRECT assign: ' + url.substring(0,80)})); } catch(e) {}
+        return _assign(url);
+      }
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'BLOCKED assign: ' + url.substring(0,80)})); } catch(e) {}
+    };
+
+    window.location.replace = function(url) {
+      if (isAllowed(url)) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'REDIRECT replace: ' + url.substring(0,80)})); } catch(e) {}
+        return _replace(url);
+      }
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'BLOCKED replace: ' + url.substring(0,80)})); } catch(e) {}
+    };
+  } catch(e) {
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'PATCH: location override error: ' + e.message})); } catch(e2) {}
   }
 
-  var observer = new MutationObserver(function(mutations) {
+  // ── Kill popups ─────────────────────────────────────────────────
+  window.open = function() { return null; };
+  window.alert = function() {};
+  window.confirm = function() { return false; };
+  window.prompt = function() { return null; };
+
+  // ── Block clicks on non-allowed links (capture phase) ─────────
+  document.addEventListener('click', function(e) {
+    try {
+      var t = e.target;
+      // Walk up to find <a> tag
+      while (t && t !== document) {
+        if (t.tagName === 'A' && t.href) {
+          if (!isAllowed(t.href) && t.href.indexOf('javascript:') !== 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'BLOCKED link click: ' + t.href.substring(0,60)})); } catch(ex) {}
+            return;
+          }
+          break;
+        }
+        t = t.parentElement;
+      }
+    } catch(ex) {}
+  }, true);
+
+  // ── Watch for dynamically added iframes + remove ad elements ───
+  var obs = new MutationObserver(function(mutations) {
     mutations.forEach(function(m) {
       m.addedNodes.forEach(function(node) {
-        if (node.nodeName === 'IFRAME') tryPatchIframe(node);
-        if (node.querySelectorAll) {
-          node.querySelectorAll('iframe').forEach(tryPatchIframe);
+        // Patch iframes
+        if (node.tagName === 'IFRAME') {
+          try {
+            var win = node.contentWindow;
+            if (!win) return;
+            if (win.fetch) {
+              var iFetch = win.fetch;
+              win.fetch = function(input, init) {
+                try {
+                  var fUrl = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+                  if (fUrl && fUrl.indexOf('.m3u8') !== -1) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({type:'m3u8', url: fUrl}));
+                  }
+                } catch(e) {}
+                return iFetch.apply(this, arguments);
+              };
+            }
+            if (win.XMLHttpRequest) {
+              var iXHROpen = win.XMLHttpRequest.prototype.open;
+              win.XMLHttpRequest.prototype.open = function(method, url) {
+                try {
+                  if (url && url.indexOf('.m3u8') !== -1) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({type:'m3u8', url: url}));
+                  }
+                } catch(e) {}
+                return iXHROpen.apply(this, arguments);
+              };
+            }
+          } catch(e) {}
+        }
+
+        // Remove ad/popup/overlay elements
+        if (node.nodeType === 1) {
+          try {
+            var cls = (node.className || '').toString();
+            var id = (node.id || '').toString();
+            var tag = node.tagName;
+            if (
+              cls.indexOf('popup') !== -1 || cls.indexOf('overlay') !== -1 ||
+              cls.indexOf('ad-') !== -1 || cls.indexOf('blockadblock') !== -1 ||
+              cls.indexOf('modal') !== -1 ||
+              id.indexOf('popup') !== -1 || id.indexOf('ad') !== -1 ||
+              id.indexOf('overlay') !== -1 ||
+              tag === 'INS' // ad injection tag
+            ) {
+              node.remove();
+              try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'REMOVED ad element: ' + tag + '#' + id + '.' + cls.substring(0,30)})); } catch(e) {}
+            }
+          } catch(e) {}
         }
       });
     });
   });
-  observer.observe(document.documentElement, {childList: true, subtree: true});
+  try {
+    var target = document.documentElement || document.body;
+    if (target) obs.observe(target, {childList: true, subtree: true});
+  } catch(e) {}
 
-  console.log('[VE] patch complete');
+  // Final confirmation
+  try {
+    window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'PATCH: all overrides installed OK'}));
+  } catch(e) {}
 })();
 true;
 `;
 
-// ── CLICK JS — injected after DOM is ready ────────────────────────────
-// Scrolls to trigger lazy load then repeatedly clicks play.
+// ── JS injected at document-end (AFTER DOM ready) ────────────────────
 const CLICK_JS = `
 (function() {
-  console.log('[VE] click script running');
+  // Allowed domains — must match PATCH_JS
+  var ALLOWED = [
+    'fasel-hd.cam', 'faselhd.com', 'faselhdx.bid',
+    'scdns.io', 'jwpcdn.com', 'jwplayer.com'
+  ];
 
-  // Block ad link clicks
-  document.addEventListener('click', function(e) {
-    var target = e.target && e.target.closest && e.target.closest('a');
-    if (target && target.href &&
-        !target.href.includes('fasel-hd') &&
-        !target.href.startsWith('javascript')) {
-      e.preventDefault();
-      e.stopPropagation();
+  function isAllowed(url) {
+    if (!url) return false;
+    if (url.indexOf('about:') === 0 || url.indexOf('data:') === 0 || url.indexOf('javascript:') === 0) return true;
+    for (var i = 0; i < ALLOWED.length; i++) {
+      if (url.indexOf(ALLOWED[i]) !== -1) return true;
     }
+    return false;
+  }
+
+  try {
+    window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DOC-END: JS running on: ' + window.location.href.substring(0,60)}));
+  } catch(e) {}
+
+  // ── Continuously remove ad overlays ────────────────────────────
+  var adSelectors = [
+    '.popup', '.ad-overlay', '.close-btn', '.modal-overlay',
+    '[class*="popup"]', '[class*="overlay"]', '[id*="popup"]',
+    '[id*="ad"]', '[class*="ad-"]', '.blockadblock',
+    '[class*="modal"]', 'ins', 'iframe[src*="ad"]',
+    'div[id^="ad-"]', 'div[class*="banner"]', 'div[class*="sponsor"]'
+  ];
+
+  function killAds() {
+    var count = 0;
+    adSelectors.forEach(function(sel) {
+      try {
+        document.querySelectorAll(sel).forEach(function(el) {
+          // Don't remove the JWPlayer!
+          if (el.className && typeof el.className === 'string' && el.className.indexOf('jw') !== -1) return;
+          if (el.id && typeof el.id === 'string' && el.id.indexOf('jw') !== -1) return;
+          el.remove();
+          count++;
+        });
+      } catch(e) {}
+    });
+    return count;
+  }
+
+  // Kill ads immediately
+  var removed = killAds();
+  if (removed > 0) {
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DOC-END: removed ' + removed + ' ad elements'})); } catch(e) {}
+  }
+
+  // Keep killing ads every 2 seconds
+  setInterval(function() { killAds(); }, 2000);
+
+  // ── Block all clicks on non-allowed links (capture phase) ─────
+  document.addEventListener('click', function(e) {
+    try {
+      var t = e.target;
+      while (t && t !== document) {
+        if (t.tagName === 'A' && t.href) {
+          if (!isAllowed(t.href) && t.href.indexOf('javascript:') !== 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK-BLOCKED: ' + t.href.substring(0,60)})); } catch(ex) {}
+            return;
+          }
+          break;
+        }
+        t = t.parentElement;
+      }
+    } catch(ex) {}
   }, true);
 
-  // Scroll to trigger lazy iframe injection
-  console.log('[VE] scrolling to trigger lazy load');
-  window.scrollTo(0, document.body.scrollHeight / 2);
-  window.dispatchEvent(new Event('scroll'));
+  // ── Scroll to trigger lazy iframe injection ─────────────────────
+  setTimeout(function() {
+    window.scrollTo(0, document.body.scrollHeight / 2);
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'SCROLL: 50%'})); } catch(e) {}
+  }, 1500);
 
+  setTimeout(function() {
+    window.scrollTo(0, document.body.scrollHeight * 0.7);
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'SCROLL: 70%'})); } catch(e) {}
+  }, 4000);
+
+  // ── Click play button up to 10 times, 2s apart ─────────────────
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    console.log('[VE] click attempt', attempts);
 
-    // Log iframes present in DOM
-    var iframes = document.querySelectorAll('iframe');
-    console.log('[VE] iframes in DOM:', iframes.length);
-    iframes.forEach(function(f, i) {
-      console.log('[VE]   iframe[' + i + '] src:', f.src || '(empty)');
-    });
+    // Kill ads before each click attempt
+    killAds();
 
-    // Remove ad overlays
-    [
-      '.popup', '.ad-overlay', '.close-btn', '.modal-overlay',
-      '[class*="popup"]', '[class*="overlay"]', '[id*="popup"]',
-      '[id*="ad"]', '[class*="ad-"]', '.blockadblock',
-    ].forEach(function(sel) {
-      document.querySelectorAll(sel).forEach(function(el) {
-        console.log('[VE] removed overlay:', sel);
-        el.remove();
-      });
-    });
-
-    // Try play button selectors in priority order
-    var selectors = [
+    // Play button selectors (order: most specific first)
+    var sels = [
       '.jw-icon.jw-icon-display.jw-button-color.jw-reset',
       '.jw-icon-display',
       '.jw-display-icon-container',
-      '[class*="play"][class*="jw"]',
-      '[class*="play"]',
+      '.jw-media',
+      '[class*="jw-icon"][class*="play"]',
+      '[class*="play"][class*="btn"]',
+      '[class*="play"][class*="button"]',
+      '[class*="video-play"]',
       'video',
+      '[id*="player"] [class*="play"]',
+      '[id*="video"] [class*="play"]',
     ];
 
     var clicked = false;
-    for (var i = 0; i < selectors.length; i++) {
-      var el = document.querySelector(selectors[i]);
+    for (var i = 0; i < sels.length; i++) {
+      var el = document.querySelector(sels[i]);
       if (el) {
-        console.log('[VE] clicking in main frame:', selectors[i]);
         el.click();
         clicked = true;
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ': ' + sels[i]})); } catch(e) {}
         break;
       }
     }
 
-    // Also try inside same-origin iframes
-    iframes.forEach(function(frame, fi) {
-      try {
-        var doc = frame.contentDocument || frame.contentWindow.document;
-        for (var i = 0; i < selectors.length; i++) {
-          var el = doc.querySelector(selectors[i]);
-          if (el) {
-            console.log('[VE] clicking in iframe[' + fi + ']:', selectors[i]);
-            el.click();
-            break;
-          }
-        }
-      } catch(e) {
-        // cross-origin iframe — expected
-      }
-    });
-
     if (!clicked) {
-      console.log('[VE] no play button found on attempt', attempts);
+      // Log page state for debugging
+      var title = document.title ? document.title.substring(0, 50) : 'no title';
+      var bodyLen = document.body ? document.body.innerText.length : 0;
+      var jwCount = document.querySelectorAll('[class*="jw"]').length;
+      var ifCount = document.querySelectorAll('iframe').length;
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type:'debug',
+          msg:'ATTEMPT ' + attempts + ': no btn | title=' + title + ' | body=' + bodyLen + ' | jw=' + jwCount + ' | iframes=' + ifCount
+        }));
+      } catch(e) {}
     }
 
     if (attempts >= 10) {
-      console.log('[VE] max attempts reached, giving up clicks');
       clearInterval(interval);
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DONE: all 10 attempts finished'})); } catch(e) {}
     }
-  }, 1500);
+  }, 2000);
 })();
 true;
 `;
 
-// ── Props ─────────────────────────────────────────────────────────────
+// ── Domain lists ────────────────────────────────────────────────────
+const BLOCKED_DOMAINS = [
+  // Ad networks from live adb logs
+  's8ey.com', 'wplmtckt.com', 'reffpa.com', '1xlite-11151.pro', 'pyppo.com',
+  // Common ad/analytics networks
+  'googletagmanager.com', 'doubleclick.net', 'googleadservices.com',
+  'google-analytics.com', 'popads.net', 'adsterra.com', 'exponential.com',
+  'outbrain.com', 'taboola.com', 'scorecardresearch.com', 'madurird.com',
+  'acscdn.com', 'crumpetprankerstench.com', 'propellerads.com',
+  'clickadu.com', 'ampproject.org', 'adnxs.com', 'ads.yahoo.com',
+  'pushnotifications.com', 'push.js', 'notix.io', 'pushwoosh.com',
+];
+
+const ALLOWED_DOMAINS = [
+  'fasel-hd.cam',   // original domain
+  'faselhd.com',    // alternative domain
+  'faselhdx.bid',   // ⚠️ CRITICAL — site redirects to web520x.faselhdx.bid!
+  'scdns.io',       // CDN
+  'jwpcdn.com',     // JWPlayer CDN
+  'jwplayer.com',   // JWPlayer
+];
+
+// ── Props ────────────────────────────────────────────────────────────
 interface VideoExtractorProps {
   pageUrl: string;
   onExtracted: (m3u8Url: string) => void;
   onError: () => void;
+  onDebug?: (msg: string) => void;
   timeoutMs?: number;
 }
 
-// ── Component ─────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────
 export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   pageUrl,
   onExtracted,
   onError,
+  onDebug,
   timeoutMs = 25000,
 }) => {
   const captured = useRef(false);
-  const timeout  = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    console.log('[VE] mounting — url:', pageUrl, '| timeout:', timeoutMs + 'ms');
-    timeout.current = setTimeout(() => {
+    onDebug?.('START: loading ' + pageUrl);
+    timer.current = setTimeout(() => {
       if (!captured.current) {
-        console.log('[VE] ⏱ timed out — no m3u8 captured within', timeoutMs + 'ms');
         captured.current = true;
+        onDebug?.('TIMEOUT: ' + timeoutMs + 'ms with no m3u8');
         onError();
       }
     }, timeoutMs);
-    return () => {
-      console.log('[VE] unmounting');
-      clearTimeout(timeout.current);
-    };
+    return () => clearTimeout(timer.current);
   }, []);
 
-  // ── Receive m3u8 from injected JS via postMessage ─────────────────
-  const handleMessage = useCallback((e: WebViewMessageEvent) => {
-    const raw = e.nativeEvent.data;
-    console.log('[VE] onMessage raw:', raw);
-
-    if (captured.current) {
-      console.log('[VE] already captured, ignoring message');
-      return;
-    }
-
+  const handleMessage = (event: any) => {
     try {
-      const data = JSON.parse(raw);
-      if (data.type === 'm3u8' && data.url) {
-        if (data.url.includes('master.m3u8') || !captured.current) {
-          console.log('[VE] ✅ capturing:', data.url);
-          captured.current = true;
-          clearTimeout(timeout.current);
-          onExtracted(data.url);
-        } else {
-          console.log('[VE] skipping non-master m3u8 (will wait for master):', data.url);
-        }
+      const data = JSON.parse(event.nativeEvent.data);
+
+      if (data.type === 'm3u8' && data.url && !captured.current) {
+        captured.current = true;
+        clearTimeout(timer.current);
+        onDebug?.('CAPTURED: ' + data.url);
+        onExtracted(data.url);
+        return;
       }
-    } catch {
-      console.log('[VE] non-JSON postMessage:', raw);
-    }
-  }, [onExtracted]);
 
-  // ── Navigation blocking — ads/popups only ────────────────────────
-  const handleShouldStartLoad = useCallback((request: {url: string}) => {
+      if (data.type === 'debug') {
+        onDebug?.(data.msg);
+      }
+    } catch (e) {}
+  };
+
+  const handleShouldStartLoad = (request: {url: string}) => {
     const url = request.url;
-    console.log('[VE] navigation:', url);
 
-    if (url.startsWith('about:') || url.startsWith('data:')) return true;
-
-    if (BLOCKED_DOMAINS.some(d => url.includes(d))) {
-      console.log('[VE] ❌ blocked navigation:', url);
+    // Capture m3u8 via navigation
+    if (url.includes('.m3u8') && !captured.current) {
+      captured.current = true;
+      clearTimeout(timer.current);
+      onDebug?.('CAPTURED (nav): ' + url);
+      onExtracted(url);
       return false;
     }
 
-    return true;
-  }, []);
+    // Allow internal URLs
+    if (url.startsWith('about:') || url.startsWith('data:') || url.startsWith('javascript:')) {
+      return true;
+    }
 
-  const handleError = useCallback((e: any) => {
-    console.log('[VE] WebView error:', JSON.stringify(e?.nativeEvent));
+    // Block intent:// URLs (Android Chrome deep links from ads)
+    if (url.startsWith('intent://')) {
+      onDebug?.('BLOCKED intent:// URL');
+      return false;
+    }
+
+    // Block known ad/analytics domains
+    if (BLOCKED_DOMAINS.some(d => url.includes(d))) {
+      onDebug?.('BLOCKED ad: ' + url.substring(0, 70));
+      return false;
+    }
+
+    // Only allow whitelisted domains
+    if (ALLOWED_DOMAINS.some(d => url.includes(d))) {
+      onDebug?.('ALLOW: ' + url.substring(0, 70));
+      return true;
+    }
+
+    // Block everything else
+    onDebug?.('BLOCKED unknown: ' + url.substring(0, 70));
+    return false;
+  };
+
+  const handleLoad = () => onDebug?.('LOADED: ' + pageUrl);
+
+  const handleLoadError = () => {
     if (!captured.current) {
       captured.current = true;
-      clearTimeout(timeout.current);
+      clearTimeout(timer.current);
+      onDebug?.('ERROR: WebView failed to load');
       onError();
     }
-  }, [onError]);
+  };
 
-  const handleHttpError = useCallback((e: any) => {
-    console.log('[VE] HTTP error:', e?.nativeEvent?.statusCode, e?.nativeEvent?.url);
-    // Don't call onError for HTTP errors — ads/trackers 4xx shouldn't abort extraction
-  }, []);
+  const handleHttpError = () => {
+    if (!captured.current) {
+      captured.current = true;
+      clearTimeout(timer.current);
+      onDebug?.('HTTP_ERROR: bad status code');
+      onError();
+    }
+  };
 
   return (
     <View
+      pointerEvents="none"
       style={{
-        position: 'absolute',
-        // Full viewport so IntersectionObserver sees the player as on-screen.
-        // opacity:0 + pointerEvents:none = invisible and non-interactive.
-        width: SW,
-        height: SH,
-        opacity: 0,
-        pointerEvents: 'none',
+        position: 'absolute', top: 0, left: 0,
+        width: SW, height: SH,
+        opacity: 0, overflow: 'hidden', zIndex: -1,
       }}
     >
       <WebView
         source={{uri: pageUrl}}
-        style={{width: SW, height: SH}}
+        style={{width: SW, height: SH, backgroundColor: '#000'}}
         javaScriptEnabled
-        // Patch fetch/XHR BEFORE any page scripts run
         injectedJavaScriptBeforeContentLoaded={PATCH_JS}
-        // Scroll + click AFTER DOM is ready
         injectedJavaScript={CLICK_JS}
-        // Patch ALL frames including cross-origin iframes
-        injectedJavaScriptForMainFrameOnly={false}
         onMessage={handleMessage}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
-        userAgent="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+        onLoad={handleLoad}
+        onError={handleLoadError}
+        onHttpError={handleHttpError}
+        userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
         scalesPageToFit={false}
         muted
-        onError={handleError}
-        onHttpError={handleHttpError}
+        cacheEnabled={false}
+        cacheMode="LOAD_NO_CACHE"
+        thirdPartyCookiesEnabled={false}
+        originWhitelist={['*']}
+        setSupportMultipleWindows={false}
+        allowFileAccess={false}
+        domStorageEnabled={false}
+        geolocationEnabled={false}
+        mixedContentMode="compatibility"
       />
     </View>
   );
