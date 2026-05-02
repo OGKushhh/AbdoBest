@@ -2,20 +2,26 @@
  * VideoExtractor.tsx
  *
  * On-device video extraction using a hidden WebView.
- * Loads the episode/movie page, scrolls to trigger lazy iframe injection,
- * clicks play up to 7 times, and intercepts the .m3u8 URL.
  *
- * Why on-device:
- *   scdns.io CDN bakes the requesting IP into a signed token path.
- *   Extracting on the server produces a URL only valid from the server IP.
- *   Extracting on the phone produces a URL valid for playback on that phone.
+ * Key fixes vs original:
+ *   1. fetch/XHR interception via postMessage (onShouldStartLoadWithRequest
+ *      only sees navigations, not XHR/fetch — which is how JWPlayer loads m3u8)
+ *   2. IntersectionObserver spoofing so lazy-load fires even in a 1×1 WebView
+ *   3. fetch/XHR patch in injectedJavaScriptBeforeContentLoaded so it's in
+ *      place before JWPlayer's own scripts execute
+ *   4. Scroll/click logic stays in injectedJavaScript (runs after DOM ready)
+ *   5. Full viewport size (opacity:0) instead of 1×1 so lazy-load triggers
+ *   6. injectedJavaScriptForMainFrameOnly={false} patches cross-origin iframes
+ *   7. Verbose [VE] logging throughout — filter with: adb logcat | grep "\[VE\]"
  */
 
-import React, {useRef, useEffect} from 'react';
-import {View} from 'react-native';
-import {WebView} from 'react-native-webview';
+import React, {useRef, useEffect, useCallback} from 'react';
+import {Dimensions, View} from 'react-native';
+import {WebView, WebViewMessageEvent} from 'react-native-webview';
 
-// ── Ad/tracker domains to block ──────────────────────────────────────
+const {width: SW, height: SH} = Dimensions.get('window');
+
+// ── Ad/tracker domains to block at navigation level ──────────────────
 const BLOCKED_DOMAINS = [
   'googletagmanager.com',
   'doubleclick.net',
@@ -37,56 +43,164 @@ const BLOCKED_DOMAINS = [
   'ads.yahoo.com',
 ];
 
-// ── Domains we must allow ────────────────────────────────────────────
-const ALLOWED_DOMAINS = [
-  'fasel-hd.cam',
-  'scdns.io',
-  'about:blank',
-  'jwpcdn.com',      // JWPlayer CDN
-  'jwplayer.com',
-];
-
-// ── JS injected into the page ────────────────────────────────────────
-// 1. Kill popups & ad redirects
-// 2. Scroll to trigger lazy iframe injection
-// 3. Click play button up to 7 times, 1.5s apart
-// 4. Remove ad overlay DOM elements before each click
-const INJECTED_JS = `
+// ── PATCH JS — injected BEFORE any page scripts run ──────────────────
+// Must be early so fetch/XHR overrides are in place before JWPlayer loads.
+// Also spoofs IntersectionObserver so lazy-load fires in a small WebView.
+const PATCH_JS = `
 (function() {
-  // ── Kill popup attempts ──────────────────────────────────────────
-  window.open          = function() { return null; };
-  window.alert         = function() {};
-  window.confirm       = function() { return false; };
-  window.prompt        = function() { return null; };
+  if (window.__vePatched) return;
+  window.__vePatched = true;
+
+  console.log('[VE] patch running on', window.location.href);
+
+  // ── postMessage helper ─────────────────────────────────────────────
+  function sendM3u8(url) {
+    console.log('[VE] m3u8 detected via fetch/XHR:', url);
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({type: 'm3u8', url: url}));
+    } catch(e) {
+      console.log('[VE] postMessage error:', e);
+    }
+  }
+
+  function patchContext(win, label) {
+    if (!win || win.__vePatched) return;
+    win.__vePatched = true;
+    console.log('[VE] patching context:', label);
+
+    // ── Patch fetch ────────────────────────────────────────────────
+    var origFetch = win.fetch;
+    if (origFetch) {
+      win.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input
+                : (input && input.url) ? input.url : String(input);
+        console.log('[VE] fetch:', url);
+        if (url.includes('.m3u8')) sendM3u8(url);
+        return origFetch.apply(this, arguments);
+      };
+    }
+
+    // ── Patch XHR ──────────────────────────────────────────────────
+    var origOpen = win.XMLHttpRequest && win.XMLHttpRequest.prototype.open;
+    if (origOpen) {
+      win.XMLHttpRequest.prototype.open = function(method, url) {
+        if (typeof url === 'string') {
+          console.log('[VE] XHR open:', url);
+          if (url.includes('.m3u8')) sendM3u8(url);
+        }
+        return origOpen.apply(this, arguments);
+      };
+    }
+
+    // ── Kill popups ────────────────────────────────────────────────
+    win.open    = function() { console.log('[VE] blocked window.open'); return null; };
+    win.alert   = function() {};
+    win.confirm = function() { return false; };
+    win.prompt  = function() { return null; };
+
+    // ── Spoof IntersectionObserver ─────────────────────────────────
+    // Forces lazy-load iframes to think they're visible even in a tiny WebView
+    if (win.IntersectionObserver) {
+      var OrigIO = win.IntersectionObserver;
+      win.IntersectionObserver = function(callback, options) {
+        var io = new OrigIO(callback, options);
+        var origObserve = io.observe.bind(io);
+        io.observe = function(target) {
+          console.log('[VE] IntersectionObserver.observe spoofed for', target.tagName);
+          try {
+            callback([{
+              isIntersecting: true,
+              intersectionRatio: 1,
+              target: target,
+              boundingClientRect: target.getBoundingClientRect(),
+              intersectionRect: target.getBoundingClientRect(),
+              rootBounds: null,
+              time: performance.now(),
+            }]);
+          } catch(e) {}
+          return origObserve(target);
+        };
+        return io;
+      };
+      win.IntersectionObserver.prototype = OrigIO.prototype;
+    }
+  }
+
+  // Patch main frame
+  patchContext(window, 'main');
+
+  // ── Patch iframes as they appear ───────────────────────────────────
+  function tryPatchIframe(iframe) {
+    try {
+      var w = iframe.contentWindow;
+      var src = iframe.src || '(no src yet)';
+      if (w && !w.__vePatched) {
+        patchContext(w, 'iframe:' + src);
+      }
+    } catch(e) {
+      console.log('[VE] cross-origin iframe, cannot patch directly:', iframe.src);
+    }
+  }
+
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeName === 'IFRAME') tryPatchIframe(node);
+        if (node.querySelectorAll) {
+          node.querySelectorAll('iframe').forEach(tryPatchIframe);
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement, {childList: true, subtree: true});
+
+  console.log('[VE] patch complete');
+})();
+true;
+`;
+
+// ── CLICK JS — injected after DOM is ready ────────────────────────────
+// Scrolls to trigger lazy load then repeatedly clicks play.
+const CLICK_JS = `
+(function() {
+  console.log('[VE] click script running');
 
   // Block ad link clicks
   document.addEventListener('click', function(e) {
-    var target = e.target.closest('a');
+    var target = e.target && e.target.closest && e.target.closest('a');
     if (target && target.href &&
-        !target.href.includes('fasel-hd.cam') &&
-        !target.href.includes('javascript')) {
+        !target.href.includes('fasel-hd') &&
+        !target.href.startsWith('javascript')) {
       e.preventDefault();
       e.stopPropagation();
     }
   }, true);
 
-  // ── Scroll to trigger lazy iframe injection ──────────────────────
+  // Scroll to trigger lazy iframe injection
+  console.log('[VE] scrolling to trigger lazy load');
   window.scrollTo(0, document.body.scrollHeight / 2);
+  window.dispatchEvent(new Event('scroll'));
 
-  // ── Click play up to 7 times ─────────────────────────────────────
-  var attempts   = 0;
-  var maxAttempts = 7;
-  var interval   = setInterval(function() {
+  var attempts = 0;
+  var interval = setInterval(function() {
     attempts++;
+    console.log('[VE] click attempt', attempts);
 
-    // Remove any popup/overlay elements that appeared
-    var overlaySelectors = [
+    // Log iframes present in DOM
+    var iframes = document.querySelectorAll('iframe');
+    console.log('[VE] iframes in DOM:', iframes.length);
+    iframes.forEach(function(f, i) {
+      console.log('[VE]   iframe[' + i + '] src:', f.src || '(empty)');
+    });
+
+    // Remove ad overlays
+    [
       '.popup', '.ad-overlay', '.close-btn', '.modal-overlay',
       '[class*="popup"]', '[class*="overlay"]', '[id*="popup"]',
       '[id*="ad"]', '[class*="ad-"]', '.blockadblock',
-    ];
-    overlaySelectors.forEach(function(sel) {
+    ].forEach(function(sel) {
       document.querySelectorAll(sel).forEach(function(el) {
+        console.log('[VE] removed overlay:', sel);
         el.remove();
       });
     });
@@ -105,13 +219,36 @@ const INJECTED_JS = `
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
       if (el) {
+        console.log('[VE] clicking in main frame:', selectors[i]);
         el.click();
         clicked = true;
         break;
       }
     }
 
-    if (attempts >= maxAttempts) {
+    // Also try inside same-origin iframes
+    iframes.forEach(function(frame, fi) {
+      try {
+        var doc = frame.contentDocument || frame.contentWindow.document;
+        for (var i = 0; i < selectors.length; i++) {
+          var el = doc.querySelector(selectors[i]);
+          if (el) {
+            console.log('[VE] clicking in iframe[' + fi + ']:', selectors[i]);
+            el.click();
+            break;
+          }
+        }
+      } catch(e) {
+        // cross-origin iframe — expected
+      }
+    });
+
+    if (!clicked) {
+      console.log('[VE] no play button found on attempt', attempts);
+    }
+
+    if (attempts >= 10) {
+      console.log('[VE] max attempts reached, giving up clicks');
       clearInterval(interval);
     }
   }, 1500);
@@ -119,117 +256,126 @@ const INJECTED_JS = `
 true;
 `;
 
-// ── Props ────────────────────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────────────
 interface VideoExtractorProps {
-  /** The fasel-hd episode/movie page URL to extract from */
   pageUrl: string;
-  /** Called with the captured m3u8 URL */
   onExtracted: (m3u8Url: string) => void;
-  /** Called if extraction fails or times out */
   onError: () => void;
-  /** Timeout in ms before giving up (default 25000) */
   timeoutMs?: number;
 }
 
-// ── Component ────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────
 export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   pageUrl,
   onExtracted,
   onError,
   timeoutMs = 25000,
 }) => {
-  const captured  = useRef(false);
-  const timeout   = useRef<ReturnType<typeof setTimeout>>();
+  const captured = useRef(false);
+  const timeout  = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    // Hard timeout — if no m3u8 captured within timeoutMs, give up
+    console.log('[VE] mounting — url:', pageUrl, '| timeout:', timeoutMs + 'ms');
     timeout.current = setTimeout(() => {
       if (!captured.current) {
+        console.log('[VE] ⏱ timed out — no m3u8 captured within', timeoutMs + 'ms');
         captured.current = true;
         onError();
       }
     }, timeoutMs);
-
     return () => {
+      console.log('[VE] unmounting');
       clearTimeout(timeout.current);
     };
   }, []);
 
-  const handleShouldStartLoad = (request: {url: string}) => {
-    const url = request.url;
+  // ── Receive m3u8 from injected JS via postMessage ─────────────────
+  const handleMessage = useCallback((e: WebViewMessageEvent) => {
+    const raw = e.nativeEvent.data;
+    console.log('[VE] onMessage raw:', raw);
 
-    // ── Capture m3u8 ──────────────────────────────────────────────
-    if (url.includes('.m3u8') && !captured.current) {
-      // Prefer master.m3u8 (has all quality levels)
-      // Accept any .m3u8 as fallback
-      if (url.includes('master.m3u8') || !captured.current) {
-        captured.current = true;
-        clearTimeout(timeout.current);
-        onExtracted(url);
-      }
-      return false; // block WebView from navigating to it
+    if (captured.current) {
+      console.log('[VE] already captured, ignoring message');
+      return;
     }
 
-    // ── Block ad domains ─────────────────────────────────────────
+    try {
+      const data = JSON.parse(raw);
+      if (data.type === 'm3u8' && data.url) {
+        if (data.url.includes('master.m3u8') || !captured.current) {
+          console.log('[VE] ✅ capturing:', data.url);
+          captured.current = true;
+          clearTimeout(timeout.current);
+          onExtracted(data.url);
+        } else {
+          console.log('[VE] skipping non-master m3u8 (will wait for master):', data.url);
+        }
+      }
+    } catch {
+      console.log('[VE] non-JSON postMessage:', raw);
+    }
+  }, [onExtracted]);
+
+  // ── Navigation blocking — ads/popups only ────────────────────────
+  const handleShouldStartLoad = useCallback((request: {url: string}) => {
+    const url = request.url;
+    console.log('[VE] navigation:', url);
+
+    if (url.startsWith('about:') || url.startsWith('data:')) return true;
+
     if (BLOCKED_DOMAINS.some(d => url.includes(d))) {
+      console.log('[VE] ❌ blocked navigation:', url);
       return false;
     }
 
-    // ── Block navigations away from allowed domains ───────────────
-    // about:blank and data: URIs are fine (initial state)
-    if (url.startsWith('about:') || url.startsWith('data:')) {
-      return true;
-    }
-
-    if (!ALLOWED_DOMAINS.some(d => url.includes(d))) {
-      return false; // block everything else (ad redirects, popups)
-    }
-
     return true;
-  };
+  }, []);
+
+  const handleError = useCallback((e: any) => {
+    console.log('[VE] WebView error:', JSON.stringify(e?.nativeEvent));
+    if (!captured.current) {
+      captured.current = true;
+      clearTimeout(timeout.current);
+      onError();
+    }
+  }, [onError]);
+
+  const handleHttpError = useCallback((e: any) => {
+    console.log('[VE] HTTP error:', e?.nativeEvent?.statusCode, e?.nativeEvent?.url);
+    // Don't call onError for HTTP errors — ads/trackers 4xx shouldn't abort extraction
+  }, []);
 
   return (
-    // Zero-size container — completely invisible, no layout impact
     <View
       style={{
         position: 'absolute',
-        width: 1,
-        height: 1,
-        overflow: 'hidden',
+        // Full viewport so IntersectionObserver sees the player as on-screen.
+        // opacity:0 + pointerEvents:none = invisible and non-interactive.
+        width: SW,
+        height: SH,
         opacity: 0,
         pointerEvents: 'none',
       }}
     >
       <WebView
         source={{uri: pageUrl}}
-        style={{width: 1, height: 1}}
-        // Must be non-zero dimensions for JS to execute
+        style={{width: SW, height: SH}}
         javaScriptEnabled
-        injectedJavaScript={INJECTED_JS}
+        // Patch fetch/XHR BEFORE any page scripts run
+        injectedJavaScriptBeforeContentLoaded={PATCH_JS}
+        // Scroll + click AFTER DOM is ready
+        injectedJavaScript={CLICK_JS}
+        // Patch ALL frames including cross-origin iframes
+        injectedJavaScriptForMainFrameOnly={false}
+        onMessage={handleMessage}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
-        // Stealth user agent matching Playwright config
         userAgent="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
-        // Allow autoplay without user gesture (needed for JWPlayer init)
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
-        // Don't let WebView scale or zoom
         scalesPageToFit={false}
-        // Kill any audio that might start
         muted
-        onError={() => {
-          if (!captured.current) {
-            captured.current = true;
-            clearTimeout(timeout.current);
-            onError();
-          }
-        }}
-        onHttpError={() => {
-          if (!captured.current) {
-            captured.current = true;
-            clearTimeout(timeout.current);
-            onError();
-          }
-        }}
+        onError={handleError}
+        onHttpError={handleHttpError}
       />
     </View>
   );
