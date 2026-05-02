@@ -75,7 +75,7 @@ export const en = {
   quality_480: '480p',
   quality_360: '360p',
   quality_auto: 'Auto',
-  // OTA Update
+  // OTA
   update_available: 'Update Available',
   update_description: 'A new version of AbdoBest is available!',
   update_changelog: 'Changelog',
@@ -87,7 +87,7 @@ export const en = {
   check_for_updates: 'Check for Updates',
   current_version: 'Current Version',
   latest_version: 'Latest Version',
-  // Settings sections
+  // Settings
   general: 'General',
   playback: 'Playback',
   data: 'Data',
@@ -95,30 +95,22 @@ export const en = {
   cache_cleared: 'Cache cleared',
   clear_cache: 'Clear Cache',
   clear_cache_confirm: 'Are you sure you want to clear the cache?',
-  // Sync
   sync_database: 'Sync Database',
   last_sync: 'Last Sync',
   never: 'Never',
   sync_failed: 'Sync failed, check your internet connection',
-  // Details screen
   description: 'Description',
   episode_count: 'Episodes',
-  // Theme
   theme: 'Theme',
   theme_dark: 'Dark',
   theme_light: 'Light',
-  // Quality preference
   quality_preference: 'Quality Preference',
-  // Subtitles
   subtitles: 'Subtitles',
   subtitles_enabled: 'Subtitles Enabled',
-  // Search
   search_downloads: 'Search downloads...',
-  // Year
   year: 'Year',
   rating: 'Rating',
   views: 'Views',
-  // Sort options
   sort_by: 'Sort by',
   sort_az: 'A-Z',
   sort_za: 'Z-A',
@@ -126,23 +118,18 @@ export const en = {
   sort_oldest: 'Oldest',
   sort_top_rated: 'Top Rated',
   results: 'results',
-  // Details
   category: 'Category',
   directors: 'Directors',
   of_10: '/ 10',
   random_picks: 'Recommended',
-  asian_series: 'Asian Series',
-  // Status
   status_ongoing: 'Ongoing',
   status_completed: 'Completed',
   status_label: 'Status',
-  // Details - new fields
   type: 'Type',
   viewing_level: 'Age Rating',
   episode_duration: 'Episode Duration',
   release_date: 'Release Date',
   play_first_episode: 'Play First Episode',
-  // Card badges
   badge_movie: 'Movie',
   badge_dubbed: 'Dubbed',
   badge_hindi: 'Hindi',
@@ -152,12 +139,12 @@ export const en = {
   badge_series: 'Series',
   badge_tvshow: 'TV Show',
   badge_kdrama: 'K-Drama',
-  // Season picker
   select_season: 'Select Season',
   select_episode: 'Select Episode',
-  // General
   success: 'Success',
   error: 'Error',
   ok: 'OK',
   update_check_failed: 'Update check failed, try again later',
+  // optional
+  quality_changed: 'Quality changed to {{quality}}',
 };

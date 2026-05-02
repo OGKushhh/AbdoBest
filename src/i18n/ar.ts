@@ -75,7 +75,7 @@ export const ar = {
   quality_480: '480p',
   quality_360: '360p',
   quality_auto: 'تلقائي',
-  // تحديث OTA
+  // OTA
   update_available: 'تحديث متاح',
   update_description: 'يتوفر إصدار جديد من AbdoBest!',
   update_changelog: 'التغييرات',
@@ -87,7 +87,7 @@ export const ar = {
   check_for_updates: 'التحقق من التحديثات',
   current_version: 'الإصدار الحالي',
   latest_version: 'أحدث إصدار',
-  // أقسام الإعدادات
+  // الإعدادات
   general: 'عام',
   playback: 'التشغيل',
   data: 'البيانات',
@@ -95,30 +95,22 @@ export const ar = {
   cache_cleared: 'تم مسح ذاكرة التخزين المؤقت',
   clear_cache: 'مسح ذاكرة التخزين المؤقت',
   clear_cache_confirm: 'هل أنت متأكد من مسح ذاكرة التخزين المؤقت؟',
-  // المزامنة
   sync_database: 'مزامنة قاعدة البيانات',
   last_sync: 'آخر مزامنة',
   never: 'أبداً',
   sync_failed: 'فشلت المزامنة، تحقق من اتصالك بالإنترنت',
-  // شاشة التفاصيل
   description: 'الوصف',
   episode_count: 'الحلقات',
-  // المظهر
   theme: 'المظهر',
   theme_dark: 'داكن',
   theme_light: 'فاتح',
-  // تفضيل الجودة
   quality_preference: 'تفضيل الجودة',
-  // الترجمة
   subtitles: 'الترجمة',
   subtitles_enabled: 'تفعيل الترجمة',
-  // البحث
   search_downloads: 'ابحث في التحميلات...',
-  // السنة
   year: 'السنة',
   rating: 'التقييم',
   views: 'المشاهدات',
-  // خيارات الترتيب
   sort_by: 'ترتيب حسب',
   sort_az: 'أ-ي',
   sort_za: 'ي-أ',
@@ -126,23 +118,18 @@ export const ar = {
   sort_oldest: 'الأقدم',
   sort_top_rated: 'الأعلى تقييماً',
   results: 'نتيجة',
-  // التفاصيل
   category: 'القسم',
   directors: 'المخرجين',
   of_10: 'من 10',
   random_picks: 'موصى به',
-  asian_series: 'مسلسلات آسيوية',
-  // الحالة
   status_ongoing: 'مستمر',
   status_completed: 'مكتمل',
   status_label: 'الحالة',
-  // التفاصيل - حقول جديدة
   type: 'النوع',
   viewing_level: 'التصنيف العمري',
   episode_duration: 'مدة الحلقة',
   release_date: 'تاريخ الإصدار',
   play_first_episode: 'تشغيل الحلقة الأولى',
-  // شرائح البطاقات
   badge_movie: 'فيلم',
   badge_dubbed: 'مدبلج',
   badge_hindi: 'هندي',
@@ -152,12 +139,12 @@ export const ar = {
   badge_series: 'مسلسل',
   badge_tvshow: 'برنامج تلفزيوني',
   badge_kdrama: 'مسلسل كوري',
-  // مختار الموسم
   select_season: 'اختر الموسم',
   select_episode: 'اختر حلقة',
-  // عام
   success: 'تم بنجاح',
   error: 'خطأ',
   ok: 'حسناً',
   update_check_failed: 'فشل التحقق من التحديثات، حاول لاحقاً',
+  // optional: quality changed feedback
+  quality_changed: 'تم تغيير الجودة إلى {{quality}}',
 };
