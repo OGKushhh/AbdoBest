@@ -210,39 +210,40 @@ export const SettingsScreen: React.FC = () => {
         </ScrollView>
       </SafeAreaView>
 
-      {/* ── Quality Picker Modal ── */}
-      <TouchableOpacity
-        style={styles.modalBackdrop}
-        activeOpacity={1}
-        onPress={() => setShowQualityModal(false)}
-        disabled={!showQualityModal}
-      >
-        <View style={[styles.modalContent, {opacity: showQualityModal ? 1 : 0, pointerEvents: showQualityModal ? 'auto' : 'none'}]}>
-          <Text style={styles.modalTitle}>{t('select_quality')}</Text>
-          {qualityOptions.map(q => (
-            <TouchableOpacity
-              key={q.key}
-              style={[
-                styles.modalOption,
-                settings.qualityPreference === q.key && styles.modalOptionActive,
-              ]}
-              onPress={() => { updateSetting('qualityPreference', q.key); setShowQualityModal(false); }}
-            >
-              <Text style={[
-                styles.modalOptionText,
-                settings.qualityPreference === q.key && styles.modalOptionTextActive,
-              ]}>
-                {q.label}
-              </Text>
-              {settings.qualityPreference === q.key && (
-                <View style={styles.checkmark}>
-                  <Image source={require('../../assets/icons/arrow.png')} style={[styles.icon, {tintColor: Colors.dark.primary}]} />
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      </TouchableOpacity>
+      {/* ── Quality Picker Modal (conditionally rendered — Android pointerEvents fix) ── */}
+      {showQualityModal && (
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowQualityModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{t('select_quality')}</Text>
+            {qualityOptions.map(q => (
+              <TouchableOpacity
+                key={q.key}
+                style={[
+                  styles.modalOption,
+                  settings.qualityPreference === q.key && styles.modalOptionActive,
+                ]}
+                onPress={() => { updateSetting('qualityPreference', q.key); setShowQualityModal(false); }}
+              >
+                <Text style={[
+                  styles.modalOptionText,
+                  settings.qualityPreference === q.key && styles.modalOptionTextActive,
+                ]}>
+                  {q.label}
+                </Text>
+                {settings.qualityPreference === q.key && (
+                  <View style={styles.checkmark}>
+                    <Image source={require('../../assets/icons/arrow.png')} style={[styles.icon, {tintColor: Colors.dark.primary}]} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };

@@ -100,18 +100,8 @@ export const PlayerScreen: React.FC = () => {
     setBuffering(false);
   };
 
-  // Auto-retry on error after 3 seconds
-  const retryTimer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => {
-    if (error) {
-      retryTimer.current = setTimeout(() => {
-        setError(null);
-        setBuffering(true);
-        videoRef.current?.seek(0);
-      }, 3000);
-    }
-    return () => clearTimeout(retryTimer.current);
-  }, [error]);
+  // No auto-retry on error — it causes white screen flicker loop.
+  // User can tap "Go Back" to exit.
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -341,11 +331,14 @@ const styles = StyleSheet.create({
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+    backgroundColor: '#000',
   },
   bufferingOverlay: {
     position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
   bufferingText: {
     color: 'rgba(255,255,255,0.7)',
