@@ -1,12 +1,11 @@
 import React, {useState, useRef, useEffect, useCallback, useMemo} from 'react';
 import {
   View, StyleSheet, Dimensions, TouchableOpacity, Text,
-  ActivityIndicator, StatusBar, Modal, FlatList,
+  ActivityIndicator, StatusBar, Modal, FlatList, Image,
 } from 'react-native';
 import Video, {VideoRef, OnProgressData, ResizeMode, OnBufferData} from 'react-native-video';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
 import {recordPlay} from '../services/viewService';
@@ -143,7 +142,7 @@ export const PlayerScreen: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
-        <Icon name="alert-circle-outline" size={56} color={Colors.dark.error} />
+        <Image source={require('../../assets/icons/alert.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
         <Text style={styles.errorText}>{t('video_unavailable')}</Text>
         <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
           <Text style={styles.errorButtonText}>{t('retry')}</Text>
@@ -156,7 +155,7 @@ export const PlayerScreen: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <StatusBar hidden />
-        <Icon name="alert-circle-outline" size={56} color={Colors.dark.error} />
+        <Image source={require('../../assets/icons/alert.png')} style={{width: 56, height: 56, tintColor: Colors.dark.error}} />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
           <Text style={styles.errorButtonText}>{t('go_back')}</Text>
@@ -195,10 +194,10 @@ export const PlayerScreen: React.FC = () => {
           maxBitRate={selectedQuality.bitrate || 0}
           // FAST buffer — start playing ASAP, don't wait forever
           bufferConfig={{
-            minBufferMs: 2000,
-            maxBufferMs: 15000,
-            bufferForPlaybackMs: 1000,
-            bufferForPlaybackAfterRebufferMs: 3000,
+            minBufferMs: 3000,
+            maxBufferMs: 30000,
+            bufferForPlaybackMs: 3000,
+            bufferForPlaybackAfterRebufferMs: 6000,
           }}
         />
 
@@ -216,7 +215,7 @@ export const PlayerScreen: React.FC = () => {
           {/* Top bar */}
           <View style={[styles.topControls, {paddingTop: insets.top + 4}]}>
             <TouchableOpacity style={styles.topButton} onPress={() => navigation.goBack()}>
-              <Icon name="arrow-back" size={26} color="#fff" />
+              <Image source={require('../../assets/icons/arrow.png')} style={{width: 26, height: 26, tintColor: '#fff'}} />
             </TouchableOpacity>
             <Text style={styles.titleText} numberOfLines={1}>{title}</Text>
             {/* Quality picker button */}
@@ -228,7 +227,7 @@ export const PlayerScreen: React.FC = () => {
               }}
             >
               <Text style={styles.qualityButtonText}>{selectedQuality.label}</Text>
-              <Icon name="chevron-down" size={14} color="#00E5FF" />
+              <Image source={require('../../assets/icons/chevron-down.png')} style={{width: 14, height: 14, tintColor: '#00E5FF'}} />
             </TouchableOpacity>
           </View>
 
@@ -259,7 +258,7 @@ export const PlayerScreen: React.FC = () => {
                 style={styles.skipButton}
                 onPress={() => videoRef.current?.seek(Math.max(currentTime - 10, 0))}
               >
-                <Icon name="play-back" size={28} color="#fff" />
+                <Image source={require('../../assets/icons/skip-back.png')} style={{width: 28, height: 28, tintColor: '#fff'}} />
                 <Text style={styles.skipLabel}>10</Text>
               </TouchableOpacity>
 
@@ -267,14 +266,17 @@ export const PlayerScreen: React.FC = () => {
                 style={styles.playPauseButton}
                 onPress={() => { setPlaying(!playing); triggerHideControls(); }}
               >
-                <Icon name={playing ? 'pause' : 'play'} size={34} color="#fff" />
+                <Image
+                  source={playing ? require('../../assets/icons/pause.png') : require('../../assets/icons/play.png')}
+                  style={{width: 34, height: 34, tintColor: '#fff'}}
+                />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.skipButton}
                 onPress={() => videoRef.current?.seek(Math.min(currentTime + 10, duration))}
               >
-                <Icon name="play-forward" size={28} color="#fff" />
+                <Image source={require('../../assets/icons/skip-forward.png')} style={{width: 28, height: 28, tintColor: '#fff'}} />
                 <Text style={styles.skipLabel}>10</Text>
               </TouchableOpacity>
             </View>
@@ -314,7 +316,7 @@ export const PlayerScreen: React.FC = () => {
                   {q.label}
                 </Text>
                 {selectedQuality.label === q.label && (
-                  <Icon name="checkmark" size={18} color={Colors.dark.primary} />
+                  <Image source={require('../../assets/icons/checkmark.png')} style={{width: 18, height: 18, tintColor: Colors.dark.primary}} />
                 )}
               </TouchableOpacity>
             ))}
