@@ -71,6 +71,7 @@ export interface UserSettings {
   showArabicTitles: boolean;
   darkMode: boolean;
   qualityPreference: 'high' | 'medium' | 'low' | 'auto';
+  playerQuality: 'auto' | '1080' | '720' | '480' | '360';
   subtitleEnabled: boolean;
 }
 
