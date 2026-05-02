@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
 import { useWindowDimensions } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../hooks/useTheme'; // resolves to useTheme.tsx
 
 type QualityLevel = 'auto' | '1080' | '720' | '480' | '360';
 

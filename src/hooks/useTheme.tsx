@@ -2,9 +2,6 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { Colors, ThemeMode, ThemeColors } from '../theme/colors';
 import { getSettings, saveSettings } from '../storage';
 
-// ---------------------------------------------------------------------------
-// ThemeContext — provides colors to any child without prop drilling
-// ---------------------------------------------------------------------------
 interface ThemeContextValue {
   mode: ThemeMode;
   colors: ThemeColors;
@@ -12,24 +9,17 @@ interface ThemeContextValue {
   isDark: boolean;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({
-  mode: 'dark',
-  colors: Colors.dark,
-  toggleTheme: () => {},
-  isDark: true,
-});
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-// ---------------------------------------------------------------------------
-// ThemeProvider — wrap your root component with this
-// ---------------------------------------------------------------------------
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
     const settings = getSettings();
+    // Use darkMode or dark_mode – check your storage keys
     return settings.darkMode !== false ? 'dark' : 'light';
   });
 
   const toggleTheme = useCallback(() => {
-    const newMode: ThemeMode = mode === 'dark' ? 'light' : 'dark';
+    const newMode = mode === 'dark' ? 'light' : 'dark';
     setMode(newMode);
     const settings = getSettings();
     saveSettings({ ...settings, darkMode: newMode === 'dark' });
@@ -44,10 +34,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-// ---------------------------------------------------------------------------
-// useTheme — call inside any component to get current theme colors
-// ---------------------------------------------------------------------------
-export const useTheme = () => useContext(ThemeContext);
-
-// Re-export types for convenience
-export type { ThemeMode, ThemeColors };
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+};

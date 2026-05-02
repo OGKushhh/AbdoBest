@@ -9,7 +9,7 @@ import { getSettings, saveSettings } from '../storage';
 import { syncIfNeeded, getLastSyncTime } from '../services/metadataService';
 import { checkForUpdate, openUpdateUrl } from '../services/updateService';
 import { APP_VERSION } from '../constants/endpoints';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../hooks/useTheme'; // resolves to useTheme.tsx
 
 export const SettingsScreen: React.FC = () => {
   const { colors, mode, setDarkMode } = useTheme();
