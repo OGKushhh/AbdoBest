@@ -131,8 +131,7 @@ const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CA
           ) : null}
         </View>
 
-        {/* Gradient scrim at bottom for readability */}
-        <View style={[styles.scrim, {width, height: h * 0.35, top: h * 0.65, borderBottomLeftRadius: 11, borderBottomRightRadius: 11}]} />
+
       </View>
 
       {/* ── Title + Year ── */}
@@ -165,14 +164,6 @@ const styles = StyleSheet.create({
   imageWrap: {
     position: 'relative',
   },
-  scrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    // dark-to-transparent gradient via a semi-transparent black
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-
   // ── Top-left pills
   topLeft: {
     position: 'absolute',
@@ -206,7 +197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
-    maxWidth: 90,
+    maxWidth: 'auto' as any,
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -217,11 +208,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Rubik',
   },
   catBadge: {
-    backgroundColor: Colors.dark.primaryLight,  // orange
+    backgroundColor: '#FFD700',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
-    maxWidth: 80,
+    maxWidth: 'auto' as any,
   },
   catText: {
     color: '#000',

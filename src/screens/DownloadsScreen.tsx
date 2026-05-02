@@ -1,11 +1,10 @@
 import React, {useState, useCallback} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, StatusBar, Alert,
+  TextInput, StatusBar, Image,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
@@ -31,16 +30,6 @@ export const DownloadsScreen: React.FC = () => {
     d.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStatusIcon = (status: DownloadItem['status']) => {
-    switch (status) {
-      case 'completed': return 'checkmark-circle';
-      case 'downloading': return 'cloud-download';
-      case 'paused': return 'pause-circle';
-      case 'failed': return 'alert-circle';
-      default: return 'time-outline';
-    }
-  };
-
   const getStatusColor = (status: DownloadItem['status']) => {
     switch (status) {
       case 'completed': return Colors.dark.success;
@@ -48,6 +37,22 @@ export const DownloadsScreen: React.FC = () => {
       case 'paused': return Colors.dark.warning;
       case 'failed': return Colors.dark.error;
       default: return Colors.dark.textMuted;
+    }
+  };
+
+  const StatusIcon = ({status}: {status: DownloadItem['status']}) => {
+    const color = getStatusColor(status);
+    switch (status) {
+      case 'completed':
+        return <Image source={require('../../assets/icons/checkmark.png')} style={{width: 14, height: 14, tintColor: color}} />;
+      case 'downloading':
+        return <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 14, height: 14, tintColor: color}} />;
+      case 'paused':
+        return <Image source={require('../../assets/icons/pause.png')} style={{width: 14, height: 14, tintColor: color}} />;
+      case 'failed':
+        return <Image source={require('../../assets/icons/alert.png')} style={{width: 14, height: 14, tintColor: color}} />;
+      default:
+        return <View style={{width: 14, height: 14, borderRadius: 7, backgroundColor: color, opacity: 0.4}} />;
     }
   };
 
@@ -70,7 +75,7 @@ export const DownloadsScreen: React.FC = () => {
       <View style={styles.info}>
         <Text style={styles.downloadTitle} numberOfLines={2}>{item.title}</Text>
         <View style={styles.statusRow}>
-          <Icon name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
+          <StatusIcon status={item.status} />
           <Text style={[styles.statusText, {color: getStatusColor(item.status)}]}>
             {t(item.status)}
           </Text>
@@ -83,7 +88,7 @@ export const DownloadsScreen: React.FC = () => {
         )}
       </View>
       {item.status === 'completed' && (
-        <Icon name="play-circle" size={28} color={Colors.dark.accentLight} />
+        <Image source={require('../../assets/icons/play.png')} style={{width: 28, height: 28, tintColor: Colors.dark.accentLight}} />
       )}
     </TouchableOpacity>
   );
@@ -104,7 +109,7 @@ export const DownloadsScreen: React.FC = () => {
 
       {/* Search (searches downloads only) */}
       <View style={styles.searchRow}>
-        <Icon name="search-outline" size={18} color={Colors.dark.textMuted} style={{marginRight: 8}} />
+        <Image source={require('../../assets/icons/search.png')} style={{width: 18, height: 18, tintColor: Colors.dark.textMuted, marginRight: 8}} />
         <TextInput
           style={styles.searchInput}
           placeholder={t('search_downloads')}
@@ -114,7 +119,7 @@ export const DownloadsScreen: React.FC = () => {
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close-circle" size={18} color={Colors.dark.textMuted} />
+            <Text style={{fontSize: 18, color: Colors.dark.textMuted, fontWeight: '700'}}>&times;</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -122,7 +127,7 @@ export const DownloadsScreen: React.FC = () => {
       {filtered.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Icon name="download-outline" size={48} color={Colors.dark.textMuted} />
+            <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 48, height: 48, tintColor: Colors.dark.textMuted}} />
           </View>
           <Text style={styles.emptyTitle}>{t('no_downloads')}</Text>
           <Text style={styles.emptySub}>{t('no_downloads_sub')}</Text>
