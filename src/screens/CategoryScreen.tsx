@@ -2,13 +2,13 @@
  * CategoryScreen (Browse) – using all-content.json (lightweight index)
  *
  * Features:
- *   - Single API call to all-content.json, cached
+ *   - Single API call to all-content.json, cached in memory
  *   - Client‑side pagination (load 30, then load more on scroll end)
- *   - Filter by category, genre, year, and search (title)
+ *   - Filter by category (from route), genre, year, and search (title)
  *   - Sort by year (newest/oldest) or title (A‑Z / Z‑A)
  *   - Debounced search
  *   - Centered filter modal (not bottom sheet)
- *   - FlatList with optimised rendering for large datasets (13k+ items)
+ *   - FlatList with optimised rendering for large datasets
  */
 
 import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
@@ -18,8 +18,8 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ContentItem } from '../types';
 import { getAllContentIndex } from '../services/metadataService';
+import { ContentItem } from '../types';
 import { MovieCard, CARD_WIDTH } from '../components/MovieCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorView } from '../components/ErrorView';
@@ -39,17 +39,34 @@ const SORT_OPTIONS = [
   { key: 'year_asc', labelKey: 'sort_oldest' },
   { key: 'az', labelKey: 'sort_az' },
   { key: 'za', labelKey: 'sort_za' },
-  // rating_desc removed – index does not have rating
 ];
 
 // Memoised card
-const MovieCardItem = memo<{ item: ContentItem; onPress: (item: ContentItem) => void }>(
-  ({ item, onPress }) => <MovieCard item={item} onPress={onPress} />,
+const MovieCardItem = memo<{ item: any; onPress: (item: any) => void }>(
+  ({ item, onPress }) => {
+    // Convert index item to a shape that MovieCard understands
+    const cardItem: ContentItem = {
+      id: item.id,
+      Title: item.title,
+      Category: item.category,
+      'Image Source': item.image,
+      Genres: item.genres || [],
+      GenresAr: [],
+      Format: '',
+      Runtime: null,
+      Country: '',
+      Rating: '',
+      Views: '',
+      Source: '',
+      Year: item.year,
+    };
+    return <MovieCard item={cardItem} onPress={onPress} />;
+  },
   (prev, next) => prev.item.id === next.item.id,
 );
 MovieCardItem.displayName = 'MovieCardItem';
 
-// Sorting helpers (using index fields)
+// Sorting helpers
 const sortByYearDesc = (items: any[]) =>
   [...items].sort((a, b) => (b.year || '0').localeCompare(a.year || '0'));
 const sortByYearAsc = (items: any[]) =>
@@ -68,7 +85,7 @@ export const CategoryScreen: React.FC = () => {
   const lang = (i18n.language === 'ar' ? 'ar' : 'en') as 'ar' | 'en';
 
   // Data & UI states
-  const [allItems, setAllItems] = useState<any[]>([]);      // all items from index
+  const [allItems, setAllItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(category);
@@ -78,7 +95,6 @@ export const CategoryScreen: React.FC = () => {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Filter state (client‑side)
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedSort, setSelectedSort] = useState('year_desc');
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
@@ -89,7 +105,6 @@ export const CategoryScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // UI toggles
   const [showFilterPopup, setShowFilterPopup] = useState(false);
 
   // Debounce search
@@ -109,8 +124,8 @@ export const CategoryScreen: React.FC = () => {
       setLoading(true);
       setError(null);
       const index = await getAllContentIndex();
-      // Filter by selected category (index uses `category` field: "movie", "anime", "series", ...)
-      // Map category mapping: your route param "movies" → index field "movie" (singular)
+
+      // Map category param to the `category` field in index
       const catMap: Record<string, string> = {
         movies: 'movie',
         anime: 'anime',
@@ -124,6 +139,7 @@ export const CategoryScreen: React.FC = () => {
       };
       const target = catMap[selectedCategory] || selectedCategory;
       const filteredByCat = index.filter(item => item.category === target);
+
       setAllItems(filteredByCat);
       // Reset pagination and filters
       setPage(1);
@@ -141,29 +157,25 @@ export const CategoryScreen: React.FC = () => {
     }
   };
 
-  // Apply filters & sorting to get the full filtered list
+  // Apply all filters & sorting
   const filtered = useMemo(() => {
     let result = [...allItems];
 
-    // Search (title)
     if (debouncedQuery.trim()) {
       const q = debouncedQuery.toLowerCase();
       result = result.filter(item => item.title?.toLowerCase().includes(q));
     }
 
-    // Genre
     if (selectedGenre) {
       result = result.filter(item =>
         item.genres?.some((g: string) => g === selectedGenre)
       );
     }
 
-    // Year
     if (selectedYear) {
       result = result.filter(item => item.year === selectedYear);
     }
 
-    // Sort
     switch (selectedSort) {
       case 'az': result = sortByAZ(result); break;
       case 'za': result = sortByZA(result); break;
@@ -175,7 +187,7 @@ export const CategoryScreen: React.FC = () => {
     return result;
   }, [allItems, debouncedQuery, selectedGenre, selectedYear, selectedSort]);
 
-  // Pagination: load next PAGE_SIZE items when needed
+  // Pagination: load next batch when page changes
   useEffect(() => {
     const start = 0;
     const end = page * PAGE_SIZE;
@@ -187,30 +199,13 @@ export const CategoryScreen: React.FC = () => {
   const loadMore = useCallback(() => {
     if (!hasMore || loadingMore) return;
     setLoadingMore(true);
-    // Simulate async load (instant because data is already in memory)
     setPage(prev => prev + 1);
     setLoadingMore(false);
   }, [hasMore, loadingMore]);
 
   const navigateToDetails = useCallback((item: any) => {
-    // Build a ContentItem-like object from index data, then navigate
-    const contentItem: ContentItem = {
-      id: item.id,
-      Title: item.title,
-      Category: selectedCategory,
-      'Image Source': item.image,
-      Genres: item.genres || [],
-      GenresAr: [],
-      Format: '',
-      Runtime: null,
-      Country: '',
-      Rating: '',
-      Views: '',
-      Source: '',
-      ...item, // pass any extra fields
-    };
-    navigation.navigate('Details', { item: contentItem });
-  }, [navigation, selectedCategory]);
+    navigation.navigate('Details', { item });
+  }, [navigation]);
 
   const handleCategorySelect = useCallback((cat: string) => {
     setSelectedCategory(cat);
@@ -236,7 +231,7 @@ export const CategoryScreen: React.FC = () => {
     allItems.forEach(item => {
       if (item.year) yearSet.add(item.year);
     });
-    return Array.from(yearSet).sort((a, b) => b.localeCompare(a)); // newest first
+    return Array.from(yearSet).sort((a, b) => b.localeCompare(a));
   }, [allItems]);
 
   const catConfig = CATEGORIES.find(c => c.key === selectedCategory);
@@ -345,20 +340,7 @@ export const CategoryScreen: React.FC = () => {
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={Colors.dark.primary} style={{ margin: 20 }} /> : null}
-          renderItem={({ item }) => (
-            <MovieCardItem
-              item={{
-                ...item,
-                Title: item.title,
-                'Image Source': item.image,
-                Category: selectedCategory,
-                id: item.id,
-                Genres: item.genres || [],
-                Year: item.year,
-              } as any}
-              onPress={navigateToDetails}
-            />
-          )}
+          renderItem={({ item }) => <MovieCardItem item={item} onPress={navigateToDetails} />}
         />
       )}
 
@@ -507,7 +489,6 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
   emptyText: { color: Colors.dark.textMuted, fontSize: 16, fontFamily: 'Rubik' },
 
-  // Filter modal
   filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' },
   filterPanel: { backgroundColor: Colors.dark.surface, borderRadius: 24, padding: 20, width: '90%', maxWidth: 480, maxHeight: '85%', borderWidth: 1, borderColor: Colors.dark.border },
   filterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border },
