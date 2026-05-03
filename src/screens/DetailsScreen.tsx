@@ -219,15 +219,23 @@ export const DetailsScreen: React.FC = () => {
   };
 
   const views = raw.Views || '';
-  const year = raw.Year || (raw.ReleaseDate ? String(raw.ReleaseDate).slice(0, 4) : '');
-  const country = item.Country || '';
-  const language = raw.Language || '';
-  const format = (item.Format && item.Format !== 'N/A') ? item.Format : '';
-  const numEps = raw['Number Of Episodes'] ?? null;
-  const numEpsText = raw['Number Of Episodes Text'] || (numEps ? String(numEps) : '');
-  const epDuration = raw.EpisodeDuration || '';
-  const status = raw.Status || '';
-  const releaseDate = raw.ReleaseDate || '';
+  // Format year — handles concatenated series years e.g. "20242025" → "2024-2025"
+  const formatYear = (val: string | number | null | undefined): string => {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 8)}`;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
+    return s;
+  };
+  const year        = formatYear(raw.Year || raw.ReleaseDate);
+  const releaseDate = formatYear(raw.ReleaseDate || raw.Year);
+  const country     = item.Country || '';
+  const language    = raw.Language || '';
+  const format      = (item.Format && item.Format !== 'N/A') ? item.Format : '';
+  const numEps      = raw['Number Of Episodes'] ?? null;
+  const numEpsText  = raw['Number Of Episodes Text'] || (numEps ? String(numEps) : '');
+  const epDuration  = raw.EpisodeDuration || '';
+  const status      = raw.Status || '';
   const viewingLvl = raw.ViewingLevel || '';
   const runtime = fmtRuntime(item.Runtime);
   const viewType = raw.Type || '';
