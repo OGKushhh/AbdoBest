@@ -30,12 +30,25 @@ let allContentCache: any[] | null = null;
 export const getAllContentIndex = async (forceRefresh = false): Promise<any[]> => {
   if (!forceRefresh && allContentCache) return allContentCache;
   try {
-    const response = await axios.get(ALL_CONTENT_URL, { timeout: 30000 });
-    allContentCache = response.data;
-    console.log(`[Metadata] Fetched all-content.json (${allContentCache.length} items)`);
-    return allContentCache;
+    const response = await axios.get(ALL_CONTENT_URL, {timeout: 30000});
+    const data = response.data;
+
+    let arr: any[];
+    if (Array.isArray(data)) {
+      // Already an array
+      arr = data;
+    } else if (data && typeof data === 'object' && !data.error) {
+      // Dict format {"id": {...}} — same as every other JSON in the project
+      arr = Object.entries(data).map(([id, item]: [string, any]) => ({...item, id}));
+    } else {
+      throw new Error(data?.error || 'Unexpected response from /api/all-content');
+    }
+
+    allContentCache = arr;
+    console.log(`[Metadata] all-content: ${arr.length} items`);
+    return allContentCache!;
   } catch (error: any) {
-    console.error('[Metadata] Failed to fetch all-content.json', error);
+    console.error('[Metadata] getAllContentIndex failed:', error.message);
     throw new Error(`Failed to load content index: ${error.message}`);
   }
 };

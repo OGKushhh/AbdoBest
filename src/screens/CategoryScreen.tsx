@@ -125,20 +125,11 @@ export const CategoryScreen: React.FC = () => {
       setError(null);
       const index = await getAllContentIndex();
 
-      // Map category param to the `category` field in index
-      const catMap: Record<string, string> = {
-        movies: 'movie',
-        anime: 'anime',
-        series: 'series',
-        tvshows: 'tvshow',
-        'asian-series': 'asian_series',
-        'dubbed-movies': 'dubbed_movie',
-        hindi: 'hindi',
-        'asian-movies': 'asian_movie',
-        'anime-movies': 'anime_movie',
-      };
-      const target = catMap[selectedCategory] || selectedCategory;
-      const filteredByCat = index.filter(item => item.category === target);
+      // Category field in all-content.json matches the JSON filename keys directly
+      // e.g. "movies", "anime", "asian-series" — no remapping needed
+      const filteredByCat = index.filter(
+        item => (item.Category || item.category) === selectedCategory
+      );
 
       setAllItems(filteredByCat);
       // Reset pagination and filters
