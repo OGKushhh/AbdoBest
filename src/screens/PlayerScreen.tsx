@@ -141,8 +141,6 @@ export const PlayerScreen: React.FC = () => {
     }
   };
 
-
-
   const handleQualityChange = (quality: QualityLevel) => {
     setQualityLevel(quality);
     setShowQualityPicker(false);
@@ -316,7 +314,6 @@ export const PlayerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-
         </Animated.View>
       )}
 
@@ -340,7 +337,6 @@ export const PlayerScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
 
       {/* Volume picker modal */}
       <Modal transparent visible={showVolumePicker} animationType="fade" onRequestClose={() => setShowVolumePicker(false)}>
@@ -399,7 +395,6 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   timeText: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontVariant: ['tabular-nums'] },
   playbackRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-
   seekButton: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
   playPauseButton: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginHorizontal: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
