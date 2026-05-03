@@ -93,7 +93,7 @@ export const loadTVShows = async (forceRefresh = false): Promise<ContentDict> =>
 
 // ─── Search & Filter utilities ──────────────────────────────────────
 
-/** Search across all cached categories locally */
+/** Search across all categories — uses disk cache if available, fetches if not */
 export const searchContent = async (query: string): Promise<ContentItem[]> => {
   const lowerQuery = query.toLowerCase().trim();
   if (!lowerQuery) return [];
@@ -102,18 +102,28 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
   let allResults: ContentItem[] = [];
 
   for (const cat of availableCategories) {
-    const data = await getMetadataAnyAge(cat);
+    // Try disk cache first; if empty, fetch from API so search always works
+    let data = await getMetadataAnyAge(cat);
+    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+      try {
+        data = await loadCategory(cat, false);
+      } catch {
+        continue;
+      }
+    }
     if (!data || typeof data !== 'object') continue;
+
     const items = Object.values(data) as ContentItem[];
     for (const item of items) {
       const titleMatch = item.Title?.toLowerCase().includes(lowerQuery);
       const genreMatch = item.Genres?.some(g => g.toLowerCase().includes(lowerQuery));
+      const genreArMatch = item.GenresAr?.some(g => g.toLowerCase().includes(lowerQuery));
       const countryMatch = item.Country?.toLowerCase().includes(lowerQuery);
-      if (titleMatch || genreMatch || countryMatch) {
+      if (titleMatch || genreMatch || genreArMatch || countryMatch) {
         allResults.push(item);
       }
     }
-    if (allResults.length >= 50) break;
+    if (allResults.length >= 60) break;
   }
 
   const seen = new Set<string>();

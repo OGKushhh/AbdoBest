@@ -125,15 +125,17 @@ export const CategoryScreen: React.FC = () => {
       // Default sort by newest year
       const sorted = sortByYearDesc(itemsArray);
       setAllItems(sorted);
-      // Reset pagination and filters
-      setPage(1);
-      setHasMore(true);
-      setVisibleItems([]);
+      // Reset filters
       setSelectedGenre(null);
       setSelectedYear(null);
       setSelectedSort('year_desc');
       setSearchQuery('');
       setDebouncedQuery('');
+      // Populate first page directly — setting page to 1 won't re-trigger
+      // the pagination useEffect if page was already 1
+      setPage(1);
+      setVisibleItems(sorted.slice(0, PAGE_SIZE));
+      setHasMore(sorted.length > PAGE_SIZE);
     } catch (err: any) {
       setError(err.message || t('error_loading'));
     } finally {
@@ -176,14 +178,20 @@ export const CategoryScreen: React.FC = () => {
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenre, selectedYear, selectedSort]);
-
+  // Whenever filters change, reset to page 1 and repopulate directly
   useEffect(() => {
+    setPage(1);
+    setVisibleItems(filteredRef.current.slice(0, PAGE_SIZE));
+    setHasMore(filteredRef.current.length > PAGE_SIZE);
+  }, [debouncedQuery, selectedGenre, selectedYear, selectedSort, allItems]);
+
+  // Load more pages (append)
+  useEffect(() => {
+    if (page === 1) return; // already handled above
     const end = page * PAGE_SIZE;
-    const nextChunk = filteredRef.current.slice(0, end);
-    setVisibleItems(nextChunk);
+    setVisibleItems(filteredRef.current.slice(0, end));
     setHasMore(end < filteredRef.current.length);
-  }, [filtered, page]);
+  }, [page]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || loadingMoreRef.current) return;
