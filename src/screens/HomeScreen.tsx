@@ -95,50 +95,90 @@ interface HeroBannerProps {
 }
 
 const HeroBanner = memo<HeroBannerProps>(({item, onPress}) => {
-  const {t} = useTranslation();
-  const year = (item as any).ReleaseDate || (item as any).Year || '';
-  const rating = (item as any).Rating || '';
+  const {t, i18n} = useTranslation();
+  const lang = i18n.language === 'ar' ? 'ar' : 'en';
+  const raw  = item as any;
+
+  // Clean year display
+  const rawYear = String(raw.ReleaseDate || raw.Year || '');
+  const year = /^\d{8}$/.test(rawYear)
+    ? `${rawYear.slice(0, 4)}-${rawYear.slice(4, 8)}`
+    : rawYear.slice(0, 4) || rawYear;
+
+  const rating  = raw.Rating  || '';
+  const quality = item.Format ? item.Format.split(' ')[0] : '';
+
+  // Genre chips — max 3
+  const genres = (lang === 'ar' ? item.GenresAr : item.Genres)?.slice(0, 3) ?? [];
+
+  // Clean title — strip Arabic status words
+  const cleanTitle = item.Title
+    .replace(/\s*(فيلم|مسلسل|مترجم|اون لاين|أنمي|انمي|برنامج)\s*/gi, ' ')
+    .trim();
 
   return (
-    <TouchableOpacity style={S.hero} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={S.hero} onPress={onPress} activeOpacity={0.88}>
+      {/* Poster fills entire card */}
       <FastImage
         source={{uri: item['Image Source']}}
         style={S.heroBg}
         resizeMode={FastImage.resizeMode.cover}
       />
-      {/* Dark gradient at bottom */}
-      <View style={S.heroGradient} />
 
-      {/* Content */}
+      {/* Multi-layer scrim: subtle top + strong bottom */}
+      <View style={S.heroScrimTop} />
+      <View style={S.heroScrimBottom} />
+
+      {/* ── Top-right: quality badge ── */}
+      {quality ? (
+        <View style={S.heroQBadge}>
+          <Text style={S.heroQTxt}>{quality}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Top-left: rating ── */}
+      {rating ? (
+        <View style={S.heroRatingBadge}>
+          <Image
+            source={require('../../assets/icons/star.png')}
+            style={{width: 11, height: 11, tintColor: '#FFD700'}}
+          />
+          <Text style={S.heroRating}>{rating}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Bottom content ── */}
       <View style={S.heroContent}>
-        {/* Badges */}
-        <View style={S.heroBadges}>
-          {item.Format ? (
-            <View style={S.heroQBadge}>
-              <Text style={S.heroQTxt}>{item.Format.split(' ')[0]}</Text>
-            </View>
-          ) : null}
-          {rating ? (
-            <View style={S.heroRatingBadge}>
-              <Image
-                source={require('../../assets/icons/star.png')}
-                style={{width: 11, height: 11, tintColor: '#FFD700'}}
-              />
-              <Text style={S.heroRating}>{rating}</Text>
-            </View>
+        {/* Genre chips */}
+        {genres.length > 0 && (
+          <View style={S.heroGenreRow}>
+            {genres.map((g, i) => (
+              <View key={i} style={S.heroGenreChip}>
+                <Text style={S.heroGenreTxt}>{g}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Title */}
+        <Text style={S.heroTitle} numberOfLines={2}>{cleanTitle}</Text>
+
+        {/* Meta row: year + runtime */}
+        <View style={S.heroMetaRow}>
+          {year ? <Text style={S.heroMetaTxt}>{year}</Text> : null}
+          {year && item.Runtime ? <Text style={S.heroMetaDot}>·</Text> : null}
+          {item.Runtime ? (
+            <Text style={S.heroMetaTxt}>
+              {Math.floor(item.Runtime / 60) > 0
+                ? `${Math.floor(item.Runtime / 60)}h ${item.Runtime % 60}m`
+                : `${item.Runtime}m`}
+            </Text>
           ) : null}
         </View>
 
-        <Text style={S.heroTitle} numberOfLines={2}>{item.Title}</Text>
-        <Text style={S.heroMeta}>
-          {[item.Category, year].filter(Boolean).join('  •  ')}
-        </Text>
-
-        <TouchableOpacity style={S.heroPlayBtn} onPress={onPress}>
-          <Image
-            source={require('../../assets/icons/play.png')}
-            style={{width: 16, height: 16, tintColor: '#fff', marginRight: 6}}
-          />
+        {/* Play button */}
+        <TouchableOpacity style={S.heroPlayBtn} onPress={onPress} activeOpacity={0.85}>
+          <Text style={S.heroPlayIcon}>▶</Text>
           <Text style={S.heroPlayTxt}>{t('play')}</Text>
         </TouchableOpacity>
       </View>
@@ -463,54 +503,69 @@ const S = StyleSheet.create({
 
   // Hero
   hero: {
-    marginHorizontal: 16, marginBottom: 6,
-    borderRadius: 18, overflow: 'hidden',
-    height: SW * 0.56,
-    elevation: 10, shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6}, shadowOpacity: 0.45, shadowRadius: 12,
+    marginHorizontal: 16, marginBottom: 10,
+    borderRadius: 20, overflow: 'hidden',
+    height: SW * 0.62,
+    elevation: 12, shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8}, shadowOpacity: 0.5, shadowRadius: 14,
   },
   heroBg: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
   },
-  heroGradient: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: '65%',
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    // Simulated gradient via multiple overlays (no LinearGradient needed)
+  // Subtle dark vignette at top so top badges are readable
+  heroScrimTop: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: '35%',
+    backgroundColor: 'rgba(0,0,0,0.28)',
   },
-  heroContent: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  // Strong gradient at bottom for text legibility
+  heroScrimBottom: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: '58%',
+    backgroundColor: 'rgba(0,0,0,0.72)',
   },
-  heroBadges: {flexDirection: 'row', gap: 6, marginBottom: 6},
+  // Quality — top right
   heroQBadge: {
-    backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 7,
-    paddingVertical: 3, borderRadius: 5,
+    position: 'absolute', top: 12, right: 12,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7,
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.25)',
   },
-  heroQTxt: {color: '#fff', fontSize: 10, fontWeight: '700', fontFamily: 'Rubik'},
+  heroQTxt: {color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
+  // Rating — top left
   heroRatingBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5,
+    position: 'absolute', top: 12, left: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7,
   },
-  heroRating: {color: '#FFD700', fontSize: 10, fontWeight: '700', fontFamily: 'Rubik'},
+  heroRating: {color: '#FFD700', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
+  // Bottom content area
+  heroContent: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 16, paddingBottom: 18,
+  },
+  heroGenreRow: {flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap'},
+  heroGenreChip: {
+    backgroundColor: `${Colors.dark.primary}CC`,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6,
+  },
+  heroGenreTxt: {color: '#fff', fontSize: 11, fontWeight: '600', fontFamily: 'Rubik'},
   heroTitle: {
-    color: '#fff', fontSize: 18, fontWeight: '800',
-    fontFamily: 'Rubik', marginBottom: 4,
+    color: '#fff', fontSize: 19, fontWeight: '800',
+    fontFamily: 'Rubik', marginBottom: 6, lineHeight: 26,
   },
-  heroMeta: {
-    color: 'rgba(255,255,255,0.65)', fontSize: 12,
-    fontFamily: 'Rubik', marginBottom: 10,
-  },
+  heroMetaRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12},
+  heroMetaTxt: {color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Rubik'},
+  heroMetaDot: {color: 'rgba(255,255,255,0.4)', fontSize: 12},
   heroPlayBtn: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     alignSelf: 'flex-start',
     backgroundColor: Colors.dark.primary,
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: 10,
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 12,
+    elevation: 4, shadowColor: Colors.dark.primary,
+    shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.5, shadowRadius: 6,
   },
+  heroPlayIcon: {color: '#fff', fontSize: 13},
   heroPlayTxt: {color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik'},
 
   // Content rows

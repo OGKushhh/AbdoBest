@@ -59,12 +59,18 @@ interface InfoRowProps {
   label: string;
   value: string;
   accent?: boolean;
+  onPress?: () => void;
 }
-const InfoRow: React.FC<InfoRowProps> = ({label, value, accent}) => (
-  <View style={rowS.row}>
+const InfoRow: React.FC<InfoRowProps> = ({label, value, accent, onPress}) => (
+  <TouchableOpacity
+    style={rowS.row}
+    onPress={onPress}
+    disabled={!onPress}
+    activeOpacity={onPress ? 0.6 : 1}>
     <Text style={rowS.label}>{label}</Text>
-    <Text style={[rowS.value, accent && rowS.accent]} numberOfLines={3}>{value}</Text>
-  </View>
+    <Text style={[rowS.value, accent && rowS.accent, !!onPress && rowS.tappable]}
+      numberOfLines={3}>{value}</Text>
+  </TouchableOpacity>
 );
 
 const rowS = StyleSheet.create({
@@ -91,7 +97,10 @@ const rowS = StyleSheet.create({
     textAlign: 'right',
     lineHeight: 20,
   },
-  accent: {color: Colors.dark.accentLight},
+  accent:   {color: Colors.dark.accentLight},
+  tappable:     {textDecorationLine: 'underline', textDecorationColor: Colors.dark.accentLight},
+  genreChip:    {backgroundColor: `${Colors.dark.accentLight}20`, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${Colors.dark.accentLight}50`},
+  genreChipTxt: {color: Colors.dark.accentLight, fontSize: 12, fontWeight: '600', fontFamily: 'Rubik'},
 });
 
 // ── Episode fetcher ──────────────────────────────────────────────────
@@ -496,8 +505,37 @@ export const DetailsScreen: React.FC = () => {
         <View style={S.infoTable}>
           {releaseDate ? <InfoRow label={t('release_date')} value={String(releaseDate).slice(0, 10)} accent /> : null}
           {!releaseDate && year ? <InfoRow label={t('year')} value={String(year)} accent /> : null}
-          {item.Category ? <InfoRow label={t('category')} value={t(item.Category) || item.Category} accent /> : null}
-          {genresDisplay ? <InfoRow label={t('genres')} value={genresDisplay} accent /> : null}
+          {item.Category ? (
+            <InfoRow
+              label={t('category')}
+              value={t(item.Category) || item.Category}
+              accent
+              onPress={() => nav.navigate('Category', {category: item.Category?.toLowerCase()})}
+            />
+          ) : null}
+          {/* Genre chips — each navigates to CategoryScreen filtered by that genre */}
+          {genresDisplay ? (
+            <View style={rowS.row}>
+              <Text style={rowS.label}>{t('genres')}</Text>
+              <View style={{flex: 2, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6}}>
+                {(lang === 'ar'
+                  ? (item.GenresAr?.length ? item.GenresAr : item.Genres)
+                  : (item.Genres?.length   ? item.Genres   : item.GenresAr)
+                )?.map((g: string, i: number) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={rowS.genreChip}
+                    activeOpacity={0.7}
+                    onPress={() => nav.navigate('Category', {
+                      category: item.Category?.toLowerCase() || 'movies',
+                      genre: g,
+                    })}>
+                    <Text style={rowS.genreChipTxt}>{g}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {language ? <InfoRow label={t('language')} value={language} /> : null}
           {format ? <InfoRow label={t('quality')} value={format} /> : null}
           {country ? <InfoRow label={t('country')} value={country} accent /> : null}

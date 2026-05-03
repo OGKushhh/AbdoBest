@@ -41,16 +41,16 @@ const SORT_OPTIONS = [
   { key: 'za', labelKey: 'sort_za' },
 ];
 
-// Memoised card
+// Memoised card – maps index item to ContentItem
 const MovieCardItem = memo<{ item: any; onPress: (item: any) => void }>(
   ({ item, onPress }) => {
-    // Convert index item to a shape that MovieCard understands
+    // Convert index item (with Title, Genres, Year, Category, Image Source) to ContentItem
     const cardItem: ContentItem = {
       id: item.id,
-      Title: item.title,
-      Category: item.category,
-      'Image Source': item.image,
-      Genres: item.genres || [],
+      Title: item.Title,
+      Category: item.Category,
+      'Image Source': item['Image Source'],
+      Genres: item.Genres || [],
       GenresAr: [],
       Format: '',
       Runtime: null,
@@ -58,7 +58,7 @@ const MovieCardItem = memo<{ item: any; onPress: (item: any) => void }>(
       Rating: '',
       Views: '',
       Source: '',
-      Year: item.year,
+      Year: item.Year,
     };
     return <MovieCard item={cardItem} onPress={onPress} />;
   },
@@ -66,15 +66,15 @@ const MovieCardItem = memo<{ item: any; onPress: (item: any) => void }>(
 );
 MovieCardItem.displayName = 'MovieCardItem';
 
-// Sorting helpers
+// Sorting helpers – using correct field names (Year, Title)
 const sortByYearDesc = (items: any[]) =>
-  [...items].sort((a, b) => (b.year || '0').localeCompare(a.year || '0'));
+  [...items].sort((a, b) => (b.Year || '0').localeCompare(a.Year || '0'));
 const sortByYearAsc = (items: any[]) =>
-  [...items].sort((a, b) => (a.year || '0').localeCompare(b.year || '0'));
+  [...items].sort((a, b) => (a.Year || '0').localeCompare(b.Year || '0'));
 const sortByAZ = (items: any[]) =>
-  [...items].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  [...items].sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
 const sortByZA = (items: any[]) =>
-  [...items].sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+  [...items].sort((a, b) => (b.Title || '').localeCompare(a.Title || ''));
 
 export const CategoryScreen: React.FC = () => {
   const route = useRoute<any>();
@@ -89,6 +89,18 @@ export const CategoryScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(category);
+
+  // Sync when arriving with a different category or genre param
+  useEffect(() => {
+    const incomingCat   = route.params?.category;
+    const incomingGenre = route.params?.genre;
+    if (incomingCat && incomingCat !== selectedCategory) {
+      setSelectedCategory(incomingCat);
+    }
+    if (incomingGenre !== undefined) {
+      setSelectedGenre(incomingGenre || null);
+    }
+  }, [route.params?.category, route.params?.genre]);
 
   // Search & filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,11 +137,8 @@ export const CategoryScreen: React.FC = () => {
       setError(null);
       const index = await getAllContentIndex();
 
-      // Category field in all-content.json matches the JSON filename keys directly
-      // e.g. "movies", "anime", "asian-series" — no remapping needed
-      const filteredByCat = index.filter(
-        item => (item.Category || item.category) === selectedCategory
-      );
+      // Items have a 'Category' field (capital C) – filter directly
+      const filteredByCat = index.filter(item => item.Category === selectedCategory);
 
       setAllItems(filteredByCat);
       // Reset pagination and filters
@@ -148,23 +157,23 @@ export const CategoryScreen: React.FC = () => {
     }
   };
 
-  // Apply all filters & sorting
+  // Apply all filters & sorting – using correct field names
   const filtered = useMemo(() => {
     let result = [...allItems];
 
     if (debouncedQuery.trim()) {
       const q = debouncedQuery.toLowerCase();
-      result = result.filter(item => item.title?.toLowerCase().includes(q));
+      result = result.filter(item => item.Title?.toLowerCase().includes(q));
     }
 
     if (selectedGenre) {
       result = result.filter(item =>
-        item.genres?.some((g: string) => g === selectedGenre)
+        (item.Genres || []).some((g: string) => g === selectedGenre)
       );
     }
 
     if (selectedYear) {
-      result = result.filter(item => item.year === selectedYear);
+      result = result.filter(item => item.Year === selectedYear);
     }
 
     switch (selectedSort) {
@@ -208,11 +217,11 @@ export const CategoryScreen: React.FC = () => {
     setShowFilterPopup(false);
   }, []);
 
-  // Extract available genres and years from current items
+  // Extract available genres and years from current items – using correct field names
   const availableGenres = useMemo(() => {
     const genreSet = new Set<string>();
     allItems.forEach(item => {
-      (item.genres || []).forEach((g: string) => genreSet.add(g));
+      (item.Genres || []).forEach((g: string) => genreSet.add(g));
     });
     return Array.from(genreSet).sort();
   }, [allItems]);
@@ -220,7 +229,7 @@ export const CategoryScreen: React.FC = () => {
   const availableYears = useMemo(() => {
     const yearSet = new Set<string>();
     allItems.forEach(item => {
-      if (item.year) yearSet.add(item.year);
+      if (item.Year) yearSet.add(item.Year);
     });
     return Array.from(yearSet).sort((a, b) => b.localeCompare(a));
   }, [allItems]);
