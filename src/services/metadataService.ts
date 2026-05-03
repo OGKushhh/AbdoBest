@@ -6,54 +6,23 @@ import {
 } from '../storage/cache';
 import {ContentItem, TrendingContent} from '../types';
 
-// Axios instance for HF Spaces metadata API
 const metadataApi = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
 });
 
-// ─── Supported category types ───────────────────────────────────────
 export type ContentCategory = 'movies' | 'dubbed-movies' | 'hindi' | 'asian-movies' | 'anime' | 'anime-movies' | 'series' | 'tvshows' | 'asian-series' | 'trending' | 'featured';
 
 type ContentDict = Record<string, ContentItem>;
 
-// ─── NEW: Lightweight index (all-content.json) ─────────────────────
-const ALL_CONTENT_URL = `${API_BASE}/api/all-content`;
-
-// In‑memory cache for the index (re‑used across screens)
-let allContentCache: any[] | null = null;
-
-/**
- * Fetch the lightweight content index (all-content.json).
- * Returns an array of items with fields: id, title, image, category, genres, year, last_scraped.
- */
-export const getAllContentIndex = async (forceRefresh = false): Promise<any[]> => {
-  if (!forceRefresh && allContentCache) return allContentCache;
-  try {
-    const response = await axios.get(ALL_CONTENT_URL, {timeout: 30000});
-    const data = response.data;
-
-    if (!Array.isArray(data)) {
-      throw new Error(data?.error || 'Unexpected response from /api/all-content');
-    }
-
-    allContentCache = data;
-    console.log(`[Metadata] all-content: ${data.length} items`);
-    return allContentCache!;
-  } catch (error: any) {
-    console.error('[Metadata] getAllContentIndex failed:', error.message);
-    throw new Error(`Failed to load content index: ${error.message}`);
-  }
-};
-
-// ─── Core: Load a single category ───────────────────────────────────
+// ─── Core: Load a single category ─────────────────────────────────
 export const loadCategory = async (
   category: ContentCategory,
   forceRefresh = false,
 ): Promise<ContentDict | TrendingContent | null> => {
   // 1. Return fresh cache unless forced
   if (!forceRefresh) {
-    const fresh = getMetadataIfFresh(category);
+    const fresh = await getMetadataIfFresh(category);
     if (fresh !== null) return fresh;
   }
 
@@ -74,13 +43,13 @@ export const loadCategory = async (
       });
     }
 
-    setMetadataWithTimestamp(category, data);
+    await setMetadataWithTimestamp(category, data);
     console.log(`[Metadata] Fetched & cached: ${category}`);
     return data;
   } catch (error: any) {
     console.warn(`[Metadata] Failed to fetch ${category}: ${error.message}`);
 
-    const stale = getMetadataAnyAge(category);
+    const stale = await getMetadataAnyAge(category);
     if (stale !== null) {
       console.log(`[Metadata] Using stale cache for: ${category}`);
       return stale;
@@ -90,7 +59,7 @@ export const loadCategory = async (
   }
 };
 
-// ─── Convenience wrappers ───────────────────────────────────────────
+// ─── Convenience wrappers ─────────────────────────────────────────
 
 export const loadMovies = async (forceRefresh = false): Promise<ContentDict> => {
   const data = await loadCategory('movies', forceRefresh);
@@ -133,7 +102,7 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
   let allResults: ContentItem[] = [];
 
   for (const cat of availableCategories) {
-    const data = getMetadataAnyAge(cat);
+    const data = await getMetadataAnyAge(cat);
     if (!data || typeof data !== 'object') continue;
     const items = Object.values(data) as ContentItem[];
     for (const item of items) {

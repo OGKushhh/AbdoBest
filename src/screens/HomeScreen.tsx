@@ -1,25 +1,24 @@
 /**
- * HomeScreen — Rework
+ * HomeScreen
  *
- * Sections (all from local loaded data — no trending/featured JSON):
- *   1. Hero banner   — featured item (first movie with a poster)
- *   2. Most Viewed   — sorted by Views field desc, async-enriched from API
- *   3. Latest Movies — newest ReleaseDate first
- *   4. Latest Anime  — newest from anime category
- *   5. Latest Series — newest from series category
- *   6. K-Drama       — newest from asian-series
- *   7. TV Shows      — newest from tvshows
- *
- * Search: icon top-right → full-screen overlay, searches all cached categories.
- * Pull-to-refresh: reloads all categories fresh.
- * Performance: each HRow is memoized and compares by first item ID + length.
+ * Hero banner changes:
+ *  - No full-card opacity layer. The poster fills the card edge-to-edge, clean.
+ *  - Title, meta, genres and play button each live in their own floating badge /
+ *    pill — same visual language as the quality badge.
+ *  - Rotates through 5 items, one picked from each of 5 randomly-chosen
+ *    categories, switching every 5 seconds with a crossfade + dot indicator.
+ *  - Adding more categories in the future is automatic — the random sampler
+ *    draws from ALL_HERO_CATEGORIES and caps at 5.
  */
 
-import React, {useState, useCallback, useMemo, useRef, memo, useEffect} from 'react';
+import React, {
+  useState, useCallback, useMemo, useRef, memo,
+  useEffect,
+} from 'react';
 import {
   View, Text, StyleSheet, FlatList, RefreshControl, StatusBar,
   TouchableOpacity, Image, TextInput, ActivityIndicator,
-  Dimensions,
+  Dimensions, Animated,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import FastImage from 'react-native-fast-image';
@@ -36,10 +35,54 @@ import {ErrorView} from '../components/ErrorView';
 import {Colors} from '../theme/colors';
 
 const {width: SW} = Dimensions.get('window');
-const H_CARD = 148;
+const H_CARD      = 148;
+const HERO_H      = SW * 0.62;
+const ROTATE_MS   = 5000;
+
+// All categories eligible for the hero rotation.
+// Add new category keys here as the app grows — the sampler caps at 5 automatically.
+const ALL_HERO_CATEGORIES = [
+  'movies',
+  'anime',
+  'series',
+  'tvshows',
+  'asian-series',
+  'dubbed-movies',
+  'hindi',
+  'asian-movies',
+  'anime-movies',
+] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Memoised horizontal row — only re-renders when data actually changes
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Shuffle an array (Fisher-Yates) and return first `n` items. */
+function sampleN<T>(arr: readonly T[], n: number): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+const byYearDesc = (arr: ContentItem[]) =>
+  [...arr].sort((a, b) => {
+    const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
+    const yb = parseInt((b as any).ReleaseDate || (b as any).Year || '0', 10);
+    return yb - ya;
+  });
+
+const byViewsDesc = (arr: ContentItem[]) =>
+  [...arr].sort((a, b) => {
+    const va = parseInt((a as any).Views || '0', 10);
+    const vb = parseInt((b as any).Views || '0', 10);
+    return vb - va;
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HRow – memoised horizontal content row
 // ─────────────────────────────────────────────────────────────────────────────
 interface HRowProps {
   title: string;
@@ -87,100 +130,160 @@ const HRow = memo<HRowProps>(
 HRow.displayName = 'HRow';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hero Banner — first item with a poster
+// HeroBanner — rotating, no opacity overlay, floating badges
 // ─────────────────────────────────────────────────────────────────────────────
 interface HeroBannerProps {
-  item: ContentItem;
-  onPress: () => void;
+  items: ContentItem[];   // exactly 5 (or fewer if data is thin)
+  onPress: (item: ContentItem) => void;
 }
 
-const HeroBanner = memo<HeroBannerProps>(({item, onPress}) => {
+const HeroBanner = memo<HeroBannerProps>(({items, onPress}) => {
   const {t, i18n} = useTranslation();
   const lang = i18n.language === 'ar' ? 'ar' : 'en';
-  const raw  = item as any;
 
-  // Clean year display
+  const [activeIdx, setActiveIdx] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-rotate every 5 s with a quick crossfade
+  useEffect(() => {
+    if (items.length <= 1) return;
+
+    const advance = () => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start(() => {
+        setActiveIdx(prev => (prev + 1) % items.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 320,
+          useNativeDriver: true,
+        }).start();
+      });
+    };
+
+    timerRef.current = setInterval(advance, ROTATE_MS);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [items.length]);
+
+  if (!items.length) return null;
+
+  const item  = items[activeIdx];
+  const raw   = item as any;
+
+  // Year
   const rawYear = String(raw.ReleaseDate || raw.Year || '');
   const year = /^\d{8}$/.test(rawYear)
-    ? `${rawYear.slice(0, 4)}-${rawYear.slice(4, 8)}`
+    ? rawYear.slice(0, 4)
     : rawYear.slice(0, 4) || rawYear;
 
-  const rating  = raw.Rating  || '';
+  // Badges
   const quality = item.Format ? item.Format.split(' ')[0] : '';
+  const rating  = raw.Rating || '';
+  const runtime = item.Runtime
+    ? (Math.floor(item.Runtime / 60) > 0
+        ? `${Math.floor(item.Runtime / 60)}h ${item.Runtime % 60}m`
+        : `${item.Runtime}m`)
+    : null;
 
   // Genre chips — max 3
   const genres = (lang === 'ar' ? item.GenresAr : item.Genres)?.slice(0, 3) ?? [];
 
-  // Clean title — strip Arabic status words
+  // Clean title
   const cleanTitle = item.Title
     .replace(/\s*(فيلم|مسلسل|مترجم|اون لاين|أنمي|انمي|برنامج)\s*/gi, ' ')
     .trim();
 
+  // Tap on the banner advances manually and resets the timer
+  const handleTap = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    onPress(item);
+  };
+
   return (
-    <TouchableOpacity style={S.hero} onPress={onPress} activeOpacity={0.88}>
-      {/* Poster fills entire card */}
-      <FastImage
-        source={{uri: item['Image Source']}}
-        style={S.heroBg}
-        resizeMode={FastImage.resizeMode.cover}
-      />
+    <TouchableOpacity style={S.hero} onPress={handleTap} activeOpacity={0.92}>
+      {/* ── Full-bleed poster — no overlay ── */}
+      <Animated.View style={[StyleSheet.absoluteFill, {opacity: fadeAnim}]}>
+        <FastImage
+          source={{uri: item['Image Source']}}
+          style={StyleSheet.absoluteFill}
+          resizeMode={FastImage.resizeMode.cover}
+        />
+      </Animated.View>
 
-      {/* Multi-layer scrim: subtle top + strong bottom */}
-      <View style={S.heroScrimTop} />
-      <View style={S.heroScrimBottom} />
-
-      {/* ── Top-right: quality badge ── */}
-      {quality ? (
-        <View style={S.heroQBadge}>
-          <Text style={S.heroQTxt}>{quality}</Text>
-        </View>
-      ) : null}
-
-      {/* ── Top-left: rating ── */}
+      {/* ── TOP ROW: rating (left) + quality (right) ── */}
       {rating ? (
-        <View style={S.heroRatingBadge}>
+        <View style={S.heroBadgeTopLeft}>
           <Image
             source={require('../../assets/icons/star.png')}
             style={{width: 11, height: 11, tintColor: '#FFD700'}}
           />
-          <Text style={S.heroRating}>{rating}</Text>
+          <Text style={S.heroBadgeTextGold}>{rating}</Text>
         </View>
       ) : null}
 
-      {/* ── Bottom content ── */}
-      <View style={S.heroContent}>
-        {/* Genre chips */}
+      {quality ? (
+        <View style={S.heroBadgeTopRight}>
+          <Text style={S.heroBadgeText}>{quality}</Text>
+        </View>
+      ) : null}
+
+      {/* ── BOTTOM CLUSTER ── */}
+      <View style={S.heroBottom}>
+
+        {/* Genre pills */}
         {genres.length > 0 && (
           <View style={S.heroGenreRow}>
             {genres.map((g, i) => (
-              <View key={i} style={S.heroGenreChip}>
+              <View key={i} style={S.heroGenrePill}>
                 <Text style={S.heroGenreTxt}>{g}</Text>
               </View>
             ))}
           </View>
         )}
 
-        {/* Title */}
-        <Text style={S.heroTitle} numberOfLines={2}>{cleanTitle}</Text>
-
-        {/* Meta row: year + runtime */}
-        <View style={S.heroMetaRow}>
-          {year ? <Text style={S.heroMetaTxt}>{year}</Text> : null}
-          {year && item.Runtime ? <Text style={S.heroMetaDot}>·</Text> : null}
-          {item.Runtime ? (
-            <Text style={S.heroMetaTxt}>
-              {Math.floor(item.Runtime / 60) > 0
-                ? `${Math.floor(item.Runtime / 60)}h ${item.Runtime % 60}m`
-                : `${item.Runtime}m`}
-            </Text>
-          ) : null}
+        {/* Title badge */}
+        <View style={S.heroTitleBadge}>
+          <Text style={S.heroTitleTxt} numberOfLines={2}>{cleanTitle}</Text>
         </View>
 
-        {/* Play button */}
-        <TouchableOpacity style={S.heroPlayBtn} onPress={onPress} activeOpacity={0.85}>
-          <Text style={S.heroPlayIcon}>▶</Text>
-          <Text style={S.heroPlayTxt}>{t('play')}</Text>
-        </TouchableOpacity>
+        {/* Meta row: year · runtime — each its own small pill */}
+        {(year || runtime) && (
+          <View style={S.heroMetaRow}>
+            {year ? (
+              <View style={S.heroMetaPill}>
+                <Text style={S.heroMetaTxt}>{year}</Text>
+              </View>
+            ) : null}
+            {runtime ? (
+              <View style={S.heroMetaPill}>
+                <Text style={S.heroMetaTxt}>{runtime}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        {/* Play button + dot indicators on the same row */}
+        <View style={S.heroActionRow}>
+          <TouchableOpacity style={S.heroPlayBtn} onPress={handleTap} activeOpacity={0.85}>
+            <Text style={S.heroPlayIcon}>▶</Text>
+            <Text style={S.heroPlayTxt}>{t('play')}</Text>
+          </TouchableOpacity>
+
+          {/* Dot indicators */}
+          {items.length > 1 && (
+            <View style={S.dotsRow}>
+              {items.map((_, i) => (
+                <View
+                  key={i}
+                  style={[S.dot, i === activeIdx && S.dotActive]}
+                />
+              ))}
+            </View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -188,41 +291,24 @@ const HeroBanner = memo<HeroBannerProps>(({item, onPress}) => {
 HeroBanner.displayName = 'HeroBanner';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sort helpers
-// ─────────────────────────────────────────────────────────────────────────────
-const byYearDesc = (arr: ContentItem[]) =>
-  [...arr].sort((a, b) => {
-    const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
-    const yb = parseInt((b as any).ReleaseDate || (b as any).Year || '0', 10);
-    return yb - ya;
-  });
-
-const byViewsDesc = (arr: ContentItem[]) =>
-  [...arr].sort((a, b) => {
-    const va = parseInt((a as any).Views || '0', 10);
-    const vb = parseInt((b as any).Views || '0', 10);
-    return vb - va;
-  });
-
-// ─────────────────────────────────────────────────────────────────────────────
 // HomeScreen
 // ─────────────────────────────────────────────────────────────────────────────
 export const HomeScreen: React.FC = () => {
   const {t} = useTranslation();
-  const nav = useNavigation<any>();
+  const nav  = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
-  // Data
-  const [movies,  setMovies]  = useState<ContentItem[]>([]);
-  const [anime,   setAnime]   = useState<ContentItem[]>([]);
-  const [series,  setSeries]  = useState<ContentItem[]>([]);
-  const [kdrama,  setKdrama]  = useState<ContentItem[]>([]);
-  const [tvshows, setTvshows] = useState<ContentItem[]>([]);
+  // Per-category data
+  const [categoryData, setCategoryData] = useState<
+    Record<string, ContentItem[]>
+  >({});
   const [mostViewed, setMostViewed] = useState<ContentItem[]>([]);
-
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+
+  // The 5 randomly-chosen categories for the hero rotation (decided once per load)
+  const heroCatsRef = useRef<string[]>([]);
 
   // Search
   const [searchOpen,    setSearchOpen]    = useState(false);
@@ -236,49 +322,47 @@ export const HomeScreen: React.FC = () => {
     try {
       setError(null);
 
-      const [mov, ani, ser, kd, tv] = await Promise.all([
-        loadCategory('movies',       force).catch(() => null),
-        loadCategory('anime',        force).catch(() => null),
-        loadCategory('series',       force).catch(() => null),
-        loadCategory('asian-series', force).catch(() => null),
-        loadCategory('tvshows',      force).catch(() => null),
-      ] as Promise<any>[]);
+      // Pick 5 random categories for the hero (stable per load, not per render)
+      const heroKeys = sampleN(ALL_HERO_CATEGORIES, 5);
+      heroCatsRef.current = heroKeys;
 
-      const movArr = mov  ? getMoviesArray(mov  as any) : [];
-      const aniArr = ani  ? getMoviesArray(ani  as any) : [];
-      const serArr = ser  ? getMoviesArray(ser  as any) : [];
-      const kdArr  = kd   ? getMoviesArray(kd   as any) : [];
-      const tvArr  = tv   ? getMoviesArray(tv   as any) : [];
+      // Load all categories we need for rows + potential hero items
+      const allNeeded = Array.from(new Set([
+        ...heroKeys,
+        'movies', 'anime', 'series', 'asian-series', 'tvshows',
+      ]));
 
-      // Sort newest first for all rows
-      const movSorted = byYearDesc(movArr);
-      const aniSorted = byYearDesc(aniArr);
-      const serSorted = byYearDesc(serArr);
-      const kdSorted  = byYearDesc(kdArr);
-      const tvSorted  = byYearDesc(tvArr);
+      const results = await Promise.all(
+        allNeeded.map(cat =>
+          loadCategory(cat as any, force)
+            .then(d => ({cat, items: d ? getMoviesArray(d as any) : []}))
+            .catch(() => ({cat, items: [] as ContentItem[]})),
+        ),
+      );
 
-      setMovies(movSorted);
-      setAnime(aniSorted.slice(0, 20));
-      setSeries(serSorted.slice(0, 20));
-      setKdrama(kdSorted.slice(0, 20));
-      setTvshows(tvSorted.slice(0, 20));
+      const map: Record<string, ContentItem[]> = {};
+      results.forEach(({cat, items}) => {
+        map[cat] = byYearDesc(items);
+      });
 
-      // Most-viewed: prefer items with embedded Views > 0, else reverse-sorted
-      const allItems = [...movArr, ...aniArr, ...serArr, ...kdArr, ...tvArr];
+      setCategoryData(map);
+
+      // Most-viewed
+      const allItems = Object.values(map).flat();
       const withViews = allItems.filter(i => parseInt((i as any).Views || '0', 10) > 0);
       setMostViewed(
         withViews.length >= 4
           ? byViewsDesc(withViews).slice(0, 20)
-          : byYearDesc(movArr).slice(0, 20),
+          : (map['movies'] ?? []).slice(0, 20),
       );
 
-      // Async: enrich first 30 movies with live view counts then re-sort
+      // Async view enrichment for movies
+      const movArr = map['movies'] ?? [];
       enrichViews(movArr.slice(0, 30), 'movies').then(enriched => {
         const live = enriched.filter(i => parseInt((i as any).Views || '0', 10) > 0);
         if (live.length >= 4) setMostViewed(byViewsDesc(live).slice(0, 20));
       }).catch(() => {});
 
-      // Sync pending view counts (fire-and-forget)
       trySyncViews().catch(() => {});
     } catch (err: any) {
       setError(err.message || 'Failed to load');
@@ -293,23 +377,20 @@ export const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(() => { setRefreshing(true); loadData(true); }, [loadData]);
 
   // ── View enrichment ───────────────────────────────────────────────
-  const enrichViews = async (items: ContentItem[], category: string): Promise<ContentItem[]> => {
-    return Promise.all(
+  const enrichViews = async (items: ContentItem[], category: string): Promise<ContentItem[]> =>
+    Promise.all(
       items.map(async item => {
         try {
           const v = await getViewCount(category, item.id);
           if (v > 0) return {...item, Views: String(v)};
           return item;
-        } catch {
-          return item;
-        }
+        } catch { return item; }
       }),
     );
-  };
 
   // ── Navigation ────────────────────────────────────────────────────
-  const goDetails  = useCallback((item: ContentItem) => nav.navigate('Details', {item}), [nav]);
-  const goCat      = useCallback((cat: string) => nav.navigate('Category', {category: cat}), [nav]);
+  const goDetails = useCallback((item: ContentItem) => nav.navigate('Details', {item}), [nav]);
+  const goCat     = useCallback((cat: string) => nav.navigate('Category', {category: cat}), [nav]);
 
   // ── Search ────────────────────────────────────────────────────────
   const handleSearch = useCallback((q: string) => {
@@ -330,16 +411,26 @@ export const HomeScreen: React.FC = () => {
     setSearchResults([]);
   }, []);
 
-  // ── Derived ───────────────────────────────────────────────────────
-  const latestMovies = useMemo(() => movies.slice(0, 20), [movies]);
+  // ── Hero items: newest item with a poster from each of the 5 chosen cats ──
+  const heroItems = useMemo(() => {
+    return heroCatsRef.current
+      .map(cat => {
+        const items = categoryData[cat] ?? [];
+        return items.find(m => !!m['Image Source']) ?? null;
+      })
+      .filter((x): x is ContentItem => x !== null);
+  }, [categoryData]);
 
-  // Hero = first movie with a poster image
-  const heroItem = useMemo(() =>
-    movies.find(m => !!m['Image Source']) ?? null,
-  [movies]);
+  // ── Row slices ────────────────────────────────────────────────────
+  const latestMovies = useMemo(() => (categoryData['movies'] ?? []).slice(0, 20), [categoryData]);
+  const anime        = useMemo(() => (categoryData['anime']  ?? []).slice(0, 20), [categoryData]);
+  const series       = useMemo(() => (categoryData['series'] ?? []).slice(0, 20), [categoryData]);
+  const kdrama       = useMemo(() => (categoryData['asian-series'] ?? []).slice(0, 20), [categoryData]);
+  const tvshows      = useMemo(() => (categoryData['tvshows'] ?? []).slice(0, 20), [categoryData]);
 
   if (loading) return <LoadingSpinner />;
-  if (error && !movies.length) return <ErrorView message={error} onRetry={() => loadData(true)} />;
+  if (error && !Object.keys(categoryData).length)
+    return <ErrorView message={error} onRetry={() => loadData(true)} />;
 
   // ── Search overlay ────────────────────────────────────────────────
   if (searchOpen) {
@@ -403,7 +494,7 @@ export const HomeScreen: React.FC = () => {
         data={[]}
         ListHeaderComponent={
           <View>
-            {/* ── Top bar ── */}
+            {/* Top bar */}
             <View style={[S.topBar, {paddingTop: insets.top + 8}]}>
               <Text style={S.appName}>AbdoBest</Text>
               <TouchableOpacity style={S.searchBtn} onPress={() => setSearchOpen(true)}>
@@ -414,12 +505,12 @@ export const HomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {/* ── Hero banner ── */}
-            {heroItem && (
-              <HeroBanner item={heroItem} onPress={() => goDetails(heroItem)} />
+            {/* Hero banner */}
+            {heroItems.length > 0 && (
+              <HeroBanner items={heroItems} onPress={goDetails} />
             )}
 
-            {/* ── Content rows ── */}
+            {/* Content rows */}
             <HRow
               title={t('most_viewed')}
               items={mostViewed}
@@ -481,6 +572,8 @@ export const HomeScreen: React.FC = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Styles
 // ─────────────────────────────────────────────────────────────────────────────
+const BADGE_BG = 'rgba(0,0,0,0.62)';
+
 const S = StyleSheet.create({
   container: {flex: 1, backgroundColor: Colors.dark.background},
 
@@ -501,72 +594,114 @@ const S = StyleSheet.create({
   },
   searchBtnIcon: {width: 22, height: 22},
 
-  // Hero
+  // ── Hero ──────────────────────────────────────────────────────────
   hero: {
     marginHorizontal: 16, marginBottom: 10,
     borderRadius: 20, overflow: 'hidden',
-    height: SW * 0.62,
+    height: HERO_H,
     elevation: 12, shadowColor: '#000',
     shadowOffset: {width: 0, height: 8}, shadowOpacity: 0.5, shadowRadius: 14,
   },
-  heroBg: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+
+  // Shared badge base
+  heroBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 9, paddingVertical: 5,
+    backgroundColor: BADGE_BG,
+    // Frosted-glass feel via border
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.18)',
   },
-  // Subtle dark vignette at top so top badges are readable
-  heroScrimTop: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '35%',
-    backgroundColor: 'rgba(0,0,0,0.28)',
+  heroBadgeText: {
+    color: '#fff', fontSize: 11,
+    fontWeight: '700', fontFamily: 'Rubik',
   },
-  // Strong gradient at bottom for text legibility
-  heroScrimBottom: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: '58%',
-    backgroundColor: 'rgba(0,0,0,0.72)',
+  heroBadgeTextGold: {
+    color: '#FFD700', fontSize: 11,
+    fontWeight: '700', fontFamily: 'Rubik',
   },
-  // Quality — top right
-  heroQBadge: {
-    position: 'absolute', top: 12, right: 12,
-    backgroundColor: 'rgba(0,0,0,0.82)',
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7,
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.25)',
-  },
-  heroQTxt: {color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
-  // Rating — top left
-  heroRatingBadge: {
+
+  // Top-left: rating
+  heroBadgeTopLeft: {
     position: 'absolute', top: 12, left: 12,
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7,
+    borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5,
+    backgroundColor: BADGE_BG,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.18)',
   },
-  heroRating: {color: '#FFD700', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
-  // Bottom content area
-  heroContent: {
+  // Top-right: quality
+  heroBadgeTopRight: {
+    position: 'absolute', top: 12, right: 12,
+    borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5,
+    backgroundColor: BADGE_BG,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.18)',
+  },
+
+  // Bottom cluster
+  heroBottom: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16, paddingBottom: 18,
+    padding: 14, paddingBottom: 16, gap: 8,
   },
-  heroGenreRow: {flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap'},
-  heroGenreChip: {
+
+  // Genre pills
+  heroGenreRow: {flexDirection: 'row', gap: 6, flexWrap: 'wrap'},
+  heroGenrePill: {
+    borderRadius: 6, paddingHorizontal: 9, paddingVertical: 4,
     backgroundColor: `${Colors.dark.primary}CC`,
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6,
+    borderWidth: 0.5, borderColor: `${Colors.dark.primary}80`,
   },
   heroGenreTxt: {color: '#fff', fontSize: 11, fontWeight: '600', fontFamily: 'Rubik'},
-  heroTitle: {
-    color: '#fff', fontSize: 19, fontWeight: '800',
-    fontFamily: 'Rubik', marginBottom: 6, lineHeight: 26,
+
+  // Title badge — slightly larger, slightly more opaque
+  heroTitleBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7,
+    backgroundColor: 'rgba(0,0,0,0.70)',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.15)',
+    maxWidth: '90%',
   },
-  heroMetaRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12},
-  heroMetaTxt: {color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Rubik'},
-  heroMetaDot: {color: 'rgba(255,255,255,0.4)', fontSize: 12},
+  heroTitleTxt: {
+    color: '#fff', fontSize: 17, fontWeight: '800',
+    fontFamily: 'Rubik', lineHeight: 23,
+  },
+
+  // Meta pills row
+  heroMetaRow: {flexDirection: 'row', gap: 6},
+  heroMetaPill: {
+    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: BADGE_BG,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  heroMetaTxt: {
+    color: 'rgba(255,255,255,0.85)', fontSize: 11,
+    fontFamily: 'Rubik', fontWeight: '500',
+  },
+
+  // Play + dots on same row
+  heroActionRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   heroPlayBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-start',
     backgroundColor: Colors.dark.primary,
     paddingHorizontal: 18, paddingVertical: 10,
     borderRadius: 12,
     elevation: 4, shadowColor: Colors.dark.primary,
-    shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.5, shadowRadius: 6,
+    shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.55, shadowRadius: 6,
   },
-  heroPlayIcon: {color: '#fff', fontSize: 13},
-  heroPlayTxt: {color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik'},
+  heroPlayIcon: {color: '#fff', fontSize: 12},
+  heroPlayTxt:  {color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik'},
+
+  // Rotation dots
+  dotsRow: {flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 4},
+  dot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  dotActive: {
+    width: 18, borderRadius: 3,
+    backgroundColor: Colors.dark.primary,
+  },
 
   // Content rows
   section: {marginBottom: 4},
@@ -593,5 +728,5 @@ const S = StyleSheet.create({
   searchGrid: {paddingHorizontal: 14, paddingBottom: 80, paddingTop: 8},
   row:        {justifyContent: 'space-between', gap: 12},
   center:     {flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60},
-  noResultsTxt:{color: Colors.dark.textMuted, fontSize: 15, fontFamily: 'Rubik'},
+  noResultsTxt: {color: Colors.dark.textMuted, fontSize: 15, fontFamily: 'Rubik'},
 });
