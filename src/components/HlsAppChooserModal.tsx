@@ -86,12 +86,17 @@ export async function launchHlsApp(
         `;end`;
       await Linking.openURL(intentUrl);
     } else {
-      // ADM uses a named Activity intent with TEXT + filename extras
-      // React Native's Linking can't pass extras to a specific class,
-      // so we use the ACTION_VIEW fallback that ADM intercepts via its
-      // registered intent filter for http/https scheme.
-      // ADM registers itself as a handler for http(s) URLs when installed.
-      await Linking.openURL(m3u8Url);
+      // ADM: use an explicit intent targeting ADM's package so it opens
+      // directly in ADM instead of falling through to the browser.
+      const intentUrl =
+        `intent:${m3u8Url}` +
+        `#Intent` +
+        `;package=${def.pkg}` +
+        `;action=android.intent.action.VIEW` +
+        `;S.extra_filename=${encodeURIComponent(filename)}` +
+        `;S.extra_referer=${encodeURIComponent(referer)}` +
+        `;end`;
+      await Linking.openURL(intentUrl);
     }
     return true;
   } catch {
