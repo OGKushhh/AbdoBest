@@ -113,6 +113,42 @@ export async function openPlayStore(pkg: string) {
   }
 }
 
+// ─── App install detection ────────────────────────────────────────────────────
+//
+// Linking.canOpenURL is unreliable for package detection on Android.
+// PackageManager.queryIntentActivities does not resolve intent:// schemes
+// the same way startActivity does, so it returns false even when the app
+// is installed. The <queries> manifest block helps but doesn't fully fix it.
+//
+// The only reliable pure-JS approach: attempt a silent probe launch and
+// treat the error message to tell installed-but-no-matching-activity apart
+// from package-does-not-exist. We use a scheme Android will never match
+// so no activity actually opens, but the package check still runs.
+async function probeAppInstalled(pkg: string): Promise<boolean> {
+  try {
+    // scheme=app-probe won't match any intent filter, so Android finds the
+    // package but no matching activity. React Native throws with a message
+    // containing the package name. If the package is missing entirely,
+    // it throws with "No Activity found" or similar — same catch block,
+    // but we distinguish by checking whether the error looks like a
+    // package-not-found vs activity-not-found.
+    await Linking.openURL(
+      `intent://__detect__#Intent;package=${pkg};scheme=app-probe;end`,
+    );
+    // If it somehow resolved without throwing, treat as installed.
+    return true;
+  } catch (e: any) {
+    const msg: string = (e?.message ?? '').toLowerCase();
+    // "no activity found" = package exists but no matching activity filter
+    // (our probe scheme) — the app IS installed.
+    if (msg.includes('no activity found') || msg.includes('no activities found')) {
+      return true;
+    }
+    // Any other error (package missing, invalid URL, etc.) = not installed.
+    return false;
+  }
+}
+
 // ─── Hook: detect installed apps ─────────────────────────────────────────────
 
 function useInstalledApps(): {installed: Record<HlsApp, boolean>; checked: boolean} {
@@ -123,26 +159,12 @@ function useInstalledApps(): {installed: Record<HlsApp, boolean>; checked: boole
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // canOpenURL with intent:// + package is unreliable for install detection.
-    // We probe with a package-specific custom scheme that only the installed
-    // app can handle. For apps without a custom scheme, we fall back to trying
-    // to open and catching; but we do that at launch-time, not here.
-    //
-    // Reliable approach: attempt a no-op intent and see if it resolves.
-    // We resolve both simultaneously.
     const check = async () => {
       const results = await Promise.all(
-        APPS.map(async app => {
-          try {
-            // intent:// with a bogus path — Android resolves the package lookup
-            // synchronously and throws ActivityNotFoundException if not installed.
-            const probe = `intent://__probe__#Intent;package=${app.pkg};end`;
-            const can = await Linking.canOpenURL(probe);
-            return {id: app.id, installed: can};
-          } catch {
-            return {id: app.id, installed: false};
-          }
-        }),
+        APPS.map(async app => ({
+          id: app.id,
+          installed: await probeAppInstalled(app.pkg),
+        })),
       );
       const map = {} as Record<HlsApp, boolean>;
       results.forEach(r => (map[r.id] = r.installed));

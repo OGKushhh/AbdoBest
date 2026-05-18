@@ -748,15 +748,18 @@ export const DetailsScreen: React.FC = () => {
       setMovieQualityModal(true);
       return;
     }
-    // Fasel content is always HLS — show app chooser
+    // Fasel content is always HLS — must extract m3u8 first via WebView,
+    // then handleExtracted will open HlsAppChooserModal with the real URL.
+    downloadModeRef.current = true;
     if (isEpisodic && currentEps.length > 0) {
+      // currentEps[0] is a Fasel episode page URL, not an m3u8.
+      // Run extraction on it exactly like play does.
       const epUrl = currentEps[0];
       const epTitle = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} 1`;
-      const safeName = epTitle.replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
-      setHlsChooser({url: epUrl, filename: `${safeName}.mp4`});
+      const seasonNum = parseInt(selSeason, 10) || 1;
+      startExtraction(epUrl, epTitle, epUrl, false, 1, seasonNum);
     } else {
-      // Movie: extract m3u8 first, then show chooser
-      downloadModeRef.current = true;
+      // Movie: extract m3u8 from the main page
       startExtraction(`${FASEL_BASE}/?p=${item.id}`, item.Title);
     }
   }, [item, isArabicSeries, isArabicMovie, isEpisodic, currentEps, selSeason, t, startExtraction]);
@@ -1155,8 +1158,9 @@ export const DetailsScreen: React.FC = () => {
                     </View>
                     <TouchableOpacity style={S.epDownloadBtn} onPress={() => {
                         const epTitle = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${idx + 1}`;
-                        const safeName = epTitle.replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
-                        setHlsChooser({url: epUrl, filename: `${safeName}.mp4`});
+                        const seasonNum = parseInt(selSeason, 10) || 1;
+                        downloadModeRef.current = true;
+                        startExtraction(epUrl, epTitle, epUrl, false, idx + 1, seasonNum);
                       }}>
                       <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={[S.epPlayIcon, {tintColor: Colors.dark.accent}]} />
                     </TouchableOpacity>
