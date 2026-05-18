@@ -60,7 +60,7 @@ export interface DownloadItem {
   format: string;
   quality: string;
   progress: number;
-  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed';
+  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'external';
   localPath?: string;
   totalBytes?: number;
   downloadedBytes?: number;
@@ -72,6 +72,11 @@ export interface DownloadItem {
   /** For bulk series downloads — groups episodes under one card */
   seriesId?: string;
   seriesTitle?: string;
+  /**
+   * Set when the download was handed off to an external app (e.g. '1DM').
+   * The external app owns the file; we only store metadata for display.
+   */
+  externalApp?: string;
 }
 
 export interface UserSettings {

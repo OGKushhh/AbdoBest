@@ -184,4 +184,15 @@ export const ar = {
   play_offline: 'تشغيل بدون إنترنت',
   // Developer notice
   developer_notice: 'مطور التطبيق مستقل والتطبيق لا يحقق أي ربح. تحديث الحلقات يحدث يدوياً حسب الطلب على قناة التيليجرام لعدم إمكانيتي على متابعة أكثر من آلاف المسلسلات والحلقات. إذا تريد تحديث محتوى قم بالضغط على زر البلاغ (العلم) بجانب هذا الزر وأرسل رسالة باسم المحتوى ونوعه (فيلم - مسلسل - أنمي).\n\nشكراً على تفهمكم 🙏',
+  // HLS app chooser (1DM / ADM)
+  hls_chooser_title_pick:    'اختر تطبيق التحميل',
+  hls_chooser_title_install: 'ثبّت تطبيقاً للتحميل',
+  hls_chooser_subtitle_pick: 'سيتم فتح التطبيق لتحميل الفيديو',
+  hls_chooser_subtitle_install: 'تحميل HLS يتطلب أحد هذين التطبيقين',
+  hls_chooser_open:          'فتح',
+  hls_chooser_install:       'تثبيت',
+  hls_downloading_in:        'جارٍ التحميل في {{app}}',
+  hls_open_in:               'افتح {{app}}',
+  hls_install_1dm:           'ثبّت 1DM لتحميل ملفات HLS',
+  external: 'خارجي',
 };

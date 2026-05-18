@@ -31,7 +31,8 @@ import {localizeGenres} from '../i18n/genres';
 import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
 import AkwamExtractor from '../components/AkwamExtractor';
-import {startDownload} from '../services/downloadService';
+import {startDownload, registerFaselDownload} from '../services/downloadService';
+import HlsAppChooserModal from '../components/HlsAppChooserModal';
 import AkwamQualityModal, {resolveQuality} from '../components/AkwamQualityModal';
 import AkwamBulkDownloadModal from '../components/AkwamBulkDownloadModal';
 import {getSettings} from '../storage';
@@ -163,6 +164,8 @@ export const DetailsScreen: React.FC = () => {
   // All-servers mode: when true, VideoExtractor collects ALL servers before committing
   const allServersModeRef = useRef(false);
   const [downloading, setDownloading] = useState(false);
+  // HLS app chooser modal (1DM / ADM)
+  const [hlsChooser, setHlsChooser] = useState<{url: string; filename: string} | null>(null);
 
   // Episode state
   const [epData, setEpData] = useState<any>(null);
@@ -500,13 +503,10 @@ export const DetailsScreen: React.FC = () => {
       downloadModeRef.current = false;
       const isHls = primaryUrl.includes('.m3u8');
       if (isHls) {
-        // HLS download not yet available – show a friendly toast
-        const comingSoon = t('hls_download_coming_soon');
-        if (Platform.OS === 'android') {
-          ToastAndroid.show(comingSoon, ToastAndroid.LONG);
-        } else {
-          Alert.alert('', comingSoon);
-        }
+        // Fasel movie: show app chooser then register metadata after user picks
+        const safeName = (item.Title || 'video')
+          .replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
+        setHlsChooser({url: primaryUrl, filename: `${safeName}.mp4`});
         return;
       }
       // MP4 download
@@ -748,12 +748,15 @@ export const DetailsScreen: React.FC = () => {
       setMovieQualityModal(true);
       return;
     }
-    downloadModeRef.current = true;
+    // Fasel content is always HLS — show app chooser
     if (isEpisodic && currentEps.length > 0) {
       const epUrl = currentEps[0];
-      const title = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} 1`;
-      startExtraction(epUrl, title, epUrl);
+      const epTitle = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} 1`;
+      const safeName = epTitle.replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
+      setHlsChooser({url: epUrl, filename: `${safeName}.mp4`});
     } else {
+      // Movie: extract m3u8 first, then show chooser
+      downloadModeRef.current = true;
       startExtraction(`${FASEL_BASE}/?p=${item.id}`, item.Title);
     }
   }, [item, isArabicSeries, isArabicMovie, isEpisodic, currentEps, selSeason, t, startExtraction]);
@@ -1150,7 +1153,11 @@ export const DetailsScreen: React.FC = () => {
                     <View style={[S.epNumCircle, isExtractingThis && S.epNumActive]}>
                       <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{idx + 1}</Text>
                     </View>
-                    <TouchableOpacity style={S.epDownloadBtn} onPress={showComingSoon}>
+                    <TouchableOpacity style={S.epDownloadBtn} onPress={() => {
+                        const epTitle = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${idx + 1}`;
+                        const safeName = epTitle.replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
+                        setHlsChooser({url: epUrl, filename: `${safeName}.mp4`});
+                      }}>
                       <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={[S.epPlayIcon, {tintColor: Colors.dark.accent}]} />
                     </TouchableOpacity>
                     {episodeViews[epUrl] ? (
@@ -1289,6 +1296,22 @@ export const DetailsScreen: React.FC = () => {
         item={item}
         episodes={arabicEpisodes}
         onClose={() => setShowBulkDownload(false)}
+      />
+
+      {/* ── HLS app chooser (1DM / ADM) ── */}
+      <HlsAppChooserModal
+        visible={!!hlsChooser}
+        m3u8Url={hlsChooser?.url ?? ''}
+        filename={hlsChooser?.filename ?? ''}
+        referer="https://www.fasel-hd.cam/"
+        onClose={() => {
+          if (hlsChooser) {
+            // Register metadata after user picks — we don't know which app
+            // was chosen here, but the modal handles the intent. Just save.
+            registerFaselDownload(item, hlsChooser.url);
+          }
+          setHlsChooser(null);
+        }}
       />
 
       {/* ── Full-screen extracting overlay ── */}

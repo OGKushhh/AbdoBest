@@ -16,6 +16,7 @@ import {
   resumeDownload,
   deleteDownload,
   retryDownload,
+  openHlsApp,
 } from '../services/downloadService';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ function statusColor(status: DownloadItem['status']) {
     case 'downloading': return Colors.dark.accentLight;
     case 'paused':      return Colors.dark.warning;
     case 'failed':      return Colors.dark.error;
+    case 'external':    return Colors.dark.primary;
     default:            return Colors.dark.textMuted;
   }
 }
@@ -279,6 +281,53 @@ export const DownloadsScreen: React.FC = () => {
 
   // ── Render single card ──
   const renderSingle = (item: DownloadItem) => {
+    // ── External (Fasel/1DM) card ──────────────────────────────────────────
+    if (item.status === 'external') {
+      return (
+        <View key={item.id} style={styles.card}>
+          <FastImage
+            source={item.imageUrl ? {uri: item.imageUrl} : require('../../assets/placeholder.png')}
+            style={styles.thumb}
+            resizeMode={FastImage.resizeMode.cover}
+          />
+          <View style={styles.info}>
+            <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+            <View style={styles.statusRow}>
+              <StatusDot status="external" color={Colors.dark.primary} />
+              <Text style={[styles.statusText, {color: Colors.dark.primary}]}>
+                {t('hls_downloading_in', {app: item.externalApp ?? '1DM'})}
+              </Text>
+              {item.quality && item.quality !== 'auto' ? (
+                <Text style={styles.quality}>{item.quality}</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={styles.openOneDMBtn}
+              activeOpacity={0.75}
+              onPress={() => openHlsApp(item.externalApp ?? '1DM')}
+            >
+              <Text style={styles.openOneDMTxt}>{t('hls_open_in', {app: item.externalApp ?? '1DM'})}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.actions}>
+            {/* Spacer where ActionButton normally goes */}
+            <View style={{width: 38}} />
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => handleDeleteSingle(item)}
+              hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+            >
+              <Image
+                source={require('../../assets/icons/close.png')}
+                style={{width: 14, height: 14, tintColor: Colors.dark.textMuted}}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Normal card ───────────────────────────────────────────────────────
     const sColor = statusColor(item.status);
     const pct = Math.round((item.progress || 0) * 100);
     const sizeStr = item.totalBytes
@@ -403,6 +452,8 @@ const StatusDot = ({status, color}: {status: DownloadItem['status']; color: stri
       return <Image source={require('../../assets/icons/pause.png')} style={{width: 13, height: 13, tintColor: color}} />;
     case 'failed':
       return <Image source={require('../../assets/icons/alert.png')} style={{width: 13, height: 13, tintColor: color}} />;
+    case 'external':
+      return <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 13, height: 13, tintColor: color}} />;
     default:
       return <View style={{width: 13, height: 13, borderRadius: 7, backgroundColor: color, opacity: 0.4}} />;
   }
@@ -486,4 +537,8 @@ const styles = StyleSheet.create({
   emptyIcon:    {width: 88, height: 88, borderRadius: 44, backgroundColor: Colors.dark.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: Colors.dark.border},
   emptyTitle:   {color: Colors.dark.text, fontSize: 18, fontWeight: '700', fontFamily: 'Rubik', textAlign: 'center', marginBottom: 8},
   emptySub:     {color: Colors.dark.textMuted, fontSize: 14, textAlign: 'center', fontFamily: 'Rubik', lineHeight: 20},
+
+  // External (1DM) card
+  openOneDMBtn: {marginTop: 7, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: `${Colors.dark.primary}20`, borderWidth: 1, borderColor: `${Colors.dark.primary}40`},
+  openOneDMTxt: {color: Colors.dark.primary, fontSize: 12, fontWeight: '700', fontFamily: 'Rubik'},
 });

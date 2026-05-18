@@ -184,4 +184,15 @@ export const en = {
   play_offline: 'Play offline',
   // Developer notice
   developer_notice: 'The app developer is independent and the app generates no profit. Episode updates happen manually based on requests on the Telegram channel, as I cannot keep track of thousands of series and episodes. If you want content updated, press the report button (the flag) next to this button and send a message with the content name and type (Movie - Series - Anime).\n\nThank you for your understanding 🙏',
+  // HLS app chooser (1DM / ADM)
+  hls_chooser_title_pick:    'Choose Download App',
+  hls_chooser_title_install: 'Install a Download App',
+  hls_chooser_subtitle_pick: 'The app will open to download the video',
+  hls_chooser_subtitle_install: 'HLS downloads require one of these apps',
+  hls_chooser_open:          'Open',
+  hls_chooser_install:       'Install',
+  hls_downloading_in:        'Downloading in {{app}}',
+  hls_open_in:               'Open {{app}}',
+  hls_install_1dm:           'Install 1DM to download HLS streams',
+  external: 'External',
 };

@@ -26,6 +26,7 @@ import {
   setConfig,
 } from '@kesha-antonov/react-native-background-downloader';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import {Linking} from 'react-native';
 import {DownloadItem, ContentItem} from '../types';
 import {storage, storageKeys, getSettings} from '../storage';
 import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
@@ -134,7 +135,7 @@ export const restoreDownloads = async () => {
   }
 };
 
-// ─── Start a new download ────────────────────────────────────────────────
+// ─── Start a new download (Akwam MP4 — blob-util) ─────────────────────────
 export const startDownload = async (
   item: ContentItem,
   mp4Url: string,
@@ -213,6 +214,63 @@ export const startDownload = async (
   return downloadItem;
 };
 
+// ─── Register a Fasel HLS download (metadata only) ───────────────────────
+//
+// Saves the item to MMKV with status:'external' so it appears in
+// DownloadsScreen with poster + title. The actual intent launch is handled
+// by HlsAppChooserModal — this function only manages local state.
+//
+export const registerFaselDownload = (
+  item: ContentItem,
+  m3u8Url: string,
+  quality = 'auto',
+  externalApp = '1DM',
+  seriesId?: string,
+  seriesTitle?: string,
+): DownloadItem => {
+  const id = `fasel_${item.id}_${Date.now()}`;
+
+  const downloadItem: DownloadItem = {
+    id,
+    contentId: item.id,
+    title: seriesTitle ? `${seriesTitle} - ${item.Title}` : item.Title,
+    imageUrl: item['Image Source'] || (item as any).Image || (item as any).poster || '',
+    videoUrl: m3u8Url,
+    format: 'HLS',
+    quality,
+    progress: 1,         // indeterminate — external app owns progress
+    status: 'external',
+    timestamp: Date.now(),
+    destinationPath: '', // unknown — external app decides
+    externalApp,
+    seriesId,
+    seriesTitle,
+  };
+
+  const current = getDownloadState();
+  saveDownloadState([downloadItem, ...current]);
+  notify();
+
+  return downloadItem;
+};
+
+// ─── Open external downloader app (for "Open in …" button in DownloadsScreen)
+export const openHlsApp = async (appName = '1DM') => {
+  const pkgMap: Record<string, string> = {
+    '1DM': 'idm.internet.download.manager',
+    'ADM': 'com.dv.adm',
+  };
+  const pkg = pkgMap[appName] ?? pkgMap['1DM'];
+  try {
+    await Linking.openURL(`intent://#Intent;package=${pkg};end`);
+  } catch {
+    try {
+      await Linking.openURL(`market://details?id=${pkg}`);
+    } catch {
+      await Linking.openURL(`https://play.google.com/store/apps/details?id=${pkg}`);
+    }
+  }
+};
 
 // ─── Pause ────────────────────────────────────────────────────────────────
 export const pauseDownload = (id: string) => {
