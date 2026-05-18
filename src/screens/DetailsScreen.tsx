@@ -32,7 +32,7 @@ import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
 import AkwamExtractor from '../components/AkwamExtractor';
 import {startDownload, registerFaselDownload} from '../services/downloadService';
-import HlsAppChooserModal from '../components/HlsAppChooserModal';
+import {launchHlsApp} from '../components/HlsAppChooserModal';
 import AkwamQualityModal, {resolveQuality} from '../components/AkwamQualityModal';
 import AkwamBulkDownloadModal from '../components/AkwamBulkDownloadModal';
 import {getSettings} from '../storage';
@@ -165,7 +165,7 @@ export const DetailsScreen: React.FC = () => {
   const allServersModeRef = useRef(false);
   const [downloading, setDownloading] = useState(false);
   // HLS app chooser modal (1DM / ADM)
-  const [hlsChooser, setHlsChooser] = useState<{url: string; filename: string} | null>(null);
+
 
   // Episode state
   const [epData, setEpData] = useState<any>(null);
@@ -503,10 +503,10 @@ export const DetailsScreen: React.FC = () => {
       downloadModeRef.current = false;
       const isHls = primaryUrl.includes('.m3u8');
       if (isHls) {
-        // Fasel movie: show app chooser then register metadata after user picks
         const safeName = (item.Title || 'video')
           .replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
-        setHlsChooser({url: primaryUrl, filename: `${safeName}.mp4`});
+        registerFaselDownload(item, primaryUrl);
+        Share.share({message: primaryUrl, title: safeName});
         return;
       }
       // MP4 download
@@ -1302,21 +1302,7 @@ export const DetailsScreen: React.FC = () => {
         onClose={() => setShowBulkDownload(false)}
       />
 
-      {/* ── HLS app chooser (1DM / ADM) ── */}
-      <HlsAppChooserModal
-        visible={!!hlsChooser}
-        m3u8Url={hlsChooser?.url ?? ''}
-        filename={hlsChooser?.filename ?? ''}
-        referer="https://www.fasel-hd.cam/"
-        onClose={() => {
-          if (hlsChooser) {
-            // Register metadata after user picks — we don't know which app
-            // was chosen here, but the modal handles the intent. Just save.
-            registerFaselDownload(item, hlsChooser.url);
-          }
-          setHlsChooser(null);
-        }}
-      />
+
 
       {/* ── Full-screen extracting overlay ── */}
       {extracting && (
