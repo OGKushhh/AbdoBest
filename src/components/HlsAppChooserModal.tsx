@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import {Linking} from 'react-native';
+import SendIntentAndroid from 'react-native-send-intent';
 import {useTranslation} from 'react-i18next';
 import {Colors} from '../theme/colors';
 
@@ -36,22 +37,36 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
 
   const handleOpen = useCallback(async () => {
     const pkg = 'idm.internet.download.manager';
+    const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
+    const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
     const encodedTitle = encodeURIComponent(filename);
     const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
 
-    // Strip scheme from URL, pass it as the scheme= param (Gemini Method 2)
-    const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
-    const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
-
-    // Method 1: Explicit intent targeting 1DM's UrlHandlerDownloader activity directly
-    const explicitIntentUrl =
-      `intent://${rawUrl}#Intent;scheme=${scheme};` +
-      `package=${pkg};` +
-      `component=${pkg}/.UrlHandlerDownloader;` +
-      `S.title=${encodedTitle};` +
-      `S.extra_referer=${encodedReferer};end`;
-
+    // Method 1: react-native-send-intent — explicit package + component targeting
     try {
+      const isInstalled = await SendIntentAndroid.isAppInstalled(pkg);
+      if (isInstalled) {
+        const wasOpened = await SendIntentAndroid.openAppWithData(
+          pkg,
+          m3u8Url,
+          'text/plain',
+          {},
+        );
+        if (wasOpened) {
+          onClose();
+          return;
+        }
+      }
+    } catch {}
+
+    // Method 2: Explicit intent URI targeting UrlHandlerDownloader directly
+    try {
+      const explicitIntentUrl =
+        `intent://${rawUrl}#Intent;scheme=${scheme};` +
+        `package=${pkg};` +
+        `component=${pkg}/.UrlHandlerDownloader;` +
+        `S.title=${encodedTitle};` +
+        `S.extra_referer=${encodedReferer};end`;
       const canOpen = await Linking.canOpenURL(explicitIntentUrl).catch(() => false);
       if (canOpen) {
         await Linking.openURL(explicitIntentUrl);
@@ -60,14 +75,13 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
       }
     } catch {}
 
-    // Method 2: Fallback — implicit intent by package only, let Android resolve the activity
-    const implicitIntentUrl =
-      `intent://${rawUrl}#Intent;scheme=${scheme};` +
-      `package=${pkg};` +
-      `S.title=${encodedTitle};` +
-      `S.extra_referer=${encodedReferer};end`;
-
+    // Method 3: Implicit intent by package only
     try {
+      const implicitIntentUrl =
+        `intent://${rawUrl}#Intent;scheme=${scheme};` +
+        `package=${pkg};` +
+        `S.title=${encodedTitle};` +
+        `S.extra_referer=${encodedReferer};end`;
       const canOpen = await Linking.canOpenURL(implicitIntentUrl).catch(() => false);
       if (canOpen) {
         await Linking.openURL(implicitIntentUrl);
@@ -76,7 +90,7 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
       }
     } catch {}
 
-    // Method 3: 1DM not installed — open Play Store
+    // Method 4: 1DM not installed — open Play Store
     await openPlayStore();
     onClose();
   }, [m3u8Url, filename, onClose]);
