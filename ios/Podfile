@@ -6,7 +6,6 @@ require Pod::Executable.execute_command('node', ['-e',
 platform :ios, '13.0'
 prepare_react_native_project!
 
-
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -18,34 +17,32 @@ target 'AbdoBest' do
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # Hermes is now enabled by default. Disable by setting this flag to false.
     :hermes_enabled => true,
     :fabric_enabled => false,
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  # react-native-send-intent is Android-only — exclude from iOS build
-  # (it has no podspec, so simply not referencing it is sufficient)
-
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
 
-    # --- FIX: RCT-Folly clockid_t redefinition for iOS 17+ SDKs ---
+    # === FIX: RCT-Folly compilation on iOS 17+ SDKs ===
     installer.pods_project.targets.each do |target|
       if target.name == 'RCT-Folly'
         target.build_configurations.each do |config|
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+          # Avoid Folly's internal emulation layers
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAVE_CLOCK_GETTIME=1'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_USE_LIBCPP=1'
+          # Expose full POSIX and BSD features
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_POSIX_C_SOURCE=200809L'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_DARWIN_C_SOURCE=1'
         end
       end
     end
-    # ----------------------------------------------------------------
+    # =================================================
   end
 end
