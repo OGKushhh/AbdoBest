@@ -32,7 +32,7 @@ import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
 import AkwamExtractor from '../components/AkwamExtractor';
 import {startDownload, registerFaselDownload} from '../services/downloadService';
-import {launchHlsApp} from '../components/HlsAppChooserModal';
+import HlsDownloadSheet from '../components/HlsAppChooserModal';
 import AkwamQualityModal, {resolveQuality} from '../components/AkwamQualityModal';
 import AkwamBulkDownloadModal from '../components/AkwamBulkDownloadModal';
 import {getSettings} from '../storage';
@@ -163,7 +163,7 @@ export const DetailsScreen: React.FC = () => {
   const downloadModeRef   = useRef(false);
   // All-servers mode: when true, VideoExtractor collects ALL servers before committing
   const allServersModeRef = useRef(false);
-  const [downloading, setDownloading] = useState(false);
+  const [hlsChooser, setHlsChooser] = useState<{url: string; title: string} | null>(null);
   // HLS app chooser modal (1DM / ADM)
 
 
@@ -506,7 +506,7 @@ export const DetailsScreen: React.FC = () => {
         const safeName = (item.Title || 'video')
           .replace(/[^\w\u0600-\u06FF\s.-]/g, '').trim().substring(0, 60);
         registerFaselDownload(item, primaryUrl);
-        Share.share({message: primaryUrl, title: safeName});
+        setHlsChooser({url: primaryUrl, title: safeName});
         return;
       }
       // MP4 download
@@ -1303,6 +1303,16 @@ export const DetailsScreen: React.FC = () => {
       />
 
 
+
+      {/* ── HLS download sheet ── */}
+      {hlsChooser && (
+        <HlsDownloadSheet
+          visible={!!hlsChooser}
+          m3u8Url={hlsChooser.url}
+          title={hlsChooser.title}
+          onClose={() => setHlsChooser(null)}
+        />
+      )}
 
       {/* ── Full-screen extracting overlay ── */}
       {extracting && (
