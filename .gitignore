@@ -63,3 +63,10 @@ coverage/
 # Temporary
 tmp/
 temp/
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/.xcode.env.local

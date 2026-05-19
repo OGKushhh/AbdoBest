@@ -43,6 +43,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     storage.init().then(() => {
       initCounters();
       const shouldShowReward = recordLaunchAndCheckReward();
@@ -55,15 +56,16 @@ const App: React.FC = () => {
         // Small delay so the app finishes rendering before showing the popup
         setTimeout(() => setShowRewardPopup(true), 1500);
       }
-      const timer = setTimeout(async () => {
+      timer = setTimeout(async () => {
         const update = await checkForUpdate();
         if (update) {
           setUpdateInfo(update);
           setTimeout(() => setShowUpdateModal(true), 500);
         }
       }, 3000);
-      return () => clearTimeout(timer);
     });
+    // Cleanup is returned directly to React so it fires on unmount
+    return () => clearTimeout(timer);
   }, []);
 
   if (!ready) {

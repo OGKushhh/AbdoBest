@@ -26,13 +26,18 @@ import {
   setConfig,
 } from '@kesha-antonov/react-native-background-downloader';
 import ReactNativeBlobUtil from 'react-native-blob-util';
-import {Linking} from 'react-native';
+import {Linking, Platform} from 'react-native';
 import {DownloadItem, ContentItem} from '../types';
 import {storage, storageKeys, getSettings} from '../storage';
 import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
 
 // Enable native download logs so we can see exactly what's happening
 setConfig({ isLogsEnabled: true, progressInterval: 1000 });
+
+// Platform-aware User-Agent — some servers fingerprint the UA and reject mismatched platforms
+const DOWNLOAD_UA = Platform.OS === 'ios'
+  ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+  : 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 // ─── Task type ────────────────────────────────────────────────────────────
 type AnyTask = ReturnType<typeof download>;
@@ -144,10 +149,13 @@ export const startDownload = async (
   seriesTitle?: string,
 ): Promise<DownloadItem> => {
   // Read user's preferred save location from settings
+  // DownloadDir is Android-only; fall back to DocumentDir on iOS
   const { downloadDir: dirPref } = getSettings();
-  const baseDir = dirPref === 'internal'
+  const baseDir = Platform.OS === 'ios'
     ? ReactNativeBlobUtil.fs.dirs.DocumentDir
-    : ReactNativeBlobUtil.fs.dirs.DownloadDir;
+    : dirPref === 'internal'
+      ? ReactNativeBlobUtil.fs.dirs.DocumentDir
+      : ReactNativeBlobUtil.fs.dirs.DownloadDir;
   const dir = `${baseDir}/AbdoApp`;
   const dirExists = await ReactNativeBlobUtil.fs.isDir(dir);
   if (!dirExists) await ReactNativeBlobUtil.fs.mkdir(dir);
@@ -183,7 +191,7 @@ export const startDownload = async (
     indicator: true,
     trusty: true, // fixes SSL CertPathValidatorException on older Android/MIUI
   }).fetch('GET', mp4Url, {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    'User-Agent': DOWNLOAD_UA,
     'Referer': AKWAM_REFERER,
     'Origin': AKWAM_BASE_URL,
   });
@@ -224,7 +232,7 @@ export const registerFaselDownload = (
   item: ContentItem,
   m3u8Url: string,
   quality = 'auto',
-  externalApp = '1DM',
+  externalApp = Platform.OS === 'ios' ? 'Outplayer' : '1DM',
   seriesId?: string,
   seriesTitle?: string,
 ): DownloadItem => {
@@ -255,7 +263,31 @@ export const registerFaselDownload = (
 };
 
 // ─── Open external downloader app (for "Open in …" button in DownloadsScreen)
-export const openHlsApp = async (appName = '1DM') => {
+export const openHlsApp = async (appName = 'Outplayer', m3u8Url?: string) => {
+  if (Platform.OS === 'ios') {
+    // Try to open the app directly with the URL if we have it
+    if (m3u8Url) {
+      const iosSchemeMap: Record<string, (url: string) => string> = {
+        'Outplayer': (url) => `outplayer://${url}`,
+        'Documents':  (url) => `rdocs://${url}`,
+      };
+      const makeScheme = iosSchemeMap[appName] ?? iosSchemeMap['Outplayer'];
+      const deepLink = makeScheme(m3u8Url);
+      const canOpen = await Linking.canOpenURL(deepLink).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(deepLink).catch(() => {});
+        return;
+      }
+    }
+    // App not installed — send to App Store
+    const iosStoreMap: Record<string, string> = {
+      'Outplayer': 'https://apps.apple.com/app/outplayer/id1449697545',
+      'Documents':  'https://apps.apple.com/app/documents-file-manager-browser/id364901807',
+    };
+    await Linking.openURL(iosStoreMap[appName] ?? iosStoreMap['Outplayer']).catch(() => {});
+    return;
+  }
+  // Android: intent URI to launch the app directly, fall back to Play Store
   const pkgMap: Record<string, string> = {
     '1DM': 'idm.internet.download.manager',
     'ADM': 'com.dv.adm',
@@ -281,13 +313,78 @@ export const pauseDownload = (id: string) => {
   }
 };
 
-// ─── Resume (re-starts download from scratch — blob-util has no resume) ──
+// ─── Resume — continues from where the download was paused ───────────────
+// blob-util has no native resume, but most CDNs support HTTP Range requests.
+// We check how many bytes were already downloaded and send Range: bytes=N-
+// so the server starts from that offset. The received bytes are appended to
+// the existing partial file.
 export const resumeDownload = async (id: string) => {
   const items = getDownloadState();
   const item = items.find(d => d.id === id);
   if (!item || item.status !== 'paused') return;
-  updateItem(id, {status: 'pending', progress: 0, errorMessage: undefined});
-  await retryDownload(id);
+
+  const destPath = item.destinationPath;
+  let startByte = 0;
+
+  // Find out how many bytes we already have on disk
+  try {
+    const exists = await ReactNativeBlobUtil.fs.exists(destPath);
+    if (exists) {
+      const stat = await ReactNativeBlobUtil.fs.stat(destPath);
+      startByte = parseInt(stat.size, 10) || 0;
+    }
+  } catch {
+    startByte = 0;
+  }
+
+  updateItem(id, {status: 'downloading', errorMessage: undefined});
+
+  const headers: Record<string, string> = {
+    'User-Agent': DOWNLOAD_UA,
+    'Referer': AKWAM_REFERER,
+    'Origin': AKWAM_BASE_URL,
+  };
+  if (startByte > 0) {
+    headers['Range'] = `bytes=${startByte}-`;
+  }
+
+  const task = ReactNativeBlobUtil.config({
+    path: destPath,
+    fileCache: true,
+    // overwrite only if we're starting fresh; otherwise append
+    overwrite: startByte === 0,
+    indicator: true,
+  }).fetch('GET', item.videoUrl, headers);
+
+  task.progress({ interval: 500 }, (received: number, total: number) => {
+    const totalWithOffset = total + startByte;
+    const receivedWithOffset = received + startByte;
+    const progress = totalWithOffset > 0 ? receivedWithOffset / totalWithOffset : 0;
+    updateItem(id, {
+      progress,
+      downloadedBytes: receivedWithOffset,
+      totalBytes: totalWithOffset,
+      status: 'downloading',
+    });
+  });
+
+  blobTasks.set(id, task);
+
+  task
+    .then((res: any) => {
+      console.log('[Download] resume done:', id, res.path());
+      updateItem(id, {status: 'completed', progress: 1, localPath: `file://${destPath}`, destinationPath: destPath});
+      blobTasks.delete(id);
+    })
+    .catch((e: any) => {
+      if (e?.message === 'cancelled') {
+        updateItem(id, {status: 'paused'});
+      } else {
+        console.warn('[Download] resume error:', e);
+        updateItem(id, {status: 'failed', errorMessage: String(e?.message || e)});
+      }
+      blobTasks.delete(id);
+    });
 };
 
 // ─── Cancel + delete ──────────────────────────────────────────────────────
@@ -296,13 +393,23 @@ export const deleteDownload = async (id: string) => {
   if (blobTask) { blobTask.cancel(); blobTasks.delete(id); }
   const bgTask = activeTasks.get(id);
   if (bgTask) { bgTask.stop(); activeTasks.delete(id); }
-  const destPath = getDestPath(id);
-  try {
-    const exists = await ReactNativeBlobUtil.fs.exists(destPath);
-    if (exists) await ReactNativeBlobUtil.fs.unlink(destPath);
-  } catch (e) {
-    console.warn('[Download] delete file error:', e);
+
+  // Use item.destinationPath (where blob-util actually saved the file) rather
+  // than getDestPath(id) which points to the background-downloader location.
+  const item = getDownloadState().find(d => d.id === id);
+  const pathsToDelete = new Set<string>();
+  if (item?.destinationPath) pathsToDelete.add(item.destinationPath);
+  pathsToDelete.add(getDestPath(id)); // also clean up bg-downloader path if present
+
+  for (const p of pathsToDelete) {
+    try {
+      const exists = await ReactNativeBlobUtil.fs.exists(p);
+      if (exists) await ReactNativeBlobUtil.fs.unlink(p);
+    } catch (e) {
+      console.warn('[Download] delete file error:', e);
+    }
   }
+
   const items = getDownloadState().filter(d => d.id !== id);
   saveDownloadState(items);
   notify();
@@ -323,7 +430,7 @@ export const retryDownload = async (id: string) => {
     overwrite: true,
     indicator: true,
   }).fetch('GET', item.videoUrl, {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    'User-Agent': DOWNLOAD_UA,
     'Referer': AKWAM_REFERER,
     'Origin': AKWAM_BASE_URL,
   });

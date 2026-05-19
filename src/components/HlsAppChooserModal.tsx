@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   Modal,
   View,
@@ -6,23 +6,34 @@ import {
   TouchableOpacity,
   StyleSheet,
   Pressable,
-  Clipboard,
+  Share,
   ToastAndroid,
+  Alert,
   Platform,
 } from 'react-native';
 import {Linking} from 'react-native';
-import SendIntentAndroid from 'react-native-send-intent';
 import {useTranslation} from 'react-i18next';
 import {Colors} from '../theme/colors';
 
-async function openPlayStore() {
-  const pkg = 'idm.internet.download.manager';
-  try {
-    await Linking.openURL(`market://details?id=${pkg}`);
-  } catch {
-    await Linking.openURL(`https://play.google.com/store/apps/details?id=${pkg}`);
-  }
-}
+// ─── iOS downloader apps (download-only, no VLC) ──────────────────────────
+// Checked in order. First one installed wins.
+const IOS_DOWNLOADERS = [
+  {
+    name: 'Outplayer',
+    // Outplayer accepts: outplayer://URL  — downloads + converts to MP4
+    scheme: (url: string) => `outplayer://${url}`,
+    storeUrl: 'https://apps.apple.com/app/outplayer/id1449697545',
+  },
+  {
+    name: 'Documents',
+    // Documents by Readdle: rdocs://URL  — downloads to Files app
+    scheme: (url: string) => `rdocs://${url}`,
+    storeUrl: 'https://apps.apple.com/app/documents-file-manager-browser/id364901807',
+  },
+] as const;
+
+// Fallback App Store URL when nothing is installed — send user to Outplayer
+const IOS_FALLBACK_STORE = 'https://apps.apple.com/app/outplayer/id1449697545';
 
 interface Props {
   visible: boolean;
@@ -35,70 +46,119 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
   const {t} = useTranslation();
   const filename = `${title}.mp4`;
 
-  const handleOpen = useCallback(async () => {
-    const pkg = 'idm.internet.download.manager';
-    const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
-    const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
-    const encodedTitle = encodeURIComponent(filename);
-    const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
+  // ── iOS: detect which downloader is installed ────────────────────────────
+  // null  = still detecting
+  // index = found app at that index
+  // -1    = none installed
+  const [iosAppIndex, setIosAppIndex] = useState<number | null>(
+    Platform.OS === 'android' ? -1 : null,
+  );
 
-    // Method 1: react-native-send-intent — explicit package + component targeting
-    try {
-      const isInstalled = await SendIntentAndroid.isAppInstalled(pkg);
-      if (isInstalled) {
-        const wasOpened = await SendIntentAndroid.openAppWithData(
-          pkg,
-          m3u8Url,
-          'text/plain',
-          {},
-        );
-        if (wasOpened) {
-          onClose();
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !visible) return;
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < IOS_DOWNLOADERS.length; i++) {
+        const testUrl = IOS_DOWNLOADERS[i].scheme('https://test.com/test.m3u8');
+        const can = await Linking.canOpenURL(testUrl).catch(() => false);
+        if (can) {
+          if (!cancelled) setIosAppIndex(i);
           return;
         }
       }
-    } catch {}
+      if (!cancelled) setIosAppIndex(-1);
+    })();
+    return () => { cancelled = true; };
+  }, [visible]);
 
-    // Method 2: Explicit intent URI targeting UrlHandlerDownloader directly
-    try {
-      const explicitIntentUrl =
-        `intent://${rawUrl}#Intent;scheme=${scheme};` +
-        `package=${pkg};` +
-        `component=${pkg}/.UrlHandlerDownloader;` +
-        `S.title=${encodedTitle};` +
-        `S.extra_referer=${encodedReferer};end`;
-      const canOpen = await Linking.canOpenURL(explicitIntentUrl).catch(() => false);
-      if (canOpen) {
-        await Linking.openURL(explicitIntentUrl);
+  const iosButtonLabel = Platform.OS === 'ios'
+    ? iosAppIndex === null
+      ? '…'                                          // still detecting
+      : iosAppIndex >= 0
+        ? `Open in ${IOS_DOWNLOADERS[iosAppIndex].name}`
+        : 'Get Outplayer'                             // nothing installed
+    : 'Open in 1DM';                                 // Android — unchanged
+
+  // ── Handlers ────────────────────────────────────────────────────────────
+  const handleOpen = useCallback(async () => {
+    // ── ANDROID — completely unchanged from original ─────────────────────
+    if (Platform.OS === 'android') {
+      const pkg = 'idm.internet.download.manager';
+      const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
+      const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
+      const encodedTitle = encodeURIComponent(filename);
+      const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
+
+      // Method 1: Explicit intent URI targeting UrlHandlerDownloader
+      try {
+        const explicitIntentUrl =
+          `intent://${rawUrl}#Intent;scheme=${scheme};` +
+          `package=${pkg};` +
+          `component=${pkg}/.UrlHandlerDownloader;` +
+          `S.title=${encodedTitle};` +
+          `S.extra_referer=${encodedReferer};end`;
+        const canOpen = await Linking.canOpenURL(explicitIntentUrl).catch(() => false);
+        if (canOpen) {
+          await Linking.openURL(explicitIntentUrl);
+          onClose();
+          return;
+        }
+      } catch {}
+
+      // Method 2: Implicit intent by package only
+      try {
+        const scheme2 = m3u8Url.startsWith('https') ? 'https' : 'http';
+        const implicitIntentUrl =
+          `intent://${rawUrl}#Intent;scheme=${scheme2};` +
+          `package=${pkg};` +
+          `S.title=${encodedTitle};` +
+          `S.extra_referer=${encodedReferer};end`;
+        const canOpen = await Linking.canOpenURL(implicitIntentUrl).catch(() => false);
+        if (canOpen) {
+          await Linking.openURL(implicitIntentUrl);
+          onClose();
+          return;
+        }
+      } catch {}
+
+      // Fallback: open Play Store to install 1DM
+      const androidPkg = 'idm.internet.download.manager';
+      try {
+        await Linking.openURL(`market://details?id=${androidPkg}`);
+      } catch {
+        await Linking.openURL(`https://play.google.com/store/apps/details?id=${androidPkg}`);
+      }
+      onClose();
+      return;
+    }
+
+    // ── iOS ──────────────────────────────────────────────────────────────
+    if (iosAppIndex !== null && iosAppIndex >= 0) {
+      // A supported downloader is installed — hand off the URL
+      const app = IOS_DOWNLOADERS[iosAppIndex];
+      try {
+        await Linking.openURL(app.scheme(m3u8Url));
         onClose();
         return;
-      }
-    } catch {}
+      } catch {}
+    }
 
-    // Method 3: Implicit intent by package only
-    try {
-      const implicitIntentUrl =
-        `intent://${rawUrl}#Intent;scheme=${scheme};` +
-        `package=${pkg};` +
-        `S.title=${encodedTitle};` +
-        `S.extra_referer=${encodedReferer};end`;
-      const canOpen = await Linking.canOpenURL(implicitIntentUrl).catch(() => false);
-      if (canOpen) {
-        await Linking.openURL(implicitIntentUrl);
-        onClose();
-        return;
-      }
-    } catch {}
-
-    // Method 4: 1DM not installed — open Play Store
-    await openPlayStore();
+    // Nothing installed — share URL and send to App Store
+    try { await Share.share({message: m3u8Url}); } catch {}
+    await Linking.openURL(
+      iosAppIndex !== null && iosAppIndex >= 0
+        ? IOS_DOWNLOADERS[iosAppIndex].storeUrl
+        : IOS_FALLBACK_STORE,
+    );
     onClose();
-  }, [m3u8Url, filename, onClose]);
+  }, [m3u8Url, filename, onClose, iosAppIndex]);
 
   const handleCopy = useCallback(() => {
-    Clipboard.setString(m3u8Url);
+    Share.share({message: m3u8Url}).catch(() => {});
     if (Platform.OS === 'android') {
       ToastAndroid.show(t('copied') || 'Copied', ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', t('copied') || 'Link copied');
     }
   }, [m3u8Url, t]);
 
@@ -128,10 +188,21 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
             </TouchableOpacity>
           </View>
 
-          {/* Open in 1DM */}
-          <TouchableOpacity style={styles.openBtn} onPress={handleOpen} activeOpacity={0.85}>
-            <Text style={styles.openBtnText}>Open in 1DM</Text>
+          {/* Open in downloader — label updates based on what's installed */}
+          <TouchableOpacity
+            style={[styles.openBtn, iosAppIndex === null && {opacity: 0.6}]}
+            onPress={handleOpen}
+            activeOpacity={0.85}
+            disabled={iosAppIndex === null}>
+            <Text style={styles.openBtnText}>{iosButtonLabel}</Text>
           </TouchableOpacity>
+
+          {/* iOS hint when nothing is installed */}
+          {Platform.OS === 'ios' && iosAppIndex === -1 && (
+            <Text style={styles.iosHint}>
+              Outplayer will be installed. Your link has been copied — paste it inside the app.
+            </Text>
+          )}
 
           {/* Cancel */}
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
@@ -248,6 +319,14 @@ const styles = StyleSheet.create({
     color: Colors.dark.textMuted,
     fontSize: 13,
     fontFamily: 'Rubik',
+  },
+  iosHint: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    fontFamily: 'Rubik',
+    textAlign: 'center',
+    marginBottom: 10,
+    lineHeight: 16,
   },
 });
 

@@ -20,7 +20,7 @@
  */
 
 import React, {useRef, useEffect, useCallback} from 'react';
-import {View, Dimensions} from 'react-native';
+import {View, Dimensions, Platform} from 'react-native';
 import {WebView} from 'react-native-webview';
 
 const {width: SW, height: SH} = Dimensions.get('window');
@@ -477,10 +477,10 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
         domStorageEnabled
         thirdPartyCookiesEnabled
         originWhitelist={['*']}
-        setSupportMultipleWindows={false}
-        allowFileAccess={false}
-        geolocationEnabled={false}
-        mixedContentMode="compatibility"
+        {...(Platform.OS === 'android' ? {
+          setSupportMultipleWindows: false,
+          mixedContentMode: 'compatibility' as const,
+        } : {})}
       />
     </View>
   );

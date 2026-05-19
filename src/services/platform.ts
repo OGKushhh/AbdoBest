@@ -1,8 +1,10 @@
 import ReactNativeBlobUtil from 'react-native-blob-util';
 
 export const getPlatformPath = (path: string): string => {
+  // Strip the file:// prefix when a raw FS path is needed (e.g. ReactNativeBlobUtil ops).
+  // Return the path unchanged if it has no scheme.
   if (path.startsWith('file://')) {
-    return path;
+    return path.slice(7);
   }
   return path;
 };
