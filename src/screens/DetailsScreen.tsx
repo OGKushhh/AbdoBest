@@ -164,7 +164,7 @@ export const DetailsScreen: React.FC = () => {
   // All-servers mode: when true, VideoExtractor collects ALL servers before committing
   const allServersModeRef = useRef(false);
   const [hlsChooser, setHlsChooser] = useState<{url: string; title: string} | null>(null);
-  // HLS app chooser modal (1DM / ADM)
+  const [downloading, setDownloading] = useState(false);
 
 
   // Episode state
