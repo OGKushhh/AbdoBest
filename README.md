@@ -94,11 +94,11 @@ We take your privacy seriously.
 
 ## 📈 Development Status
 
-**Current version:** `v1.0.0` – Public Beta
+**Current version:** `v1.1.2` – Release
 
 ### 🗺️ Roadmap
 
-- ✅ Offline download support *(coming soon)*
+- ✅ Offline download support *(Done)*
 - ✅ Performance improvements
 - ✅ More features based on user feedback
 
