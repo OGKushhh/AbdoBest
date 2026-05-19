@@ -106,10 +106,17 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
-            | xcpretty --color || true
+            | xcpretty --color
+
+          # Check that the .app was actually built
+          APP_PATH=$(find ios/build -name 'AbdoBest.app' | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ Build failed – no .app found"
+            exit 1
+          fi
 
           mkdir -p Payload
-          cp -r "$(find ios/build -name 'AbdoBest.app' | head -1)" Payload/
+          cp -r "$APP_PATH" Payload/
           zip -r AbdoBest-unsigned.ipa Payload
           rm -rf Payload
 
