@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-14        # Apple Silicon — fastest free tier for iOS
+    runs-on: macos-14
     permissions:
       contents: write
 
@@ -30,8 +30,18 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Clear Podfile.lock
-        run: rm -f ios/Podfile.lock
+      - name: Clear Podfile.lock and fix deployment target
+        run: |
+          rm -f ios/Podfile.lock
+          sed -i '' "s/platform :ios, .*/platform :ios, '13.4'/" ios/Podfile
+
+      - name: Patch AppDelegate for background downloads
+        run: |
+          FILE="ios/AbdoBest/AppDelegate.mm"
+          if ! grep -q "RNBackgroundDownloader" "$FILE"; then
+            sed -i '' '1s/^/#import <RNBackgroundDownloader.h>\n/' "$FILE"
+            sed -i '' 's/@end/- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler {\n  [RNBackgroundDownloader setCompletionHandlerWithIdentifier:identifier completionHandler:completionHandler];\n}\n\n@end/' "$FILE"
+          fi
 
       - name: Install CocoaPods dependencies
         working-directory: ios
@@ -59,13 +69,10 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Create a temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
-
-          # Import certificate
           echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
           security import certificate.p12 -k build.keychain \
             -P "$APPLE_CERTIFICATE_PASSWORD" \
@@ -83,8 +90,9 @@ jobs:
           echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode \
             > ~/Library/MobileDevice/Provisioning\ Profiles/AbdoBest.mobileprovision
 
-      # ── Build (unsigned — for Sideloadly distribution) ──────────────────
-      - name: Build unsigned IPA (no Apple account needed)
+      # ── Build unsigned (Sideloadly) ──────────────────────────────────────
+
+      - name: Build unsigned IPA
         if: env.HAS_CERT == 'false'
         run: |
           xcodebuild \
@@ -93,24 +101,42 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath ios/build \
+            IPHONEOS_DEPLOYMENT_TARGET=13.4 \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty --color || true
 
-          # Package into IPA manually (no signing)
           mkdir -p Payload
           cp -r "$(find ios/build -name 'AbdoBest.app' | head -1)" Payload/
           zip -r AbdoBest-unsigned.ipa Payload
           rm -rf Payload
 
-      # ── Build (signed — requires Apple Developer secrets) ───────────────
+      # ── Build signed ─────────────────────────────────────────────────────
+
       - name: Build signed IPA
         if: env.HAS_CERT == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          cat > ios/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>compileBitcode</key>
+            <false/>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          PLIST
+
           xcodebuild \
             -workspace ios/AbdoBest.xcworkspace \
             -scheme AbdoBest \
@@ -118,6 +144,7 @@ jobs:
             -sdk iphoneos \
             -derivedDataPath ios/build \
             -archivePath ios/AbdoBest.xcarchive \
+            IPHONEOS_DEPLOYMENT_TARGET=13.4 \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             archive \
             | xcpretty --color
@@ -132,6 +159,7 @@ jobs:
           mv ios/output/*.ipa AbdoBest-signed.ipa
 
       # ── Upload ───────────────────────────────────────────────────────────
+
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
