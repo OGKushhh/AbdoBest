@@ -35,5 +35,17 @@ target 'AbdoBest' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    # --- FIX: RCT-Folly clockid_t redefinition for iOS 17+ SDKs ---
+    installer.pods_project.targets.each do |target|
+      if target.name == 'RCT-Folly'
+        target.build_configurations.each do |config|
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAVE_CLOCK_GETTIME=1'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_POSIX_C_SOURCE=200809L'
+        end
+      end
+    end
+    # ----------------------------------------------------------------
   end
 end
