@@ -51,17 +51,6 @@ jobs:
         run: pod install --repo-update
 
       # ── Code Signing ────────────────────────────────────────────────────
-      # Option A: Ad-Hoc / Development IPA (no Apple account needed by builder)
-      # Your friend installs via AltStore / Sideloadly with their own Apple ID.
-      #
-      # To use this option, leave APPLE_CERTIFICATE / PROFILE secrets empty
-      # and set SIGN_METHOD=adhoc.  The build will be unsigned; your friend
-      # signs it locally with Sideloadly (free).
-      #
-      # Option B: Apple Developer account → set all secrets below and
-      # set SIGN_METHOD=appstore or SIGN_METHOD=adhoc with a real profile.
-      # ────────────────────────────────────────────────────────────────────
-
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
         env:
@@ -91,10 +80,10 @@ jobs:
             > ~/Library/MobileDevice/Provisioning\ Profiles/AbdoBest.mobileprovision
 
       # ── Build unsigned (Sideloadly) ──────────────────────────────────────
-
       - name: Build unsigned IPA
         if: env.HAS_CERT == 'false'
         run: |
+          set -o pipefail
           xcodebuild \
             -workspace ios/AbdoBest.xcworkspace \
             -scheme AbdoBest \
@@ -108,7 +97,6 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty --color
 
-          # Check that the .app was actually built
           APP_PATH=$(find ios/build -name 'AbdoBest.app' | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "❌ Build failed – no .app found"
@@ -121,7 +109,6 @@ jobs:
           rm -rf Payload
 
       # ── Build signed ─────────────────────────────────────────────────────
-
       - name: Build signed IPA
         if: env.HAS_CERT == 'true'
         env:
@@ -166,7 +153,6 @@ jobs:
           mv ios/output/*.ipa AbdoBest-signed.ipa
 
       # ── Upload ───────────────────────────────────────────────────────────
-
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
