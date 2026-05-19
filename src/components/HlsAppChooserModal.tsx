@@ -35,9 +35,15 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
   const filename = `${title}.mp4`;
 
   const handleOpen = useCallback(async () => {
+    const pkg = 'idm.internet.download.manager';
+    const encodedTitle = encodeURIComponent(filename);
+    const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
+
+    // Official 1DM intent format: intent:{url}#Intent;package=...;scheme=idmdownload;S.title=...;end
+    const intentUrl = `intent:${m3u8Url}#Intent;package=${pkg};scheme=idmdownload;S.title=${encodedTitle};S.extra_referer=${encodedReferer};end`;
+
     try {
-      const url = `idm://open?url=${encodeURIComponent(m3u8Url)}&title=${encodeURIComponent(filename)}&referer=${encodeURIComponent('https://www.fasel-hd.cam/')}`;
-      await Linking.openURL(url);
+      await Linking.openURL(intentUrl);
       onClose();
     } catch {
       await openPlayStore();
