@@ -39,16 +39,46 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
     const encodedTitle = encodeURIComponent(filename);
     const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
 
-    // Official 1DM intent format: intent:{url}#Intent;package=...;scheme=idmdownload;S.title=...;end
-    const intentUrl = `intent:${m3u8Url}#Intent;package=${pkg};scheme=idmdownload;S.title=${encodedTitle};S.extra_referer=${encodedReferer};end`;
+    // Strip scheme from URL, pass it as the scheme= param (Gemini Method 2)
+    const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
+    const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
+
+    // Method 1: Explicit intent targeting 1DM's UrlHandlerDownloader activity directly
+    const explicitIntentUrl =
+      `intent://${rawUrl}#Intent;scheme=${scheme};` +
+      `package=${pkg};` +
+      `component=${pkg}/.UrlHandlerDownloader;` +
+      `S.title=${encodedTitle};` +
+      `S.extra_referer=${encodedReferer};end`;
 
     try {
-      await Linking.openURL(intentUrl);
-      onClose();
-    } catch {
-      await openPlayStore();
-      onClose();
-    }
+      const canOpen = await Linking.canOpenURL(explicitIntentUrl).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(explicitIntentUrl);
+        onClose();
+        return;
+      }
+    } catch {}
+
+    // Method 2: Fallback — implicit intent by package only, let Android resolve the activity
+    const implicitIntentUrl =
+      `intent://${rawUrl}#Intent;scheme=${scheme};` +
+      `package=${pkg};` +
+      `S.title=${encodedTitle};` +
+      `S.extra_referer=${encodedReferer};end`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(implicitIntentUrl).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(implicitIntentUrl);
+        onClose();
+        return;
+      }
+    } catch {}
+
+    // Method 3: 1DM not installed — open Play Store
+    await openPlayStore();
+    onClose();
   }, [m3u8Url, filename, onClose]);
 
   const handleCopy = useCallback(() => {
