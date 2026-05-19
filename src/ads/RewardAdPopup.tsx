@@ -18,6 +18,7 @@ import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
   Animated, Image,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { activateAdFree, adFreeRemainingMs } from './adManager';
 import AdsterraInterstitial from './AdsterraInterstitial';
 
@@ -27,6 +28,7 @@ interface Props {
 }
 
 const RewardAdPopup: React.FC<Props> = ({ visible, onClose }) => {
+  const { t } = useTranslation();
   const [showInterstitial, setShowInterstitial] = useState(false);
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -85,36 +87,33 @@ const RewardAdPopup: React.FC<Props> = ({ visible, onClose }) => {
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>شاهد إعلاناً واحداً</Text>
-            <Text style={styles.titleEn}>Watch 1 Ad</Text>
+            <Text style={styles.title}>{t('reward_title')}</Text>
 
-            {/* Body */}
+            {/* Body — highlight the hours token */}
             <Text style={styles.body}>
-              استمتع بتجربة بدون إعلانات لمدة{' '}
-              <Text style={styles.highlight}>3 ساعات</Text>
-              {'\n'}مقابل مشاهدة إعلان واحد قصير.
-            </Text>
-            <Text style={styles.bodyEn}>
-              Enjoy <Text style={styles.highlight}>3 hours</Text> ad-free{'\n'}
-              by watching one short ad.
+              {t('reward_body', { hours: '' })
+                .split('{{hours}}')
+                .reduce<React.ReactNode[]>((acc, part, i, arr) => {
+                  acc.push(part);
+                  if (i < arr.length - 1)
+                    acc.push(<Text key={i} style={styles.highlight}>{t('reward_hours')}</Text>);
+                  return acc;
+                }, [])}
             </Text>
 
             {/* Buttons */}
             <View style={styles.btnRow}>
               <TouchableOpacity style={styles.btnLater} onPress={onClose} activeOpacity={0.7}>
-                <Text style={styles.btnLaterText}>لاحقاً / Later</Text>
+                <Text style={styles.btnLaterText}>{t('reward_later')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.btnWatch} onPress={handleWatch} activeOpacity={0.85}>
-                <Text style={styles.btnWatchText}>▶ شاهد / Watch</Text>
+                <Text style={styles.btnWatchText}>{t('reward_watch')}</Text>
               </TouchableOpacity>
             </View>
 
             {/* Hint */}
-            <Text style={styles.hint}>
-              يمكنك تفعيل هذا لاحقاً من الإعدادات{'\n'}
-              You can activate this later from Settings
-            </Text>
+            <Text style={styles.hint}>{t('reward_hint')}</Text>
           </Animated.View>
         </View>
       </Modal>

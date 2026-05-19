@@ -195,4 +195,28 @@ export const ar = {
   hls_open_in:               'افتح {{app}}',
   hls_install_1dm:           'ثبّت 1DM لتحميل ملفات HLS',
   external: 'خارجي',
+  // قسم التحميل
+  downloads_section: 'التحميل',
+  save_location: 'مجلد الحفظ',
+  save_location_internal: 'داخلي (مخفي)',
+  save_location_downloads: 'التحميلات (ظاهر)',
+  save_location_modal_title: 'مجلد الحفظ',
+  save_location_modal_body: 'التحميلات: ظاهر في تطبيق الملفات\nداخلي: مخفي، أكثر أماناً',
+  save_location_opt_downloads_label: 'مجلد التحميلات',
+  save_location_opt_downloads_sub: '/storage/emulated/0/AbdoApp/',
+  save_location_opt_internal_label: 'التخزين الداخلي',
+  save_location_opt_internal_sub: 'مجلد التطبيق الخاص (مخفي)',
+  // قسم الإعلانات
+  ads_section: 'الإعلانات',
+  ad_free_active: 'بدون إعلانات',
+  disable_ads: 'تعطيل الإعلانات',
+  ad_free_expires: 'ينتهي خلال {{time}}',
+  ad_free_watch_prompt: 'شاهد إعلاناً للحصول على 3 ساعات مجانية',
+  // نافذة مكافأة الإعلان
+  reward_title: 'شاهد إعلاناً واحداً',
+  reward_body: 'استمتع بتجربة بدون إعلانات لمدة {{hours}} مقابل مشاهدة إعلان واحد قصير.',
+  reward_hours: '3 ساعات',
+  reward_later: 'لاحقاً',
+  reward_watch: '▶ شاهد',
+  reward_hint: 'يمكنك تفعيل هذا لاحقاً من الإعدادات',
 };

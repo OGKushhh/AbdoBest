@@ -323,16 +323,16 @@ export const SettingsScreen: React.FC = () => {
           </View>
 
           {/* ── Downloads ── */}
-          <Text style={styles.sectionTitle}>{'التحميل / Downloads'}</Text>
+          <Text style={styles.sectionTitle}>{t('downloads_section')}</Text>
           <View style={styles.section}>
             <TouchableOpacity style={styles.row} onPress={() => setDirModalVisible(true)} activeOpacity={0.65}>
               <View style={styles.rowIcon}>
                 <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={styles.rowIconImg} />
               </View>
               <View style={styles.rowContent}>
-                <Text style={styles.rowLabel}>{'مجلد الحفظ / Save Location'}</Text>
+                <Text style={styles.rowLabel}>{t('save_location')}</Text>
                 <Text style={styles.rowSub}>
-                  {settings.downloadDir === 'internal' ? 'Internal (Hidden)' : 'Downloads (Visible)'}
+                  {settings.downloadDir === 'internal' ? t('save_location_internal') : t('save_location_downloads')}
                 </Text>
               </View>
               <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
@@ -390,7 +390,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
 
           {/* ── Ads ── */}
-          <Text style={styles.sectionTitle}>الإعلانات / Ads</Text>
+          <Text style={styles.sectionTitle}>{t('ads_section')}</Text>
           <View style={styles.section}>
             <TouchableOpacity
               style={[styles.row, styles.rowLast]}
@@ -402,12 +402,12 @@ export const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>
-                  {adFreeActive ? 'بدون إعلانات / Ad-Free Active' : 'تعطيل الإعلانات / Disable Ads'}
+                  {adFreeActive ? t('ad_free_active') : t('disable_ads')}
                 </Text>
                 <Text style={styles.rowSub}>
                   {adFreeActive
-                    ? `ينتهي خلال ${formatAdFreeRemaining(remainingMs)} · Expires in ${formatAdFreeRemaining(remainingMs)}`
-                    : 'شاهد إعلاناً للحصول على 3 ساعات · Watch 1 ad for 3h free'}
+                    ? t('ad_free_expires', { time: formatAdFreeRemaining(remainingMs) })
+                    : t('ad_free_watch_prompt')}
                 </Text>
               </View>
               {!adFreeActive && (
@@ -439,13 +439,11 @@ export const SettingsScreen: React.FC = () => {
 
       {/* ── Download Dir Modal ── */}
       <AppModal visible={dirModalVisible} onClose={() => setDirModalVisible(false)} colors={colors}>
-        <Text style={styles.modalTitle}>{'مجلد الحفظ / Save Location'}</Text>
-        <Text style={styles.modalBody}>
-          {'Downloads: ظاهر في تطبيق الملفات\nInternal: مخفي، أكثر أماناً'}
-        </Text>
+        <Text style={styles.modalTitle}>{t('save_location_modal_title')}</Text>
+        <Text style={styles.modalBody}>{t('save_location_modal_body')}</Text>
         {[
-          { value: 'downloads', label: 'Downloads Folder', sub: '/storage/emulated/0/AbdoApp/' },
-          { value: 'internal',  label: 'Internal Storage',  sub: 'App private folder (hidden)' },
+          { value: 'downloads', label: t('save_location_opt_downloads_label'), sub: t('save_location_opt_downloads_sub') },
+          { value: 'internal',  label: t('save_location_opt_internal_label'),  sub: t('save_location_opt_internal_sub') },
         ].map((opt, i, arr) => (
           <TouchableOpacity
             key={opt.value}

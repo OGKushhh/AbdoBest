@@ -195,4 +195,28 @@ export const en = {
   hls_open_in:               'Open {{app}}',
   hls_install_1dm:           'Install 1DM to download HLS streams',
   external: 'External',
+  // Downloads section
+  downloads_section: 'Downloads',
+  save_location: 'Save Location',
+  save_location_internal: 'Internal (Hidden)',
+  save_location_downloads: 'Downloads (Visible)',
+  save_location_modal_title: 'Save Location',
+  save_location_modal_body: 'Downloads: visible in your Files app\nInternal: hidden, more secure',
+  save_location_opt_downloads_label: 'Downloads Folder',
+  save_location_opt_downloads_sub: '/storage/emulated/0/AbdoApp/',
+  save_location_opt_internal_label: 'Internal Storage',
+  save_location_opt_internal_sub: 'App private folder (hidden)',
+  // Ads section
+  ads_section: 'Ads',
+  ad_free_active: 'Ad-Free Active',
+  disable_ads: 'Disable Ads',
+  ad_free_expires: 'Expires in {{time}}',
+  ad_free_watch_prompt: 'Watch 1 ad for 3h ad-free',
+  // RewardAdPopup
+  reward_title: 'Watch 1 Ad',
+  reward_body: 'Enjoy {{hours}} hours ad-free by watching one short ad.',
+  reward_hours: '3 hours',
+  reward_later: 'Later',
+  reward_watch: '▶ Watch',
+  reward_hint: 'You can activate this later from Settings',
 };

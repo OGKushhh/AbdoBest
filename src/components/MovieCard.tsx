@@ -96,7 +96,7 @@ const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CA
             ) : null}
             {views ? (
               <View style={styles.pill}>
-                <Image source={require('../../assets/icons/eyes.png')} style={styles.badgeIcon} />
+                <Image source={require('../../assets/icons/eyes.png')} style={styles.eyeIcon} />
                 <Text style={styles.pillText}>{views}</Text>
               </View>
             ) : null}
@@ -159,11 +159,12 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 5, paddingVertical: 2,
-    borderRadius: 5, gap: 2,
+    paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 6, gap: 3,
   },
-  badgeIcon: { width: 10, height: 10, tintColor: '#FFD700' },
-  pillText: { color: '#FFF', fontSize: 10, fontWeight: '600', fontFamily: 'Rubik' },
+  badgeIcon: { width: 12, height: 12, tintColor: '#FFD700' },
+  eyeIcon:   { width: 12, height: 12, tintColor: '#FFF' },
+  pillText: { color: '#FFF', fontSize: 12, fontWeight: '600', fontFamily: 'Rubik' },
   topRight: {
     position: 'absolute', top: 6, right: 6,
     alignItems: 'flex-end', gap: 3,
