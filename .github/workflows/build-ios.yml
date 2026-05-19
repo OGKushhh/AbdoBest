@@ -35,6 +35,9 @@ jobs:
 
       - name: Install CocoaPods dependencies
         working-directory: ios
+        env:
+          NO_FLIPPER: '1'
+          RCT_NEW_ARCH_ENABLED: '0'
         run: pod install --repo-update
 
       # ── Code Signing ────────────────────────────────────────────────────
