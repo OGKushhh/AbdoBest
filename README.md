@@ -1,116 +1,136 @@
-# AbdoBest – أفضل تجربة مشاهدة عربية
-
-[![GitHub Release](https://img.shields.io/github/v/release/OGKushhh/AbdoBest?label=Latest%20Release&color=%23FF4500&style=for-the-badge)](https://github.com/OGKushhh/AbdoBest/releases)
-[![Platform](https://img.shields.io/badge/Platform-Android-1565C0?style=for-the-badge&logo=android)](https://www.android.com/)
-[![License](https://img.shields.io/badge/License-MIT-6a6a8a?style=for-the-badge)](LICENSE)
-![APK Size](https://img.shields.io/badge/APK%20Size-24MB-FF4500?style=for-the-badge)
-
-<br/>
+# 🎬 AbdoBest – أفضل تجربة مشاهدة عربية
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/cbc40f5a-cc1f-4e85-9642-04f81dc2b65e" alt="AbdoBest Logo" width="110" height="110" style="border-radius: 28px;">
+  <img src="https://github.com/user-attachments/assets/cbc40f5a-cc1f-4e85-9642-04f81dc2b65e" alt="AbdoBest Logo" width="120" height="120" style="border-radius: 28px;">
 </p>
 
 <p align="center">
-  <strong><a href="https://abdobest.netlify.app/">🌐 Official Website</a></strong>
+  <strong>Stream movies, series, anime, and TV shows – all in one place.</strong><br/>
+  Built with React Native. Supports Arabic & English.
 </p>
 
-**AbdoBest** is a feature-rich streaming app for Android that brings together movies, series, anime, and TV shows in one place. Built with React Native, it offers an intuitive interface, smart playback controls, and full support for both Arabic and English.
+<p align="center">
+  <a href="https://abdobest.netlify.app/"><img src="https://img.shields.io/badge/Official_Website-FF4500?style=for-the-badge&logo=netlify&logoColor=white" alt="Website"></a>
+  <a href="https://github.com/OGKushhh/AbdoBest/releases/latest"><img src="https://img.shields.io/github/v/release/OGKushhh/AbdoBest?label=Latest%20Release&color=%23FF4500&style=for-the-badge" alt="GitHub Release"></a>
+  <a href="https://ko-fi.com/abdobest"><img src="https://img.shields.io/badge/Support_Us_on_Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
+</p>
 
 <br/>
 
 ## 📥 Download & Install
 
-Get the latest version of AbdoBest directly from our GitHub Releases.
+Get the latest APK directly from GitHub Releases.
 
-<a href="https://github.com/OGKushhh/AbdoBest/releases/latest">
-  <img src="https://img.shields.io/badge/Download-Latest%20APK-%23FF4500?style=for-the-badge&logo=github&logoColor=white" alt="Download Latest APK">
-</a>
+<p align="center">
+  <a href="https://github.com/OGKushhh/AbdoBest/releases/latest">
+    <img src="https://img.shields.io/badge/📲_Download_Latest_APK-FF4500?style=for-the-badge&logo=github&logoColor=white" alt="Download APK">
+  </a>
+</p>
 
-### Installation Steps
+### 🔧 Installation Steps
 
-1. **Download** the latest APK file from the link above.
-2. On your Android device, go to **Settings** → **Security** and enable **"Install from unknown sources"** (this may vary slightly depending on your device).
-3. **Open** the downloaded APK file and tap **"Install"**.
-4. Once installation is complete, you can open the app and start exploring content.
+1. **Download** the latest `.apk` file from the link above.
+2. On your Android device, go to **Settings** → **Security** and enable **"Install from unknown sources"**.
+3. **Open** the downloaded APK and tap **"Install"**.
+4. Launch the app and start exploring!
 
-> [!TIP]
-> We recommend using a file manager app to easily locate the downloaded APK file if it doesn't open automatically.
+> 💡 **Tip:** Use a file manager to locate the APK if it doesn't open automatically.
 
 <br/>
 
 ## ✨ Features
 
-- **📱 Stream a Vast Library** – Watch movies, series, anime, and TV shows on demand.
-- **🎬 Episode Indexer** – Seamless season and episode selection for episodic content.
-- **🎛️ Smart Video Player** – Quality switching (1080p → 360p) and full playback controls.
-- **🌓 Full Dark Theme** – Enhanced viewing experience with RTL support for both Arabic and English.
-- **🔍 Advanced Search & Filters** – Refine your search by genre, year, or video quality.
-- **⏱️ Episode Info** – Detailed episode duration and total episode counts.
-- **🔄 Built-in Update Checker** – The app checks GitHub Releases for new versions and notifies you.
-- **📦 Optimised APK Size** – Only 24MB, ensuring a fast download and installation on all Android devices.
+| Category | Highlights |
+|----------|------------|
+| 📚 **Content Library** | Movies, series, anime, and TV shows on demand |
+| 🎬 **Episode Indexer** | Seamless season & episode selection |
+| 🎛️ **Smart Player** | Quality switching (1080p → 360p) + full playback controls |
+| 🌓 **Dark Theme** | RTL support for Arabic & English |
+| 🔍 **Advanced Search** | Filter by genre, year, or quality |
+| ⏱️ **Episode Info** | Duration and total episode counts |
+| 🔄 **Update Checker** | Auto‑notifies you when a new version is available |
+| 📦 **Optimized APK** | Only 24MB – fast download on any Android device |
+
+<br/>
+
+## ☕ Support the Project
+
+**AbdoBest is free**, but keeping it running costs time and effort. If you enjoy using the app, consider supporting us!
+
+<p align="center">
+  <a href="https://ko-fi.com/abdobest">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi button" width="220">
+  </a>
+</p>
+
+Your donation helps with:
+- Server & API costs
+- Continuous development & new features
+- Keeping the app ad‑sustainable for everyone
+
+> All supporters are thanked in our GitHub repository (with your permission).
 
 <br/>
 
 ## 💰 Monetization & Ads
 
-To keep AbdoBest free and sustainable for everyone, the app is monetized through advertisements.
+To keep AbdoBest **free and sustainable**, the app displays non‑intrusive advertisements.
 
-- **Ad Placements**: The free version of AbdoBest displays standard, non-intrusive ad formats, ensuring minimal disruption to your viewing experience.
-- **User Choice (GDPR/EAA Compliance)**: We prioritize your privacy. For users in the European Economic Area (EEA) and UK, AbdoBest implements a **Consent Management Platform (CMP)** that complies with the **IAB Europe's Transparency & Consent Framework (TCF)**[reference:0]. You will see a consent banner on your first visit, and you can change your preferences at any time.
-- **No Personal Data Collection**: We do not collect or store any of your personal information. Our ad partner may use anonymized data to serve relevant ads, in line with their privacy policy.
+- **Ad Placements**: Standard formats that don't ruin your viewing experience.
+- **User Choice (GDPR/EAA)**: For users in the EEA and UK, we implement a **Consent Management Platform (CMP)** compliant with **IAB Europe's TCF**. You'll see a consent banner on first launch, and you can change preferences anytime.
+- **No Personal Data Collection**: We don't collect or store any personal information. Our ad partner may use anonymized data to serve relevant ads – see their privacy policy for details.
 
 <br/>
 
 ## 🔒 Privacy & Compliance
 
-We are committed to protecting your privacy and complying with all relevant regulations.
+We take your privacy seriously.
 
-- **Full Transparency**: Our [Privacy Policy](https://abdobest.netlify.app/Privacy.html) clearly explains how we and our ad partners handle data.
-- **User Rights**: You have the right to access, rectify, or delete your data. You can also withdraw your consent for ad personalization at any time via the CMP banner.
-- **No Account Required**: Enjoy content without any sign-up or login process.
+- 📄 **Full Transparency**: Read our [Privacy Policy](https://abdobest.netlify.app/Privacy.html).
+- ⚖️ **Your Rights**: Access, rectify, or delete your data. Withdraw consent for ad personalization anytime via the CMP banner.
+- 🚫 **No Account Required**: Enjoy content without sign‑up or login.
 
 <br/>
 
 ## 📈 Development Status
 
-## Current version: v1.0.0
+**Current version:** `v1.0.0` – Public Beta
 
-*   **Public Beta**: The app is currently in an open beta stage.
-*   **Roadmap**: Future releases will focus on:
-    *   Full offline download support.
-    *   Performance improvements.
-    *   Integration of additional features based on user feedback.
+### 🗺️ Roadmap
+
+- ✅ Offline download support *(coming soon)*
+- ✅ Performance improvements
+- ✅ More features based on user feedback
 
 <br/>
 
 ## 🛠️ Tech Stack
 
-AbdoBest is built using modern and reliable technologies:
-
-*   **React Native & TypeScript** – For a smooth, cross-platform experience.
-*   **React Navigation** – For intuitive tab and stack navigation.
-*   **Async-Storage** – For high-performance storage of user settings and cache.
-*   **Axios** – For efficient network requests.
-*   **i18next** – For seamless bilingual (Arabic/English) experience.
+| Technology | Purpose |
+|------------|---------|
+| React Native & TypeScript | Cross‑platform smooth experience |
+| React Navigation | Tab & stack navigation |
+| Async‑Storage | User settings & cache |
+| Axios | Network requests |
+| i18next | Bilingual (Arabic/English) support |
 
 <br/>
 
 ## ⚖️ License
 
-This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** – see the [LICENSE](LICENSE) file for details.
 
 <br/>
 
 ## 💬 Support & Contact
 
-*   **Report Issues**: Please use the [GitHub Issues](https://github.com/OGKushhh/AbdoBest/issues) page to report any bugs or request features.
-*   **Official Website**: [abdobest.netlify.app](https://abdobest.netlify.app/)
+- 🐛 **Report issues / request features**: [GitHub Issues](https://github.com/OGKushhh/AbdoBest/issues)
+- 🌐 **Official Website**: [abdobest.netlify.app](https://abdobest.netlify.app/)
+- ☕ **Donate**: [ko-fi.com/abdobest](https://ko-fi.com/abdobest)
 
 ---
 
-**AbdoBest** – Enjoy the best Arabic viewing experience.
-
 <p align="center">
+  <strong>AbdoBest</strong> – استمتع بأفضل تجربة مشاهدة عربية<br/>
   <sub>© 2026 AbdoBest. All rights reserved.</sub>
 </p>
