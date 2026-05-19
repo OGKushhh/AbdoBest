@@ -11,6 +11,10 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      HAS_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE != '' }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,7 +47,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────
 
       - name: Import signing certificate
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+        if: env.HAS_CERT == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -65,7 +69,7 @@ jobs:
             -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Install provisioning profile
-        if: ${{ secrets.APPLE_PROVISIONING_PROFILE != '' }}
+        if: env.HAS_PROFILE == 'true'
         env:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
@@ -75,7 +79,7 @@ jobs:
 
       # ── Build (unsigned — for Sideloadly distribution) ──────────────────
       - name: Build unsigned IPA (no Apple account needed)
-        if: ${{ secrets.APPLE_CERTIFICATE == '' }}
+        if: env.HAS_CERT == 'false'
         run: |
           xcodebuild \
             -workspace ios/AbdoBest.xcworkspace \
@@ -97,7 +101,7 @@ jobs:
 
       # ── Build (signed — requires Apple Developer secrets) ───────────────
       - name: Build signed IPA
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+        if: env.HAS_CERT == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
