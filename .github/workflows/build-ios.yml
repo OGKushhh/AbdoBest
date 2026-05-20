@@ -80,6 +80,16 @@ jobs:
             > ~/Library/MobileDevice/Provisioning\ Profiles/AbdoBest.mobileprovision
 
       # ── Build unsigned (Sideloadly) ──────────────────────────────────────
+      - name: Bundle JS (unsigned path)
+        if: env.HAS_CERT == 'false'
+        run: |
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios/
+
       - name: Build unsigned IPA
         if: env.HAS_CERT == 'false'
         run: |
@@ -90,18 +100,25 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath ios/build \
+            -archivePath ios/AbdoBest.xcarchive \
             IPHONEOS_DEPLOYMENT_TARGET=13.4 \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
+            SKIP_BUNDLING=YES \
+            archive \
             | xcpretty --color
 
-          APP_PATH=$(find ios/build -name 'AbdoBest.app' | head -1)
+          APP_PATH=$(find ios/AbdoBest.xcarchive -name 'AbdoBest.app' | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "❌ Build failed – no .app found"
+            echo "❌ Build failed – no .app found in archive"
             exit 1
           fi
+
+          # Inject the pre-built JS bundle into the archive app
+          cp ios/main.jsbundle "$APP_PATH/main.jsbundle"
 
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
