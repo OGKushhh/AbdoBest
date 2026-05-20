@@ -43,6 +43,8 @@ target 'AbdoBest' do
         end
       end
     end
-    # =================================================
+
+    # === REMOVE LAUNCH SCREEN STORYBOARD FROM PROJECT ===
+    system("find . -name 'project.pbxproj' -exec sed -i '' '/LaunchScreen.storyboard/d' {} \\;")
   end
 end
