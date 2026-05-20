@@ -34,17 +34,35 @@ target 'AbdoBest' do
       if target.name == 'RCT-Folly'
         target.build_configurations.each do |config|
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-          # Avoid Folly's internal emulation layers
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAVE_CLOCK_GETTIME=1'
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_USE_LIBCPP=1'
-          # Expose full POSIX and BSD features
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_POSIX_C_SOURCE=200809L'
           config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_DARWIN_C_SOURCE=1'
         end
       end
     end
 
-    # === REMOVE LAUNCH SCREEN STORYBOARD FROM PROJECT ===
-    system("find . -name 'project.pbxproj' -exec sed -i '' '/LaunchScreen.storyboard/d' {} \\;")
+    # === COMPLETELY REMOVE LAUNCH SCREEN STORYBOARD REFERENCE ===
+    require 'xcodeproj'
+    project_path = Dir.glob("*.xcodeproj").first
+    if project_path
+      project = Xcodeproj::Project.open(project_path)
+      target = project.targets.find { |t| t.name == 'AbdoBest' }
+      if target
+        # Remove from resources build phase
+        target.resources_build_phase.files.each do |file|
+          if file.file_ref && file.file_ref.path && file.file_ref.path.include?('LaunchScreen')
+            file.remove_from_project
+          end
+        end
+        # Remove any file reference in the project
+        project.files.each do |file|
+          if file.path && file.path.include?('LaunchScreen')
+            file.remove_from_project
+          end
+        end
+        project.save
+      end
+    end
   end
 end
