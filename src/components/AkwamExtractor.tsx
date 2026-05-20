@@ -14,7 +14,7 @@
  */
 
 import React, {useRef, useEffect, useCallback, useState} from 'react';
-import {View} from 'react-native';
+import {View, Platform} from 'react-native';
 import {WebView} from 'react-native-webview';
 import {
   AKWAM_BASE_URL,
@@ -290,9 +290,11 @@ const AkwamExtractor: React.FC<Props> = ({
         onMessage={handleMessage}
         onShouldStartLoadWithRequest={handleNavRequest}
         onError={() => done()}
-        setSupportMultipleWindows={false}
         originWhitelist={['*']}
-        mixedContentMode="always"
+        {...(Platform.OS === 'android' ? {
+          setSupportMultipleWindows: false,
+          mixedContentMode: 'always' as const,
+        } : {})}
         userAgent={UA}
       />
     </View>

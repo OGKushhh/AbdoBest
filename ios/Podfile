@@ -1,0 +1,68 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-e',
+  'process.stdout.write(require.resolve("react-native/scripts/react_native_pods.rb",
+  {paths: [process.argv[1]]}))', __dir__]).strip
+
+platform :ios, '13.0'
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'AbdoBest' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => true,
+    :fabric_enabled => false,
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false
+    )
+
+    # === FIX: RCT-Folly compilation on iOS 17+ SDKs ===
+    installer.pods_project.targets.each do |target|
+      if target.name == 'RCT-Folly'
+        target.build_configurations.each do |config|
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAVE_CLOCK_GETTIME=1'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_USE_LIBCPP=1'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_POSIX_C_SOURCE=200809L'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << '_DARWIN_C_SOURCE=1'
+        end
+      end
+    end
+
+    # === COMPLETELY REMOVE LAUNCH SCREEN STORYBOARD REFERENCE ===
+    require 'xcodeproj'
+    project_path = Dir.glob("*.xcodeproj").first
+    if project_path
+      project = Xcodeproj::Project.open(project_path)
+      target = project.targets.find { |t| t.name == 'AbdoBest' }
+      if target
+        # Remove from resources build phase
+        target.resources_build_phase.files.each do |file|
+          if file.file_ref && file.file_ref.path && file.file_ref.path.include?('LaunchScreen')
+            file.remove_from_project
+          end
+        end
+        # Remove any file reference in the project
+        project.files.each do |file|
+          if file.path && file.path.include?('LaunchScreen')
+            file.remove_from_project
+          end
+        end
+        project.save
+      end
+    end
+  end
+end

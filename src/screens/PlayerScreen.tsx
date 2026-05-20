@@ -3,7 +3,7 @@ import {
   View, StyleSheet, TouchableOpacity, Text,
   ActivityIndicator, StatusBar, Animated, Image,
   I18nManager, Modal, GestureResponderEvent,
-  useWindowDimensions, ScrollView,
+  useWindowDimensions, ScrollView, Platform, NativeModules,
 } from 'react-native';
 import Video, { VideoRef, OnProgressData, OnBufferData } from 'react-native-video';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
 import { useTheme } from '../hooks/useTheme';
-import ImmersiveMode from 'react-native-immersive-mode';
 import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
 
 // ─── Orientation (no external library needed) ─────────────────────────────────
@@ -19,23 +18,24 @@ import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
 // The actual Android lock is done via NativeModules.ActivityManager which
 // every RN app already has through the MainActivity.
 
-import { NativeModules, Platform } from 'react-native';
 
 /**
- * Lock screen orientation on Android without any extra library.
- * Uses the ActivityInfo constants:
- *   1 = SCREEN_ORIENTATION_LANDSCAPE
- *   0 = SCREEN_ORIENTATION_UNSPECIFIED  (follow sensor)
- *  -1 = SCREEN_ORIENTATION_UNSPECIFIED (same)
+ * Lock screen orientation.
+ * Android: uses NativeModules.UIManager / react-native-orientation-locker bridge.
+ * iOS:     uses react-native-orientation-locker (NativeModules.Orientation) when
+ *          installed. If not installed, falls back to a no-op — add
+ *          react-native-orientation-locker to unlock full iOS support.
  */
 const Orientation = {
   lockToLandscape: () => {
     if (Platform.OS === 'android') {
       try {
-        NativeModules.UIManager?.setOrientation?.(1);       // some bridges expose this
-        // Fallback: react-native-orientation-locker bridge if installed
+        NativeModules.UIManager?.setOrientation?.(1);
         NativeModules.Orientation?.lockToLandscape?.();
       } catch (_) {}
+    } else {
+      // iOS: react-native-orientation-locker exposes the same bridge name
+      try { NativeModules.Orientation?.lockToLandscape?.(); } catch (_) {}
     }
   },
   lockToPortrait: () => {
@@ -44,6 +44,8 @@ const Orientation = {
         NativeModules.UIManager?.setOrientation?.(0);
         NativeModules.Orientation?.lockToPortrait?.();
       } catch (_) {}
+    } else {
+      try { NativeModules.Orientation?.lockToPortrait?.(); } catch (_) {}
     }
   },
   unlockAllOrientations: () => {
@@ -52,6 +54,8 @@ const Orientation = {
         NativeModules.UIManager?.setOrientation?.(-1);
         NativeModules.Orientation?.unlockAllOrientations?.();
       } catch (_) {}
+    } else {
+      try { NativeModules.Orientation?.unlockAllOrientations?.(); } catch (_) {}
     }
   },
 };
@@ -198,16 +202,30 @@ export const PlayerScreen: React.FC = () => {
     };
   }, []);
 
-  // ── Immersive mode (hide nav buttons) ────────────────────────────────────
+  // ── Immersive mode (hide nav buttons / status bar) ───────────────────────
   useFocusEffect(
     useCallback(() => {
-      // Enter immersive sticky mode — hides both status bar AND nav buttons
-      ImmersiveMode.fullLayout(true);
-      ImmersiveMode.setBarMode('FullSticky'); // hides both status bar AND nav buttons, re-shows on swipe then hides again
+      if (Platform.OS === 'android') {
+        // Android: use ImmersiveMode via NativeModules if available, else no-op
+        try {
+          const IM = require('react-native-immersive-mode').default;
+          IM.fullLayout(true);
+          IM.setBarMode('FullSticky');
+        } catch (_) {}
+      } else {
+        // iOS: hide the status bar via StatusBar API
+        StatusBar.setHidden(true, 'fade');
+      }
       return () => {
-        // Restore system UI when leaving the player
-        ImmersiveMode.fullLayout(false);
-        ImmersiveMode.setBarMode('Normal');
+        if (Platform.OS === 'android') {
+          try {
+            const IM = require('react-native-immersive-mode').default;
+            IM.fullLayout(false);
+            IM.setBarMode('Normal');
+          } catch (_) {}
+        } else {
+          StatusBar.setHidden(false, 'fade');
+        }
       };
     }, []),
   );
@@ -438,7 +456,9 @@ export const PlayerScreen: React.FC = () => {
             headers: {
               'Referer': AKWAM_REFERER,
               'Origin': AKWAM_BASE_URL,
-              'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+              'User-Agent': Platform.OS === 'ios'
+                ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+                : 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
             },
           }}
           resizeMode="contain"
@@ -454,6 +474,7 @@ export const PlayerScreen: React.FC = () => {
           onError={handleError}
           playInBackground={false}
           playWhenInactive={false}
+          ignoreSilentSwitch="ignore"
           preventsDisplaySleepDuringVideoPlayback
           minLoadRetryCount={3}
         />

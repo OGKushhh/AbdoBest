@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, StyleSheet, Text, TouchableOpacity, Switch,
   Linking, ActivityIndicator, Image, ScrollView, Modal,
-  Dimensions,
+  Dimensions, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -91,7 +91,7 @@ export const SettingsScreen: React.FC = () => {
 
   const handleSync = useCallback(() => {
     startSync(true);
-  }, []);
+  }, [startSync]);
 
   const handleClearCacheConfirm = useCallback(async () => {
     setClearingCache(true);
@@ -325,18 +325,20 @@ export const SettingsScreen: React.FC = () => {
           {/* ── Downloads ── */}
           <Text style={styles.sectionTitle}>{t('downloads_section')}</Text>
           <View style={styles.section}>
-            <TouchableOpacity style={styles.row} onPress={() => setDirModalVisible(true)} activeOpacity={0.65}>
-              <View style={styles.rowIcon}>
-                <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={styles.rowIconImg} />
-              </View>
-              <View style={styles.rowContent}>
-                <Text style={styles.rowLabel}>{t('save_location')}</Text>
-                <Text style={styles.rowSub}>
-                  {settings.downloadDir === 'internal' ? t('save_location_internal') : t('save_location_downloads')}
-                </Text>
-              </View>
-              <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
-            </TouchableOpacity>
+            {Platform.OS !== 'ios' && (
+              <TouchableOpacity style={styles.row} onPress={() => setDirModalVisible(true)} activeOpacity={0.65}>
+                <View style={styles.rowIcon}>
+                  <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={styles.rowIconImg} />
+                </View>
+                <View style={styles.rowContent}>
+                  <Text style={styles.rowLabel}>{t('save_location')}</Text>
+                  <Text style={styles.rowSub}>
+                    {settings.downloadDir === 'internal' ? t('save_location_internal') : t('save_location_downloads')}
+                  </Text>
+                </View>
+                <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Data ── */}

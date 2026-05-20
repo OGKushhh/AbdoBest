@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, ToastAndroid, Platform,
+  Pressable, ActivityIndicator, ToastAndroid, Platform, Alert,
 } from 'react-native';
 import { ArabicEpisode, ArabicEpisodeSource, ContentItem } from '../types';
 import { Colors } from '../theme/colors';
@@ -113,6 +113,8 @@ const AkwamBulkDownloadModal: React.FC<Props> = ({
       );
       if (Platform.OS === 'android') {
         ToastAndroid.show(`✓ تمت إضافة ${toDownload.length} حلقة للتحميل`, ToastAndroid.SHORT);
+      } else {
+        Alert.alert('', `✓ تمت إضافة ${toDownload.length} حلقة للتحميل\nAdded ${toDownload.length} episode${toDownload.length !== 1 ? 's' : ''} to downloads`, [{text: 'OK', style: 'default'}]);
       }
       setDone(true);
       setTimeout(() => {

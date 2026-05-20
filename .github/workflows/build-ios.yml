@@ -1,0 +1,198 @@
+name: Build iOS IPA
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    permissions:
+      contents: write
+
+    env:
+      HAS_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE != '' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Clear Podfile.lock and fix deployment target
+        run: |
+          rm -f ios/Podfile.lock
+          sed -i '' "s/platform :ios, .*/platform :ios, '13.4'/" ios/Podfile
+
+      - name: Patch AppDelegate for background downloads
+        run: |
+          FILE="ios/AbdoBest/AppDelegate.mm"
+          if ! grep -q "RNBackgroundDownloader" "$FILE"; then
+            sed -i '' '1s/^/#import <RNBackgroundDownloader.h>\n/' "$FILE"
+            sed -i '' 's/@end/- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler {\n  [RNBackgroundDownloader setCompletionHandlerWithIdentifier:identifier completionHandler:completionHandler];\n}\n\n@end/' "$FILE"
+          fi
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        env:
+          NO_FLIPPER: '1'
+          RCT_NEW_ARCH_ENABLED: '0'
+        run: pod install --repo-update
+
+      # ── Code Signing ────────────────────────────────────────────────────
+      - name: Import signing certificate
+        if: env.HAS_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s \
+            -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Install provisioning profile
+        if: env.HAS_PROFILE == 'true'
+        env:
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/AbdoBest.mobileprovision
+
+      # ── Build unsigned (Sideloadly) ──────────────────────────────────────
+      - name: Bundle JS (unsigned path)
+        if: env.HAS_CERT == 'false'
+        run: |
+          # Bundle JS + copy all assets (icons, images, fonts) to a staging dir
+          mkdir -p ios/bundle-staging
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output ios/bundle-staging/main.jsbundle \
+            --assets-dest ios/bundle-staging/
+
+      - name: Build unsigned IPA
+        if: env.HAS_CERT == 'false'
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/AbdoBest.xcworkspace \
+            -scheme AbdoBest \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ios/build \
+            -archivePath ios/AbdoBest.xcarchive \
+            IPHONEOS_DEPLOYMENT_TARGET=13.4 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            ONLY_ACTIVE_ARCH=NO \
+            SKIP_BUNDLING=YES \
+            archive \
+            | xcpretty --color
+
+          APP_PATH=$(find ios/AbdoBest.xcarchive -name 'AbdoBest.app' | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ Build failed – no .app found in archive"
+            exit 1
+          fi
+
+          # Inject JS bundle
+          cp ios/bundle-staging/main.jsbundle "$APP_PATH/main.jsbundle"
+
+          # Inject all assets (icons, images, fonts) preserving folder structure
+          if [ -d ios/bundle-staging/assets ]; then
+            cp -r ios/bundle-staging/assets "$APP_PATH/assets"
+          fi
+
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r AbdoBest-unsigned.ipa Payload
+          rm -rf Payload
+
+      # ── Build signed ─────────────────────────────────────────────────────
+      - name: Build signed IPA
+        if: env.HAS_CERT == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ios/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>compileBitcode</key>
+            <false/>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild \
+            -workspace ios/AbdoBest.xcworkspace \
+            -scheme AbdoBest \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ios/build \
+            -archivePath ios/AbdoBest.xcarchive \
+            IPHONEOS_DEPLOYMENT_TARGET=13.4 \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            archive \
+            | xcpretty --color
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath ios/AbdoBest.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath ios/output \
+            | xcpretty --color
+
+          mv ios/output/*.ipa AbdoBest-signed.ipa
+
+      # ── Upload ───────────────────────────────────────────────────────────
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AbdoBest-iOS
+          path: |
+            AbdoBest-unsigned.ipa
+            AbdoBest-signed.ipa
+          if-no-files-found: ignore
+
+      - name: Attach IPA to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            AbdoBest-unsigned.ipa
+            AbdoBest-signed.ipa
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

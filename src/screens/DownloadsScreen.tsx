@@ -1,7 +1,7 @@
 import React, {useState, useCallback, useEffect} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, StatusBar, Image, Alert, Animated,
+  TextInput, StatusBar, Image, Alert, Animated, Platform,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -295,7 +295,7 @@ export const DownloadsScreen: React.FC = () => {
             <View style={styles.statusRow}>
               <StatusDot status="external" color={Colors.dark.primary} />
               <Text style={[styles.statusText, {color: Colors.dark.primary}]}>
-                {t('hls_downloading_in', {app: item.externalApp ?? '1DM'})}
+                {t('hls_downloading_in', {app: item.externalApp ?? (Platform.OS === 'ios' ? 'Outplayer' : '1DM')})}
               </Text>
               {item.quality && item.quality !== 'auto' ? (
                 <Text style={styles.quality}>{item.quality}</Text>
@@ -304,9 +304,9 @@ export const DownloadsScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.openOneDMBtn}
               activeOpacity={0.75}
-              onPress={() => openHlsApp(item.externalApp ?? '1DM')}
+              onPress={() => openHlsApp(item.externalApp ?? (Platform.OS === 'ios' ? 'Outplayer' : '1DM'), item.videoUrl)}
             >
-              <Text style={styles.openOneDMTxt}>{t('hls_open_in', {app: item.externalApp ?? '1DM'})}</Text>
+              <Text style={styles.openOneDMTxt}>{t('hls_open_in', {app: item.externalApp ?? (Platform.OS === 'ios' ? 'Outplayer' : '1DM')})}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.actions}>

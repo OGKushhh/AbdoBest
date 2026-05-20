@@ -1,4 +1,5 @@
 import axios from 'axios';
+import {Platform, Linking} from 'react-native';
 import {GITHUB_RELEASES_URL, APP_VERSION} from '../constants/endpoints';
 import {storage} from '../storage/Storage';
 
@@ -56,21 +57,23 @@ export const checkForUpdate = async (): Promise<ReleaseInfo | null> => {
       return null;
     }
 
-    // Find APK asset
-    const apkAsset = release.assets?.find(
-      (asset: any) =>
-        asset.name.endsWith('.apk') ||
-        asset.content_type === 'application/vnd.android.package-archive'
-    );
+    // Find the right asset for this platform
+    const asset = Platform.OS === 'ios'
+      ? release.assets?.find((a: any) => a.name.endsWith('.ipa'))
+      : release.assets?.find(
+          (a: any) =>
+            a.name.endsWith('.apk') ||
+            a.content_type === 'application/vnd.android.package-archive'
+        );
 
-    const downloadUrl = apkAsset?.browser_download_url || release.html_url;
+    const downloadUrl = asset?.browser_download_url || release.html_url;
 
     return {
       version: latestVersion,
       downloadUrl,
       changelog: release.body || '',
       publishedAt: release.published_at,
-      assetName: apkAsset?.name || 'AbdoBest.apk',
+      assetName: asset?.name || (Platform.OS === 'ios' ? 'AbdoBest.ipa' : 'AbdoBest.apk'),
     };
   } catch (error: any) {
     // Silently fail — update check shouldn't break the app
@@ -90,8 +93,5 @@ export const skipVersion = (version: string) => {
  * Open the update download URL in the device browser
  */
 export const openUpdateUrl = (url: string) => {
-  const {Linking} = require('react-native');
-  Linking.openURL(url).catch(() => {
-    Linking.openURL(url);
-  });
+  Linking.openURL(url).catch(() => {});
 };
