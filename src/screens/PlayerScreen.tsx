@@ -3,7 +3,7 @@ import {
   View, StyleSheet, TouchableOpacity, Text,
   ActivityIndicator, StatusBar, Animated, Image,
   I18nManager, Modal, GestureResponderEvent,
-  useWindowDimensions, ScrollView, Platform,
+  useWindowDimensions, ScrollView, Platform, NativeModules,
 } from 'react-native';
 import Video, { VideoRef, OnProgressData, OnBufferData } from 'react-native-video';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -18,7 +18,6 @@ import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
 // The actual Android lock is done via NativeModules.ActivityManager which
 // every RN app already has through the MainActivity.
 
-import { NativeModules, Platform } from 'react-native';
 
 /**
  * Lock screen orientation.
