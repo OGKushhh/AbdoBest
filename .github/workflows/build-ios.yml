@@ -83,12 +83,14 @@ jobs:
       - name: Bundle JS (unsigned path)
         if: env.HAS_CERT == 'false'
         run: |
+          # Bundle JS + copy all assets (icons, images, fonts) to a staging dir
+          mkdir -p ios/bundle-staging
           npx react-native bundle \
             --platform ios \
             --dev false \
             --entry-file index.js \
-            --bundle-output ios/main.jsbundle \
-            --assets-dest ios/
+            --bundle-output ios/bundle-staging/main.jsbundle \
+            --assets-dest ios/bundle-staging/
 
       - name: Build unsigned IPA
         if: env.HAS_CERT == 'false'
@@ -117,8 +119,13 @@ jobs:
             exit 1
           fi
 
-          # Inject the pre-built JS bundle into the archive app
-          cp ios/main.jsbundle "$APP_PATH/main.jsbundle"
+          # Inject JS bundle
+          cp ios/bundle-staging/main.jsbundle "$APP_PATH/main.jsbundle"
+
+          # Inject all assets (icons, images, fonts) preserving folder structure
+          if [ -d ios/bundle-staging/assets ]; then
+            cp -r ios/bundle-staging/assets "$APP_PATH/assets"
+          fi
 
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
