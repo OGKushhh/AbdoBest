@@ -1,4 +1,5 @@
 {
   "name": "AbdoBest",
-  "displayName": "AbdoBest"
+  "displayName": "AbdoBest",
+  "assets": ["assets/fonts/"]
 }
