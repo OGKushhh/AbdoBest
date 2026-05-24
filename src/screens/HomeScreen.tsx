@@ -42,6 +42,7 @@ const CATEGORIES = [
 
 // Category emoji icons for the browse grid
 const CAT_EMOJI: Record<string, string> = {
+  most_viewed: '🏆',
   'movies':         '🎬',
   'dubbed-movies':  '🎙️',
   'hindi':          '🎵',
@@ -279,7 +280,7 @@ const SectionRow: React.FC<{
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={sectionS.scrollContent}
       >
-        {items.slice(0, 10).map(item => (
+        {items.map(item => (
           <TouchableOpacity
             key={item.id}
             style={sectionS.card}
@@ -486,8 +487,23 @@ export const HomeScreen: React.FC = () => {
   }, [categoryData]);
 
   // ── Sections — now includes top items per category for horizontal scroll ───
+  // Most Viewed — top 7 across all categories (only enriched items with Views > 0)
+  const mostViewed = useMemo(() => {
+    const all: ContentItem[] = [];
+    for (const cat of CATEGORIES) {
+      for (const item of categoryData[cat] ?? []) {
+        if (parseInt((item as any).Views || '0', 10) > 0) all.push(item);
+      }
+    }
+    return all
+      .sort((a, b) =>
+        parseInt((b as any).Views || '0', 10) - parseInt((a as any).Views || '0', 10)
+      )
+      .slice(0, 7);
+  }, [categoryData]);
+
+  // Category sections — newest 7 per category, no sort (data arrives year-desc from load)
   const sections = useMemo(() => {
-    const sectionsArray: {cat: string; catLabel: string; items: ContentItem[]}[] = [];
     const catI18nKey = (cat: string) =>
       cat === 'dubbed-movies' ? 'dubbed_movies' :
       cat === 'asian-movies'  ? 'asian_movies'  :
@@ -495,34 +511,13 @@ export const HomeScreen: React.FC = () => {
       cat === 'asian-series'  ? 'asian_series'  :
       cat === 'arabic-series' ? 'arabic_series' : cat;
 
-    for (const cat of CATEGORIES) {
-      const items = categoryData[cat] ?? [];
-      if (!items.length) continue;
-
-      // Sort: most-viewed first, then most-recent for remainder
-      const byViews = [...items].sort((a, b) =>
-        parseInt((b as any).Views || '0', 10) - parseInt((a as any).Views || '0', 10)
-      );
-      const byYear = [...items].sort((a, b) => {
-        const ya = parseInt((a as any).Year || (a as any).ReleaseDate || '0', 10);
-        const yb = parseInt((b as any).Year || (b as any).ReleaseDate || '0', 10);
-        return (yb || 0) - (ya || 0);
-      });
-
-      // Merge: top viewed first, then top recent (deduplicated)
-      const seen = new Set<string>();
-      const merged: ContentItem[] = [];
-      for (const item of [...byViews.slice(0, 5), ...byYear.slice(0, 5)]) {
-        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
-      }
-
-      sectionsArray.push({
+    return CATEGORIES
+      .map(cat => ({
         cat,
         catLabel: t(catI18nKey(cat)),
-        items: merged,
-      });
-    }
-    return sectionsArray;
+        items: (categoryData[cat] ?? []).slice(0, 7),
+      }))
+      .filter(s => s.items.length > 0);
   }, [categoryData, t]);
 
   // ── Navigation (unchanged) ─────────────────────────────────────────────────
@@ -628,6 +623,17 @@ export const HomeScreen: React.FC = () => {
               <AdsterraBanner visible type="native" height={90} />
               <AdsterraBanner visible type="propeller" height={90} />
             </View>
+
+            {/* Most Viewed — top 7 across all categories */}
+            {mostViewed.length > 0 && (
+              <SectionRow
+                cat="most_viewed"
+                catLabel={t('most_viewed')}
+                items={mostViewed}
+                onPress={goDetails}
+                onSeeAll={() => {}}
+              />
+            )}
           </View>
         }
         renderItem={({item}) => (
