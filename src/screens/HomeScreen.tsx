@@ -22,7 +22,7 @@ import {getViewCount, getSeriesTotalViews} from '../services/api';
 import {retrySyncViews} from '../services/viewService';
 
 const {width: SW} = Dimensions.get('window');
-const HERO_H = SW * 0.68;
+const HERO_H = SW * 0.78;
 const SECTION_CARD_W = SW * 0.38;
 const SECTION_CARD_H = SECTION_CARD_W * 1.52;
 
@@ -55,13 +55,31 @@ const CAT_EMOJI: Record<string, string> = {
   'arabic-series':  '🌙',
 };
 
+// ── Shared year parser + newest-first sort ───────────────────────────────────
+const parseYear = (val: any): number => {
+  if (!val) return 0;
+  const n = parseInt(String(val).slice(0, 4), 10);
+  return isNaN(n) ? 0 : n;
+};
+
+const sortNewest = (items: ContentItem[]): ContentItem[] =>
+  [...items].sort((a, b) => {
+    const ya = parseYear((a as any).ReleaseDate || (a as any).Year);
+    const yb = parseYear((b as any).ReleaseDate || (b as any).Year);
+    if (ya !== yb) return yb - ya;
+    const sa = (a as any).last_scraped || '';
+    const sb = (b as any).last_scraped || '';
+    return sb.localeCompare(sa);
+  });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HeroBanner – auto-rotate + swipe, cinematic style
 // ─────────────────────────────────────────────────────────────────────────────
 const HeroBanner: React.FC<{
   items: ContentItem[];
   onPress: (item: ContentItem) => void;
-}> = ({items, onPress}) => {
+  insetTop?: number;
+}> = ({items, onPress, insetTop = 0}) => {
   const {t} = useTranslation();
   const flatListRef = useRef<FlatList>(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -149,14 +167,14 @@ const HeroBanner: React.FC<{
 
               {/* Quality badge — top right */}
               {quality ? (
-                <View style={heroS.qualityBadge}>
+                <View style={[heroS.qualityBadge, {top: insetTop + 56}]}>
                   <Text style={heroS.qualityTxt}>{quality}</Text>
                 </View>
               ) : null}
 
               {/* Rating badge — top left (keep existing position) */}
               {rating ? (
-                <View style={heroS.ratingBadge}>
+                <View style={[heroS.ratingBadge, {top: insetTop + 56}]}>
                   <Image
                     source={require('../../assets/icons/star.png')}
                     style={{width: 11, height: 11, tintColor: '#FFD700'}}
@@ -406,7 +424,7 @@ export const HomeScreen: React.FC = () => {
   // ── Background update (unchanged) ──────────────────────────────────────────
   const onBackgroundUpdate = useCallback<BackgroundUpdateCallback>(
     (category, freshData) => {
-      const freshItems = getMoviesArray(freshData as any);
+      const freshItems = sortNewest(getMoviesArray(freshData as any));
       setCategoryData(prev => ({...prev, [category]: freshItems}));
     },
     [],
@@ -424,7 +442,7 @@ export const HomeScreen: React.FC = () => {
         ),
       );
       const map: Record<string, ContentItem[]> = {};
-      for (const r of results) map[r.cat] = r.items;
+      for (const r of results) map[r.cat] = sortNewest(r.items);
       setCategoryData(map);
 
       const enrich = async () => {
@@ -480,10 +498,12 @@ export const HomeScreen: React.FC = () => {
     loadData(true);
   }, [loadData]);
 
-  // ── Hero items (unchanged) ─────────────────────────────────────────────────
+  // ── Hero items — data pre-sorted by sortNewest() in loadData, just filter ───
   const heroItems = useMemo(() => {
     const movies = categoryData['movies'] ?? [];
-    return movies.filter(i => !!(i['Image Source'] || (i as any).Image)).slice(0, 5);
+    return movies
+      .filter(i => !!(i['Image Source'] || (i as any).Image))
+      .slice(0, 5);
   }, [categoryData]);
 
   // ── Sections — now includes top items per category for horizontal scroll ───
@@ -616,7 +636,7 @@ export const HomeScreen: React.FC = () => {
         ListHeaderComponent={
           <View>
             {/* Hero — no top padding, goes edge to edge */}
-            {heroItems.length > 0 && <HeroBanner items={heroItems} onPress={goDetails} />}
+            {heroItems.length > 0 && <HeroBanner items={heroItems} onPress={goDetails} insetTop={insets.top} />}
 
             {/* Ads */}
             <View style={{marginTop: 8, marginBottom: 4}}>
