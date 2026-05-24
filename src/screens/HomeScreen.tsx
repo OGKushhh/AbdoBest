@@ -780,14 +780,14 @@ const heroS = StyleSheet.create({
   leftCol: {
     flexShrink: 0, gap: 6,
   },
-  // Meta pills (year + duration)
+  // Meta pills (year + duration) — dark background like titleBadge for readability
   metaPills: {flexDirection: 'row', gap: 5, flexWrap: 'wrap'},
   metaPill: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },
-  metaPillTxt: {color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600', fontFamily: 'Rubik'},
+  metaPillTxt: {color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
   // Compact play button
   playBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -796,16 +796,16 @@ const heroS = StyleSheet.create({
     borderRadius: 10, gap: 6, alignSelf: 'flex-start',
   },
   playTxt: {color: '#fff', fontSize: 13, fontWeight: '700', fontFamily: 'Rubik'},
-  // Right column — frosted glass description badge
+  // Right column — dark background like titleBadge for readability
   descBadge: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
     justifyContent: 'center',
   },
   descTxt: {
-    color: 'rgba(255,255,255,0.78)', fontSize: 11, lineHeight: 16,
+    color: 'rgba(255,255,255,0.9)', fontSize: 11, lineHeight: 16,
     fontFamily: 'Rubik', fontWeight: '400',
   },
   // Progress bars
