@@ -319,8 +319,10 @@ const SectionRow: React.FC<{
               <Text style={sectionS.itemTitle} numberOfLines={2}>
                 {(item.Title || '').replace(/\s*(مترجم|اون لاين|مسلسل|فيلم|online|مدبلج)\s*/gi, '').trim()}
               </Text>
-              {(item as any).Year ? (
-                <Text style={sectionS.year}>{String((item as any).Year).slice(0, 4)}</Text>
+              {((item as any).ReleaseDate || (item as any).Year) ? (
+                <Text style={sectionS.year}>
+                  {String((item as any).ReleaseDate || (item as any).Year).slice(0, 4)}
+                </Text>
               ) : null}
             </View>
           </TouchableOpacity>
