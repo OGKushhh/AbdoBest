@@ -125,6 +125,12 @@ const HeroBanner: React.FC<{
           const quality = item.Format || raw.quality || '';
           const imageSource = item['Image Source'] || raw.Image;
           const description = raw.description || raw.Description || '';
+          // Duration: prefer episodic field for series/anime, fall back to Runtime
+          const isEpisodic = ['series','tvshows','anime','asian-series','arabic-series']
+            .includes((item as any).Category || '');
+          const duration = isEpisodic
+            ? (raw.EpisodeDuration || raw.Runtime || '')
+            : (raw.Runtime || raw.EpisodeDuration || '');
 
           return (
             <TouchableOpacity
@@ -140,26 +146,27 @@ const HeroBanner: React.FC<{
               {/* Deep gradient overlay */}
               <View style={heroS.gradientOverlay} />
 
-              {/* Top badges */}
-              <View style={heroS.topBadgeRow}>
-                {quality ? (
-                  <View style={heroS.qualityBadge}>
-                    <Text style={heroS.qualityTxt}>{quality}</Text>
-                  </View>
-                ) : null}
-                {rating ? (
-                  <View style={heroS.ratingBadge}>
-                    <Image
-                      source={require('../../assets/icons/star.png')}
-                      style={{width: 11, height: 11, tintColor: '#FFD700'}}
-                    />
-                    <Text style={heroS.ratingTxt}>{rating}</Text>
-                  </View>
-                ) : null}
-              </View>
+              {/* Quality badge — top right */}
+              {quality ? (
+                <View style={heroS.qualityBadge}>
+                  <Text style={heroS.qualityTxt}>{quality}</Text>
+                </View>
+              ) : null}
+
+              {/* Rating badge — top left (keep existing position) */}
+              {rating ? (
+                <View style={heroS.ratingBadge}>
+                  <Image
+                    source={require('../../assets/icons/star.png')}
+                    style={{width: 11, height: 11, tintColor: '#FFD700'}}
+                  />
+                  <Text style={heroS.ratingTxt}>{rating}</Text>
+                </View>
+              ) : null}
 
               {/* Bottom content */}
               <View style={heroS.content}>
+                {/* 1. Genre pills */}
                 {genres.length > 0 && (
                   <View style={heroS.genreRow}>
                     {genres.map((g, i) => (
@@ -169,27 +176,47 @@ const HeroBanner: React.FC<{
                     ))}
                   </View>
                 )}
-                <Text style={heroS.title} numberOfLines={2}>{item.Title}</Text>
-                {(year || description) ? (
-                  <View style={heroS.metaRow}>
-                    {year ? <Text style={heroS.year}>{year}</Text> : null}
-                    {year && description ? <Text style={heroS.dot}>·</Text> : null}
-                    {description ? (
-                      <Text style={heroS.desc} numberOfLines={2}>{description}</Text>
-                    ) : null}
+                {/* 2. Title in tight dark badge */}
+                <View style={heroS.titleBadge}>
+                  <Text style={heroS.title} numberOfLines={2}>{item.Title}</Text>
+                </View>
+                {/* 3. Two-column row: left = meta pills + play btn, right = desc badge */}
+                <View style={heroS.bottomRow}>
+                  {/* Left column */}
+                  <View style={heroS.leftCol}>
+                    {/* Year + duration meta pills */}
+                    <View style={heroS.metaPills}>
+                      {year ? (
+                        <View style={heroS.metaPill}>
+                          <Text style={heroS.metaPillTxt}>{year}</Text>
+                        </View>
+                      ) : null}
+                      {duration ? (
+                        <View style={heroS.metaPill}>
+                          <Text style={heroS.metaPillTxt}>{duration}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {/* Compact play button */}
+                    <TouchableOpacity
+                      style={heroS.playBtn}
+                      onPress={() => onPress(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={require('../../assets/icons/play.png')}
+                        style={{width: 13, height: 13, tintColor: '#fff'}}
+                      />
+                      <Text style={heroS.playTxt}>{t('play')}</Text>
+                    </TouchableOpacity>
                   </View>
-                ) : null}
-                <TouchableOpacity
-                  style={heroS.playBtn}
-                  onPress={() => onPress(item)}
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    source={require('../../assets/icons/play.png')}
-                    style={{width: 16, height: 16, tintColor: '#fff'}}
-                  />
-                  <Text style={heroS.playTxt}>{t('play')}</Text>
-                </TouchableOpacity>
+                  {/* Right column — frosted description badge */}
+                  {description ? (
+                    <View style={heroS.descBadge}>
+                      <Text style={heroS.descTxt} numberOfLines={3}>{description}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             </TouchableOpacity>
           );
@@ -672,60 +699,90 @@ const heroS = StyleSheet.create({
   card: {width: SW, height: HERO_H, overflow: 'hidden'},
   gradientOverlay: {
     ...StyleSheet.absoluteFillObject,
-    // Deep bottom gradient using layered semi-transparent views
     backgroundColor: 'transparent',
-    // Bottom half darkens significantly
   },
-  topBadgeRow: {
-    position: 'absolute', top: 56, left: 16, right: 16,
-    flexDirection: 'row', gap: 8,
-  },
+  // Quality badge — floats top-right
   qualityBadge: {
+    position: 'absolute', top: 56, right: 16,
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 9, paddingVertical: 4,
     borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
   },
   qualityTxt: {color: '#fff', fontSize: 11, fontWeight: '800', fontFamily: 'Rubik'},
+  // Rating badge — floats top-left
   ratingBadge: {
+    position: 'absolute', top: 56, left: 16,
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 9, paddingVertical: 4,
     borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)',
   },
   ratingTxt: {color: '#FFD700', fontSize: 11, fontWeight: '700', fontFamily: 'Rubik'},
+  // Bottom content area
   content: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 20, paddingBottom: 40,
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    // Simulate gradient with multiple bg layers handled in overlay below
+    padding: 16, paddingBottom: 36,
   },
-  genreRow: {flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap'},
+  // 1. Genre pills row
+  genreRow: {flexDirection: 'row', gap: 6, marginBottom: 7, flexWrap: 'wrap'},
   genrePill: {
     backgroundColor: `${Colors.dark.primary}CC`,
     paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6,
   },
   genreTxt: {color: '#fff', fontSize: 11, fontWeight: '600', fontFamily: 'Rubik'},
+  // 2. Title badge — tight wrap, dark semi-transparent
+  titleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, marginBottom: 8,
+  },
   title: {
-    color: '#fff', fontSize: 24, fontWeight: '900',
-    fontFamily: 'Rubik', marginBottom: 6,
+    color: '#fff', fontSize: 20, fontWeight: '900',
+    fontFamily: 'Rubik',
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: {width: 0, height: 2},
-    textShadowRadius: 8,
+    textShadowRadius: 6,
   },
-  metaRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 14, flexWrap: 'wrap'},
-  year: {color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'Rubik', fontWeight: '600'},
-  dot: {color: 'rgba(255,255,255,0.4)', fontSize: 13},
-  desc: {flex: 1, color: 'rgba(255,255,255,0.65)', fontSize: 12, lineHeight: 17, fontFamily: 'Rubik'},
+  // 3. Two-column row
+  bottomRow: {
+    flexDirection: 'row', gap: 8, alignItems: 'stretch',
+  },
+  // Left column — fixed width, no grow
+  leftCol: {
+    flexShrink: 0, gap: 6,
+  },
+  // Meta pills (year + duration)
+  metaPills: {flexDirection: 'row', gap: 5, flexWrap: 'wrap'},
+  metaPill: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  metaPillTxt: {color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600', fontFamily: 'Rubik'},
+  // Compact play button
   playBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.dark.primary,
-    paddingVertical: 13, paddingHorizontal: 28,
-    borderRadius: 14, gap: 8, alignSelf: 'flex-start',
+    paddingVertical: 9, paddingHorizontal: 16,
+    borderRadius: 10, gap: 6, alignSelf: 'flex-start',
   },
-  playTxt: {color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Rubik'},
+  playTxt: {color: '#fff', fontSize: 13, fontWeight: '700', fontFamily: 'Rubik'},
+  // Right column — frosted glass description badge
+  descBadge: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
+    justifyContent: 'center',
+  },
+  descTxt: {
+    color: 'rgba(255,255,255,0.78)', fontSize: 11, lineHeight: 16,
+    fontFamily: 'Rubik', fontWeight: '400',
+  },
   // Progress bars
   progressRow: {
-    position: 'absolute', bottom: 14, left: 16, right: 16,
+    position: 'absolute', bottom: 12, left: 16, right: 16,
     flexDirection: 'row', gap: 5,
   },
   progressTrack: {
