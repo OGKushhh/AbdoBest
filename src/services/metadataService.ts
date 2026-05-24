@@ -192,7 +192,7 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
   if (!lowerQuery) return [];
 
   const availableCategories: ContentCategory[] = [
-    'movies', 'series', 'anime', 'tvshows', 'asian-series',
+    'movies', 'series', 'anime', 'tvshows', 'asian-series', 'arabic-series',
     'dubbed-movies', 'hindi', 'asian-movies',
   ];
   let allResults: ContentItem[] = [];
