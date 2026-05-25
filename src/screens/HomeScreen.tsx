@@ -22,6 +22,20 @@ import {getViewCount, getSeriesTotalViews} from '../services/api';
 import {retrySyncViews} from '../services/viewService';
 
 const {width: SW} = Dimensions.get('window');
+
+// ── Concurrency limiter — run at most `limit` promises at once ────────────────
+async function pLimit<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let idx = 0;
+  const run = async (): Promise<void> => {
+    if (idx >= tasks.length) return;
+    const i = idx++;
+    results[i] = await tasks[i]();
+    await run();
+  };
+  await Promise.all(Array.from({length: Math.min(limit, tasks.length)}, run));
+  return results;
+}
 const HERO_H = SW * 0.78;
 const SECTION_CARD_W = SW * 0.38;
 const SECTION_CARD_H = SECTION_CARD_W * 1.52;
@@ -85,14 +99,17 @@ const HeroBanner: React.FC<{
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const startProgress = useCallback(() => {
+    animRef.current?.stop();
     progressAnim.setValue(0);
-    Animated.timing(progressAnim, {
+    animRef.current = Animated.timing(progressAnim, {
       toValue: 1,
       duration: 5000,
       useNativeDriver: false,
-    }).start();
+    });
+    animRef.current.start();
   }, [progressAnim]);
 
   useEffect(() => {
@@ -101,8 +118,11 @@ const HeroBanner: React.FC<{
     timerRef.current = setInterval(() => {
       setActiveIdx(prev => (prev + 1) % items.length);
     }, 5000);
-    return () => clearInterval(timerRef.current);
-  }, [items.length]);
+    return () => {
+      clearInterval(timerRef.current);
+      animRef.current?.stop();
+    };
+  }, [items]);
 
   useEffect(() => {
     startProgress();
@@ -116,6 +136,7 @@ const HeroBanner: React.FC<{
     const idx = Math.round(offset / SW);
     if (idx !== activeIdx && idx >= 0 && idx < items.length) {
       clearInterval(timerRef.current);
+      animRef.current?.stop();
       setActiveIdx(idx);
       timerRef.current = setInterval(() => {
         setActiveIdx(prev => (prev + 1) % items.length);
@@ -401,6 +422,7 @@ export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   const [categoryData, setCategoryData] = useState<Record<string, ContentItem[]>>({});
+  const [mostViewed, setMostViewed] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -446,31 +468,57 @@ export const HomeScreen: React.FC = () => {
       setCategoryData(map);
 
       const enrich = async () => {
+        const updates: Record<string, ContentItem[]> = {};
+
+        // Movies — max 5 concurrent
         const movies = map['movies'] ?? [];
         if (movies.length) {
-          const enriched = await Promise.all(
-            movies.slice(0, 30).map(async item => {
-              try {
-                const v = await getViewCount('movies', item.id);
-                return v > 0 ? {...item, Views: String(v)} : item;
-              } catch { return item; }
-            })
-          );
-          setCategoryData(prev => ({...prev, movies: enriched}));
+          const tasks = movies.slice(0, 20).map(item => async () => {
+            try {
+              const v = await getViewCount('movies', item.id);
+              return v > 0 ? {...item, Views: String(v)} : item;
+            } catch { return item; }
+          });
+          updates['movies'] = await pLimit(tasks, 5);
+          setCategoryData(prev => ({...prev, movies: updates['movies']}));
         }
-        for (const cat of ['series','tvshows','anime','asian-series','arabic-series']) {
+
+        // All series categories — max 5 concurrent each, one final state update
+        for (const cat of ['series', 'tvshows', 'anime', 'asian-series', 'arabic-series']) {
           const arr = map[cat] ?? [];
           if (!arr.length) continue;
-          const enriched = await Promise.all(
-            arr.slice(0, 30).map(async item => {
-              try {
-                const v = await getSeriesTotalViews(cat, item.id);
-                return v > 0 ? {...item, Views: String(v)} : item;
-              } catch { return item; }
-            })
-          );
-          setCategoryData(prev => ({...prev, [cat]: enriched}));
+          const tasks = arr.slice(0, 20).map(item => async () => {
+            try {
+              const v = await getSeriesTotalViews(cat, item.id);
+              return v > 0 ? {...item, Views: String(v)} : item;
+            } catch { return item; }
+          });
+          updates[cat] = await pLimit(tasks, 5);
         }
+        // Single state update for all series categories
+        const seriesKeys = ['series', 'tvshows', 'anime', 'asian-series', 'arabic-series'];
+        const seriesUpdates = Object.fromEntries(
+          seriesKeys.filter(k => updates[k]).map(k => [k, updates[k]])
+        );
+        if (Object.keys(seriesUpdates).length) {
+          setCategoryData(prev => ({...prev, ...seriesUpdates}));
+        }
+
+        // Compute mostViewed once after all enrichment is done
+        const finalMap = {...map, ...updates};
+        const allViewed: ContentItem[] = [];
+        for (const cat of CATEGORIES) {
+          for (const item of finalMap[cat] ?? []) {
+            if (parseInt((item as any).Views || '0', 10) > 0) allViewed.push(item);
+          }
+        }
+        setMostViewed(
+          allViewed
+            .sort((a, b) =>
+              parseInt((b as any).Views || '0', 10) - parseInt((a as any).Views || '0', 10)
+            )
+            .slice(0, 7)
+        );
       };
       enrich().catch(() => {});
       retrySyncViews().catch(() => {});
@@ -507,22 +555,7 @@ export const HomeScreen: React.FC = () => {
   }, [categoryData]);
 
   // ── Sections — now includes top items per category for horizontal scroll ───
-  // Most Viewed — top 7 across all categories (only enriched items with Views > 0)
-  const mostViewed = useMemo(() => {
-    const all: ContentItem[] = [];
-    for (const cat of CATEGORIES) {
-      for (const item of categoryData[cat] ?? []) {
-        if (parseInt((item as any).Views || '0', 10) > 0) all.push(item);
-      }
-    }
-    return all
-      .sort((a, b) =>
-        parseInt((b as any).Views || '0', 10) - parseInt((a as any).Views || '0', 10)
-      )
-      .slice(0, 7);
-  }, [categoryData]);
-
-  // Category sections — newest 7 per category, no sort (data arrives year-desc from load)
+  // Category sections — newest 7 per category
   const sections = useMemo(() => {
     const catI18nKey = (cat: string) =>
       cat === 'dubbed-movies' ? 'dubbed_movies' :
