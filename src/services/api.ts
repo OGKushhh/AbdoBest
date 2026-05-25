@@ -155,30 +155,77 @@ export const getSeriesTotalViews = async (
   return r.data?.views ?? 0;
 };
 
+// ─── getAllViews — single-fetch snapshot with 10-min frontend cache ──────────
+//
+// Replaces the old per-title enrich() loop (up to 120 individual API calls).
+// Fetches the full view_counts map once, caches it in module memory for 10 min,
+// and derives the top-N leaderboard purely via array math — zero extra requests.
+//
+// Per-title live calls (getViewCount / getSeriesTotalViews / getEpisodeViewCount)
+// are intentionally kept for DetailsScreen and episode rows where real-time
+// accuracy matters. This function is only for HomeScreen's "Most Viewed" section.
+
+interface ViewEntry { category: string; id: string; views: number; }
+
+let _viewsCache: Record<string, number> | null = null;
+let _viewsCacheTs = 0;
+const VIEWS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 /**
- * Fetch global top-viewed items for a category.
- * The backend stores flat counts: { "category:id": N }
- * We GET /api/view/<category>/<id> for each, so instead we use
- * the search endpoint to get items, then sort by views from storage.
- *
- * Practical shortcut: load a category dict from metadata and sort
- * by the `Views` field already embedded in each item.
+ * Fetch the entire view_counts map from the backend in one request.
+ * Result is cached in module memory for 10 minutes.
+ * On cache hit: returns instantly with zero network usage.
+ * On cache miss / expiry: fetches /api/views/all and repopulates.
  */
-export const fetchTopViewed = async (
-  category: string,
-  ids: string[],
-  limit = 20,
-): Promise<Array<{id: string; category: string; views: number}>> => {
-  if (!ids.length) return [];
-  // Fetch view counts in parallel (batch, max 20)
-  const sample = ids.slice(0, Math.min(ids.length, 40));
-  const results = await Promise.allSettled(
-    sample.map(id => getViewCount(category, id).then(v => ({id, category, views: v})))
-  );
-  return results
-    .filter((r): r is PromiseFulfilledResult<{id: string; category: string; views: number}> => r.status === 'fulfilled')
-    .map(r => r.value)
-    .filter(r => r.views > 0)
-    .sort((a, b) => b.views - a.views)
-    .slice(0, limit);
+export const getAllViews = async (force = false): Promise<ViewEntry[]> => {
+  const now = Date.now();
+  const isExpired = now - _viewsCacheTs > VIEWS_CACHE_TTL;
+
+  if (!force && _viewsCache !== null && !isExpired) {
+    return _buildLeaderboard(_viewsCache);
+  }
+
+  const r = await api.get<Record<string, number>>('/api/views/all');
+  _viewsCache = r.data ?? {};
+  _viewsCacheTs = now;
+
+  return _buildLeaderboard(_viewsCache);
+};
+
+/**
+ * Invalidate the in-memory cache — call after a local play is recorded
+ * so the next getAllViews() reflects the incremented count.
+ */
+export const invalidateViewsCache = (): void => {
+  _viewsCacheTs = 0;
+};
+
+/**
+ * Parse the raw flat map { "category:id": N, "category:id:s1ep2": N, ... }
+ * into a sorted leaderboard of title-level entries only.
+ * Episode-level keys (contain :s\dep\d pattern) are intentionally excluded —
+ * those are subsets already reflected in the parent title key.
+ */
+const EPISODE_KEY_RE = /:s\d+ep\d+/;
+
+const _buildLeaderboard = (raw: Record<string, number>): ViewEntry[] => {
+  const entries: ViewEntry[] = [];
+
+  for (const [key, views] of Object.entries(raw)) {
+    // Skip episode-level keys e.g. "series:3223:s2ep9"
+    if (EPISODE_KEY_RE.test(key)) continue;
+    // Skip legacy URL-based keys e.g. "series:https://..."
+    if (key.includes('https:') || key.includes('http:')) continue;
+
+    const colonIdx = key.indexOf(':');
+    if (colonIdx === -1) continue;
+
+    const category = key.slice(0, colonIdx);
+    const id = key.slice(colonIdx + 1);
+    if (!category || !id || views <= 0) continue;
+
+    entries.push({category, id, views});
+  }
+
+  return entries.sort((a, b) => b.views - a.views);
 };
