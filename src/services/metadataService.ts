@@ -234,38 +234,50 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
     'movies', 'series', 'anime', 'tvshows', 'asian-series', 'arabic-series',
     'dubbed-movies', 'hindi', 'asian-movies',
   ];
-  let allResults: ContentItem[] = [];
+
+  const matches: ContentItem[] = [];
+  const seen = new Set<string>();
+
+  const testItem = (item: ContentItem): boolean =>
+    !!(item.Title?.toLowerCase().includes(lowerQuery) ||
+    item.Genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
+    item.GenresAr?.some(g => g.toLowerCase().includes(lowerQuery)) ||
+    item.Country?.toLowerCase().includes(lowerQuery));
 
   for (const cat of availableCategories) {
+    // ── Runtime cache hit: search in memory, zero disk IO ──────────────────
+    const cached = _runtimeCache.get(cat);
+    if (cached) {
+      for (const item of cached) {
+        if (matches.length >= 60) break;
+        if (!seen.has(item.id) && testItem(item)) {
+          seen.add(item.id);
+          matches.push(item);
+        }
+      }
+      if (matches.length >= 60) break;
+      continue;
+    }
+
+    // ── Cache miss: fall back to disk (first launch before HomeScreen loads) ─
     let data = await getMetadataAnyAge(cat);
     if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-      try {
-        data = await loadCategory(cat, false);
-      } catch {
-        continue;
-      }
+      try { data = await loadCategory(cat, false); } catch { continue; }
     }
     if (!data || typeof data !== 'object') continue;
 
     const items = Object.values(data) as ContentItem[];
     for (const item of items) {
-      const titleMatch   = item.Title?.toLowerCase().includes(lowerQuery);
-      const genreMatch   = item.Genres?.some(g => g.toLowerCase().includes(lowerQuery));
-      const genreArMatch = item.GenresAr?.some(g => g.toLowerCase().includes(lowerQuery));
-      const countryMatch = item.Country?.toLowerCase().includes(lowerQuery);
-      if (titleMatch || genreMatch || genreArMatch || countryMatch) {
-        allResults.push(item);
+      if (matches.length >= 60) break;
+      if (!seen.has(item.id) && testItem(item)) {
+        seen.add(item.id);
+        matches.push(item);
       }
     }
-    if (allResults.length >= 60) break;
+    if (matches.length >= 60) break;
   }
 
-  const seen = new Set<string>();
-  return allResults.filter(item => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
+  return matches;
 };
 
 export const searchContentInDict = (movies: ContentDict, query: string): ContentItem[] => {

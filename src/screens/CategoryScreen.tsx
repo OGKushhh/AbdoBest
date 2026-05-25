@@ -23,6 +23,7 @@ import { CATEGORIES } from '../constants/categories';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'react-native';
 import { getAllViews } from '../services/api';
+import { localizeGenre, localizeGenres } from '../i18n/genres';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PAGE_SIZE = 30;
@@ -37,21 +38,23 @@ const SORT_OPTIONS = [
 // Hoisted sort helpers (work with ContentItem, using capitalized fields)
 const sortByYearDesc = (items: ContentItem[]) =>
   [...items].sort((a, b) => {
-    const ya = (a as any).ReleaseDate || (a as any).Year || '';
-    const yb = (b as any).ReleaseDate || (b as any).Year || '';
-    if (!ya && !yb) return 0;
-    if (!ya) return 1;
-    if (!yb) return -1;
-    return parseInt(yb, 10) - parseInt(ya, 10);
+    const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
+    const yb = parseInt((b as any).ReleaseDate || (b as any).Year || '0', 10);
+    if (yb !== ya) return yb - ya;
+    // Same year — tiebreak by last_scraped ISO timestamp (newer first)
+    const sa = (a as any).last_scraped || '';
+    const sb = (b as any).last_scraped || '';
+    return sb.localeCompare(sa);
   });
 const sortByYearAsc = (items: ContentItem[]) =>
   [...items].sort((a, b) => {
-    const ya = (a as any).ReleaseDate || (a as any).Year || '';
-    const yb = (b as any).ReleaseDate || (b as any).Year || '';
-    if (!ya && !yb) return 0;
-    if (!ya) return 1;
-    if (!yb) return -1;
-    return parseInt(ya, 10) - parseInt(yb, 10);
+    const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
+    const yb = parseInt((b as any).ReleaseDate || (b as any).Year || '0', 10);
+    if (ya !== yb) return ya - yb;
+    // Same year — tiebreak by last_scraped ISO timestamp (newer first)
+    const sa = (a as any).last_scraped || '';
+    const sb = (b as any).last_scraped || '';
+    return sb.localeCompare(sa);
   });
 const sortByAZ = (items: ContentItem[]) =>
   [...items].sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
@@ -92,6 +95,7 @@ export const CategoryScreen: React.FC = () => {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedSort, setSelectedSort] = useState<string>('year_desc');
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [ramadanFilter, setRamadanFilter] = useState<boolean>(false);
 
   const [visibleItems, setVisibleItems] = useState<ContentItem[]>([]);
@@ -133,6 +137,7 @@ export const CategoryScreen: React.FC = () => {
 
       setSelectedGenre(null);
       setSelectedYear(null);
+      setSelectedCountry(null);
       setRamadanFilter(false);
       setSelectedSort('year_desc');
       setSearchQuery('');
@@ -180,14 +185,23 @@ export const CategoryScreen: React.FC = () => {
       );
     }
     if (selectedGenre) {
-      const cleanGenre = selectedGenre.replace(/^[\p{Emoji}\s]+/u, '').trim();
+      // Normalize selected genre to both EN and AR equivalents for robust matching
+      const enKey = localizeGenre(selectedGenre, 'en').toLowerCase();
+      const arKey = localizeGenre(selectedGenre, 'ar').toLowerCase();
       result = result.filter(item =>
-        item.Genres?.some(g => g.toLowerCase().includes(cleanGenre)) ||
-        item.GenresAr?.some(g => g.toLowerCase().includes(cleanGenre))
+        item.Genres?.some(g => g.toLowerCase() === enKey || g.toLowerCase() === arKey) ||
+        item.GenresAr?.some(g => g.toLowerCase() === enKey || g.toLowerCase() === arKey)
       );
     }
     if (selectedYear) {
-      result = result.filter(item => (item as any).Year === selectedYear);
+      result = result.filter(item =>
+        String((item as any).ReleaseDate || (item as any).Year || '').slice(0, 4) === selectedYear
+      );
+    }
+    if (selectedCountry) {
+      result = result.filter(item =>
+        item.Country?.toLowerCase() === selectedCountry.toLowerCase()
+      );
     }
     if (ramadanFilter) {
       result = result.filter(item => !!(item as any).IsRamadan);
@@ -199,12 +213,12 @@ export const CategoryScreen: React.FC = () => {
       case 'rating_desc': return sortByRatingDesc(result);
       default: return sortByYearDesc(result);
     }
-  }, [allItems, debouncedQuery, selectedGenre, selectedYear, ramadanFilter, selectedSort]);
+  }, [allItems, debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenre, selectedYear, ramadanFilter, selectedSort]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 
   useEffect(() => {
     const end = page * PAGE_SIZE;
@@ -231,17 +245,39 @@ export const CategoryScreen: React.FC = () => {
     setSelectedCategory(cat);
     setSelectedGenre(null);
     setSelectedYear(null);
+    setSelectedCountry(null);
     setSelectedSort('year_desc');
     setSearchQuery('');
     setDebouncedQuery('');
     setShowFilterPopup(false);
   }, []);
 
-  // Available genres and years from current items
+  // Available genres — localized to current language, deduped
   const availableGenres = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    allItems.forEach(item => {
+      const raw = lang === 'ar'
+        ? [...(item.GenresAr || []), ...(item.Genres || [])]
+        : [...(item.Genres || []), ...(item.GenresAr || [])];
+      raw.forEach(g => {
+        const localized = localizeGenre(g, lang as 'ar' | 'en');
+        if (localized && !seen.has(localized)) {
+          seen.add(localized);
+          result.push(localized);
+        }
+      });
+    });
+    return result.sort((a, b) => a.localeCompare(b));
+  }, [allItems, lang]);
+
+  const availableCountries = useMemo(() => {
     const s = new Set<string>();
-    allItems.forEach(item => (item.Genres || []).forEach(g => s.add(g)));
-    return Array.from(s).sort();
+    allItems.forEach(item => {
+      const c = item.Country?.trim();
+      if (c) s.add(c);
+    });
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [allItems]);
 
   const availableYears = useMemo(() => {
@@ -260,8 +296,8 @@ export const CategoryScreen: React.FC = () => {
 
   const catConfig = CATEGORIES.find(c => c.key === selectedCategory);
   const screenTitle = catConfig ? (lang === 'ar' ? catConfig.labelAr : catConfig.labelEn) : t(selectedCategory);
-  const activeFilterCount = (selectedGenre ? 1 : 0) + (selectedYear ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
-  const clearFilters = useCallback(() => { setSelectedGenre(null); setSelectedYear(null); setRamadanFilter(false); setSelectedSort('year_desc'); }, []);
+  const activeFilterCount = (selectedGenre ? 1 : 0) + (selectedYear ? 1 : 0) + (selectedCountry ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
+  const clearFilters = useCallback(() => { setSelectedGenre(null); setSelectedYear(null); setSelectedCountry(null); setRamadanFilter(false); setSelectedSort('year_desc'); }, []);
   const closeFilterPopup = useCallback(() => setShowFilterPopup(false), []);
 
   if (loading) return <LoadingSpinner />;
@@ -324,6 +360,7 @@ export const CategoryScreen: React.FC = () => {
         <View style={[styles.activeFiltersRow, isRTL && styles.rowRTL]}>
           {selectedGenre && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedGenre(null)}><Text style={styles.activeChipText}>{selectedGenre}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {selectedYear && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedYear(null)}><Text style={styles.activeChipText}>{selectedYear}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
+          {selectedCountry && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedCountry(null)}><Text style={styles.activeChipText}>{selectedCountry}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {ramadanFilter && <TouchableOpacity style={[styles.activeChip, {borderColor: '#C9A84C'}]} onPress={() => setRamadanFilter(false)}><Text style={[styles.activeChipText, {color: '#C9A84C'}]}>🌙 رمضان</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {selectedSort !== 'year_desc' && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedSort('year_desc')}><Text style={styles.activeChipText}>{t(selectedSort)}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           <TouchableOpacity onPress={clearFilters}><Text style={styles.clearAllText}>{t('cancel')}</Text></TouchableOpacity>
@@ -396,6 +433,22 @@ export const CategoryScreen: React.FC = () => {
                     {availableYears.map(year => (
                       <TouchableOpacity key={year} style={[styles.filterOptionChip, selectedYear === year && styles.filterOptionChipActive]} onPress={() => setSelectedYear(selectedYear === year ? null : year)}>
                         <Text style={[styles.filterOptionText, selectedYear === year && styles.filterOptionTextActive]}>{year}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {availableCountries.length > 0 && (
+                <>
+                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('country')}</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptionsRow}>
+                    <TouchableOpacity style={[styles.filterOptionChip, !selectedCountry && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(null)}>
+                      <Text style={[styles.filterOptionText, !selectedCountry && styles.filterOptionTextActive]}>{t('all')}</Text>
+                    </TouchableOpacity>
+                    {availableCountries.map(country => (
+                      <TouchableOpacity key={country} style={[styles.filterOptionChip, selectedCountry === country && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(selectedCountry === country ? null : country)}>
+                        <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>

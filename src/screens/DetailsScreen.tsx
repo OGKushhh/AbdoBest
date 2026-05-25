@@ -1055,10 +1055,7 @@ export const DetailsScreen: React.FC = () => {
             <View style={rowS.row}>
               <Text style={rowS.label}>{t('genres')}</Text>
               <View style={{flex: 2, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6}}>
-                {(lang === 'ar'
-                  ? (item.GenresAr?.length ? item.GenresAr : item.Genres)
-                  : (item.Genres?.length   ? item.Genres   : item.GenresAr)
-                )?.map((g: string, i: number) => (
+                {genresDisplay.map((g: string, i: number) => (
                   <TouchableOpacity
                     key={i}
                     style={rowS.genreChip}
