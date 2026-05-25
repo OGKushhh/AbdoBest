@@ -34,13 +34,31 @@ export type BackgroundUpdateCallback = (
 // ─────────────────────────────────────────────────────────────────────────────
 const _runtimeCache = new Map<string, ContentItem[]>();
 
+// ─── Shared sort helper — used at store time so data is always pre-sorted ────
+// Exported so HomeScreen and CategoryScreen can import instead of duplicating.
+const _parseYear = (val: any): number => {
+  if (!val) return 0;
+  const n = parseInt(String(val).slice(0, 4), 10);
+  return isNaN(n) ? 0 : n;
+};
+
+export const sortByNewest = (items: ContentItem[]): ContentItem[] =>
+  [...items].sort((a, b) => {
+    const ya = _parseYear((a as any).ReleaseDate || (a as any).Year);
+    const yb = _parseYear((b as any).ReleaseDate || (b as any).Year);
+    if (ya !== yb) return yb - ya;
+    const sa = (a as any).last_scraped || '';
+    const sb = (b as any).last_scraped || '';
+    return sb.localeCompare(sa);
+  });
+
 /** Read from runtime cache. Returns null if not yet populated. */
 export const getRuntimeCache = (category: string): ContentItem[] | null =>
   _runtimeCache.get(category) ?? null;
 
-/** Populate runtime cache — called internally after every successful load. */
+/** Populate runtime cache — sort once here so callers never need to sort again. */
 const _setRuntimeCache = (category: string, items: ContentItem[]): void => {
-  _runtimeCache.set(category, items);
+  _runtimeCache.set(category, sortByNewest(items));
 };
 
 /** Invalidate one or all entries — called on force refresh. */

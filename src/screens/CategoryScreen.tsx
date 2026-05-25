@@ -9,11 +9,11 @@ import React, {
 import {
   View, StyleSheet, FlatList, Text, TouchableOpacity,
   TextInput, StatusBar, Modal, ScrollView, Dimensions,
-  ActivityIndicator,
+  ActivityIndicator, InteractionManager,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { loadCategory, getMoviesArray, getRuntimeCache, clearRuntimeCache } from '../services/metadataService';
+import { loadCategory, getMoviesArray, getRuntimeCache, clearRuntimeCache, sortByNewest } from '../services/metadataService';
 import { ContentItem } from '../types';
 import { MovieCard, CARD_WIDTH } from '../components/MovieCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -36,16 +36,6 @@ const SORT_OPTIONS = [
 ] as const;
 
 // Hoisted sort helpers (work with ContentItem, using capitalized fields)
-const sortByYearDesc = (items: ContentItem[]) =>
-  [...items].sort((a, b) => {
-    const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
-    const yb = parseInt((b as any).ReleaseDate || (b as any).Year || '0', 10);
-    if (yb !== ya) return yb - ya;
-    // Same year — tiebreak by last_scraped ISO timestamp (newer first)
-    const sa = (a as any).last_scraped || '';
-    const sb = (b as any).last_scraped || '';
-    return sb.localeCompare(sa);
-  });
 const sortByYearAsc = (items: ContentItem[]) =>
   [...items].sort((a, b) => {
     const ya = parseInt((a as any).ReleaseDate || (a as any).Year || '0', 10);
@@ -123,51 +113,53 @@ export const CategoryScreen: React.FC = () => {
 
   // Load data — runtimeCache first (instant), disk fallback, network last
   const loadCategoryData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      // ── Runtime cache hit: HomeScreen already loaded this, use it instantly ──
-      const cached = getRuntimeCache(selectedCategory);
-      const itemsArray: ContentItem[] = cached
-        ? cached
-        : getMoviesArray((await loadCategory(selectedCategory as any)) as any);
+    // Defer all heavy work until after the navigation animation completes.
+    // This is the key ANR fix — sort + parse + setAllItems were firing during
+    // the screen transition and blocking the JS thread.
+    InteractionManager.runAfterInteractions(async () => {
+      try {
+        // ── Runtime cache hit: HomeScreen already loaded this, pre-sorted ──
+        const cached = getRuntimeCache(selectedCategory);
+        const itemsArray: ContentItem[] = cached
+          ? cached  // already sorted by _setRuntimeCache — no sort needed
+          : sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
 
-      const sorted = sortByYearDesc(itemsArray);
+        setSelectedGenre(null);
+        setSelectedYear(null);
+        setSelectedCountry(null);
+        setRamadanFilter(false);
+        setSelectedSort('year_desc');
+        setSearchQuery('');
+        setDebouncedQuery('');
+        setHasMore(true);
+        setPage(1);
+        setAllItems(itemsArray);
 
-      setSelectedGenre(null);
-      setSelectedYear(null);
-      setSelectedCountry(null);
-      setRamadanFilter(false);
-      setSelectedSort('year_desc');
-      setSearchQuery('');
-      setDebouncedQuery('');
-      setHasMore(true);
-      setPage(1);
-      setAllItems(sorted);
+        // ── Views enrichment — getAllViews() cache hit (10 min TTL, free from HomeScreen) ──
+        getAllViews().then(leaderboard => {
+          const viewMap = new Map(
+            leaderboard
+              .filter(e => e.category === selectedCategory)
+              .map(e => [e.id, e.views])
+          );
+          if (!viewMap.size) return;
+          setAllItems(prev =>
+            prev.map(item => {
+              const v = viewMap.get(item.id);
+              return v ? {...item, Views: String(v)} : item;
+            })
+          );
+        }).catch(() => {});
 
-      // ── Views enrichment — getAllViews() cache hit (10 min TTL, free from HomeScreen) ──
-      // Replaces 60 individual getViewCount/getSeriesTotalViews API calls.
-      getAllViews().then(leaderboard => {
-        const viewMap = new Map(
-          leaderboard
-            .filter(e => e.category === selectedCategory)
-            .map(e => [e.id, e.views])
-        );
-        if (!viewMap.size) return;
-        setAllItems(prev =>
-          prev.map(item => {
-            const v = viewMap.get(item.id);
-            return v ? {...item, Views: String(v)} : item;
-          })
-        );
-      }).catch(() => {});
-
-    } catch (err: any) {
-      setError(err.message || t('error_loading'));
-    } finally {
-      setLoading(false);
-    }
+      } catch (err: any) {
+        setError(err.message || t('error_loading'));
+      } finally {
+        setLoading(false);
+      }
+    });
   }, [selectedCategory, t]);
 
   useEffect(() => { loadCategoryData(); }, [loadCategoryData]);
@@ -211,7 +203,7 @@ export const CategoryScreen: React.FC = () => {
       case 'za': return sortByZA(result);
       case 'year_asc': return sortByYearAsc(result);
       case 'rating_desc': return sortByRatingDesc(result);
-      default: return sortByYearDesc(result);
+      default: return sortByNewest(result);
     }
   }, [allItems, debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 

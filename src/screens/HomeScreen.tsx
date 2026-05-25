@@ -12,7 +12,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTranslation} from 'react-i18next';
 import {
   loadCategory, getMoviesArray, searchContent,
-  BackgroundUpdateCallback, clearRuntimeCache,
+  BackgroundUpdateCallback, clearRuntimeCache, sortByNewest,
 } from '../services/metadataService';
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
@@ -56,23 +56,6 @@ const CAT_EMOJI: Record<string, string> = {
   'asian-series':   '🌸',
   'arabic-series':  '🌙',
 };
-
-// ── Shared year parser + newest-first sort ───────────────────────────────────
-const parseYear = (val: any): number => {
-  if (!val) return 0;
-  const n = parseInt(String(val).slice(0, 4), 10);
-  return isNaN(n) ? 0 : n;
-};
-
-const sortNewest = (items: ContentItem[]): ContentItem[] =>
-  [...items].sort((a, b) => {
-    const ya = parseYear((a as any).ReleaseDate || (a as any).Year);
-    const yb = parseYear((b as any).ReleaseDate || (b as any).Year);
-    if (ya !== yb) return yb - ya;
-    const sa = (a as any).last_scraped || '';
-    const sb = (b as any).last_scraped || '';
-    return sb.localeCompare(sa);
-  });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HeroBanner – auto-rotate + swipe, cinematic style
@@ -434,7 +417,7 @@ export const HomeScreen: React.FC = () => {
   // ── Background update (unchanged) ──────────────────────────────────────────
   const onBackgroundUpdate = useCallback<BackgroundUpdateCallback>(
     (category, freshData) => {
-      const freshItems = sortNewest(getMoviesArray(freshData as any));
+      const freshItems = sortByNewest(getMoviesArray(freshData as any));
       setCategoryData(prev => ({...prev, [category]: freshItems}));
     },
     [],
@@ -452,7 +435,7 @@ export const HomeScreen: React.FC = () => {
         ),
       );
       const map: Record<string, ContentItem[]> = {};
-      for (const r of results) map[r.cat] = sortNewest(r.items);
+      for (const r of results) map[r.cat] = sortByNewest(r.items);
       setCategoryData(map);
 
       // ── Most Viewed — 1 fetch, pure array math, no per-title API calls ──────
@@ -502,7 +485,7 @@ export const HomeScreen: React.FC = () => {
     loadData(true);
   }, [loadData]);
 
-  // ── Hero items — data pre-sorted by sortNewest() in loadData, just filter ───
+  // ── Hero items — data pre-sorted by sortByNewest() in loadData, just filter ───
   const heroItems = useMemo(() => {
     const movies = categoryData['movies'] ?? [];
     return movies
