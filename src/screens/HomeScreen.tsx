@@ -12,7 +12,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTranslation} from 'react-i18next';
 import {
   loadCategory, getMoviesArray, searchContent,
-  BackgroundUpdateCallback,
+  BackgroundUpdateCallback, clearRuntimeCache,
 } from '../services/metadataService';
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
@@ -498,6 +498,7 @@ export const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     invalidateViewsCache();
+    clearRuntimeCache();   // force CategoryScreen to re-read fresh data
     loadData(true);
   }, [loadData]);
 

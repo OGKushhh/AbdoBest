@@ -25,6 +25,31 @@ export type BackgroundUpdateCallback = (
 ) => void;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// _runtimeCache — module-level in-memory store
+//
+// After any category loads (from disk or network), the parsed + sorted array
+// is stashed here. CategoryScreen checks this first — if populated by
+// HomeScreen on launch, it gets the data instantly with zero disk reads,
+// zero JSON.parse, and zero sort. Survives navigation, cleared on force refresh.
+// ─────────────────────────────────────────────────────────────────────────────
+const _runtimeCache = new Map<string, ContentItem[]>();
+
+/** Read from runtime cache. Returns null if not yet populated. */
+export const getRuntimeCache = (category: string): ContentItem[] | null =>
+  _runtimeCache.get(category) ?? null;
+
+/** Populate runtime cache — called internally after every successful load. */
+const _setRuntimeCache = (category: string, items: ContentItem[]): void => {
+  _runtimeCache.set(category, items);
+};
+
+/** Invalidate one or all entries — called on force refresh. */
+export const clearRuntimeCache = (category?: string): void => {
+  if (category) _runtimeCache.delete(category);
+  else _runtimeCache.clear();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Internal: fetch from API, normalise, and write to cache
 // ─────────────────────────────────────────────────────────────────────────────
 const fetchAndCache = async (
@@ -95,14 +120,18 @@ export const loadCategory = async (
   onBackgroundUpdate?: BackgroundUpdateCallback,
 ): Promise<ContentDict | TrendingContent | null> => {
 
-  // ── Force refresh: skip cache entirely ──────────────────────────────────
+  // ── Force refresh: skip cache entirely, also clear runtime cache ───────────
   if (forceRefresh) {
+    _runtimeCache.delete(category);
     try {
-      return await fetchAndCache(category);
+      const fresh = await fetchAndCache(category);
+      if (fresh) _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+      return fresh;
     } catch (error: any) {
       console.warn(`[Metadata] Force-fetch failed for ${category}: ${error.message}`);
-      // Fall back to whatever is on disk
-      return getMetadataAnyAge(category);
+      const fallback = await getMetadataAnyAge(category);
+      if (fallback) _setRuntimeCache(category, getMoviesArray(fallback as ContentDict));
+      return fallback;
     }
   }
 
@@ -114,7 +143,10 @@ export const loadCategory = async (
   // ── Fresh cache: return immediately, no network ─────────────────────────
   if (!isStale) {
     const fresh = await getMetadataIfFresh(category);
-    if (fresh !== null) return fresh;
+    if (fresh !== null) {
+      _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+      return fresh;
+    }
   }
 
   // ── Stale or missing cache ──────────────────────────────────────────────
@@ -123,9 +155,13 @@ export const loadCategory = async (
   if (cached !== null && onBackgroundUpdate) {
     // Return stale cache immediately so the UI renders without waiting,
     // then fetch in the background and notify caller when fresh data arrives.
+    _setRuntimeCache(category, getMoviesArray(cached as ContentDict));
     fetchAndCache(category)
       .then(fresh => {
-        if (fresh) onBackgroundUpdate(category, fresh);
+        if (fresh) {
+          _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+          onBackgroundUpdate(category, fresh);
+        }
       })
       .catch(err => {
         console.warn(`[Metadata] Background fetch failed for ${category}: ${err.message}`);
@@ -136,7 +172,10 @@ export const loadCategory = async (
   if (cached !== null && !onBackgroundUpdate) {
     // Caller didn't supply a callback — return stale cache and silently
     // re-fetch so next call gets fresh data (fire-and-forget).
-    fetchAndCache(category).catch(() => {});
+    _setRuntimeCache(category, getMoviesArray(cached as ContentDict));
+    fetchAndCache(category)
+      .then(fresh => { if (fresh) _setRuntimeCache(category, getMoviesArray(fresh as ContentDict)); })
+      .catch(() => {});
     return cached;
   }
 

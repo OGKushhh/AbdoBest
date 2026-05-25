@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { loadCategory, getMoviesArray } from '../services/metadataService';
+import { loadCategory, getMoviesArray, getRuntimeCache, clearRuntimeCache } from '../services/metadataService';
 import { ContentItem } from '../types';
 import { MovieCard, CARD_WIDTH } from '../components/MovieCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -22,7 +22,7 @@ import { Colors } from '../theme/colors';
 import { CATEGORIES } from '../constants/categories';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'react-native';
-import { getViewCount, getSeriesTotalViews } from '../services/api';
+import { getAllViews } from '../services/api';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PAGE_SIZE = 30;
@@ -117,17 +117,20 @@ export const CategoryScreen: React.FC = () => {
     return () => clearTimeout(searchTimer.current!);
   }, [searchQuery]);
 
-  // Load data using loadCategory (full metadata)
+  // Load data — runtimeCache first (instant), disk fallback, network last
   const loadCategoryData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await loadCategory(selectedCategory as any);
-      const itemsArray = getMoviesArray(data as any);
+
+      // ── Runtime cache hit: HomeScreen already loaded this, use it instantly ──
+      const cached = getRuntimeCache(selectedCategory);
+      const itemsArray: ContentItem[] = cached
+        ? cached
+        : getMoviesArray((await loadCategory(selectedCategory as any)) as any);
+
       const sorted = sortByYearDesc(itemsArray);
-      // Reset all filter/sort state BEFORE setting items so that when
-      // `filtered` recomputes it sees clean state. Never setVisibleItems([])
-      // here — the pagination useEffect owns that once `filtered` updates.
+
       setSelectedGenre(null);
       setSelectedYear(null);
       setRamadanFilter(false);
@@ -136,29 +139,25 @@ export const CategoryScreen: React.FC = () => {
       setDebouncedQuery('');
       setHasMore(true);
       setPage(1);
-      setAllItems(sorted); // last — triggers filtered recompute with fresh state
+      setAllItems(sorted);
 
-      // Enrich top 60 items with view counts in background
-      const episodic = ['series','tvshows','anime','asian-series','arabic-series'].includes(selectedCategory);
-      Promise.allSettled(
-        sorted.slice(0, 60).map(async item => {
-          try {
-            const v = episodic
-              ? await getSeriesTotalViews(selectedCategory, item.id)
-              : await getViewCount(selectedCategory, item.id);
-            return v > 0 ? {...item, Views: String(v)} : item;
-          } catch { return item; }
-        })
-      ).then(results => {
-        const enriched = results.map((r, i) =>
-          r.status === 'fulfilled' ? r.value : sorted[i]
+      // ── Views enrichment — getAllViews() cache hit (10 min TTL, free from HomeScreen) ──
+      // Replaces 60 individual getViewCount/getSeriesTotalViews API calls.
+      getAllViews().then(leaderboard => {
+        const viewMap = new Map(
+          leaderboard
+            .filter(e => e.category === selectedCategory)
+            .map(e => [e.id, e.views])
         );
-        setAllItems(prev => {
-          // Merge enriched into the full list (tail stays unchanged)
-          const tail = prev.slice(60);
-          return [...enriched, ...tail];
-        });
+        if (!viewMap.size) return;
+        setAllItems(prev =>
+          prev.map(item => {
+            const v = viewMap.get(item.id);
+            return v ? {...item, Views: String(v)} : item;
+          })
+        );
       }).catch(() => {});
+
     } catch (err: any) {
       setError(err.message || t('error_loading'));
     } finally {
