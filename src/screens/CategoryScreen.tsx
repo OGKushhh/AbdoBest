@@ -6,6 +6,7 @@
 import React, {
   useState, useEffect, useMemo, useCallback, memo, useRef,
 } from 'react';
+import { unstable_batchedUpdates } from 'react-native';
 import {
   View, StyleSheet, FlatList, Text, TouchableOpacity,
   TextInput, StatusBar, Modal, ScrollView, Dimensions,
@@ -75,6 +76,7 @@ export const CategoryScreen: React.FC = () => {
   const lang = isRTL ? 'ar' : 'en';
 
   const [allItems, setAllItems] = useState<ContentItem[]>([]);
+  const allItemsRef = useRef<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(route.params?.category || 'movies');
@@ -113,12 +115,13 @@ export const CategoryScreen: React.FC = () => {
 
   // Load data — runtimeCache first (instant), disk fallback, network last
   const loadCategoryData = useCallback(async () => {
-    setLoading(true);
+    // Fix 1: Only show the full-screen spinner on first load (empty screen).
+    // On tab switches allItemsRef.current is already populated — don't unmount
+    // the UI by setting loading=true, which was causing the screen to tear down
+    // and remount on every category tap (the real ANR trigger).
+    if (allItemsRef.current.length === 0) setLoading(true);
     setError(null);
 
-    // Defer all heavy work until after the navigation animation completes.
-    // This is the key ANR fix — sort + parse + setAllItems were firing during
-    // the screen transition and blocking the JS thread.
     InteractionManager.runAfterInteractions(async () => {
       try {
         // ── Runtime cache hit: HomeScreen already loaded this, pre-sorted ──
@@ -127,16 +130,26 @@ export const CategoryScreen: React.FC = () => {
           ? cached  // already sorted by _setRuntimeCache — no sort needed
           : sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
 
-        setSelectedGenre(null);
-        setSelectedYear(null);
-        setSelectedCountry(null);
-        setRamadanFilter(false);
-        setSelectedSort('year_desc');
-        setSearchQuery('');
-        setDebouncedQuery('');
-        setHasMore(true);
-        setPage(1);
-        setAllItems(itemsArray);
+        allItemsRef.current = itemsArray;
+
+        // Fix 3: Batch all 10 setState calls into a single re-render.
+        // On old arch (Bridge) + async callbacks, React 18 does NOT
+        // auto-batch — each setState triggers its own render cycle,
+        // running all useMemos (filtered, availableGenres, availableYears,
+        // availableCountries) on thousands of items per call. One render instead of 10.
+        unstable_batchedUpdates(() => {
+          setSelectedGenre(null);
+          setSelectedYear(null);
+          setSelectedCountry(null);
+          setRamadanFilter(false);
+          setSelectedSort('year_desc');
+          setSearchQuery('');
+          setDebouncedQuery('');
+          setHasMore(true);
+          setPage(1);
+          setAllItems(itemsArray);
+          setLoading(false);
+        });
 
         // ── Views enrichment — getAllViews() cache hit (10 min TTL, free from HomeScreen) ──
         getAllViews().then(leaderboard => {
@@ -156,7 +169,6 @@ export const CategoryScreen: React.FC = () => {
 
       } catch (err: any) {
         setError(err.message || t('error_loading'));
-      } finally {
         setLoading(false);
       }
     });
@@ -203,7 +215,11 @@ export const CategoryScreen: React.FC = () => {
       case 'za': return sortByZA(result);
       case 'year_asc': return sortByYearAsc(result);
       case 'rating_desc': return sortByRatingDesc(result);
-      default: return sortByNewest(result);
+      default:
+        // Fix 2: allItems is pre-sorted year_desc by _setRuntimeCache at store time.
+        // Re-sorting here on every filter change was re-sorting thousands of already-
+        // sorted items for no reason. Filtering preserves relative order, so just return.
+        return result;
     }
   }, [allItems, debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 
