@@ -72,15 +72,7 @@ const App: React.FC = () => {
   if (!ready) {
     return (
       <View style={{flex: 1, backgroundColor: Colors.dark.background}}>
-        <CacheSyncOverlay visible={syncRunning} progress={syncProgress} isLaunch />
-        {!syncRunning && (
-          <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-            <Text style={{color: Colors.dark.primary, fontSize: 28, fontWeight: '900', fontFamily: 'Rubik'}}>
-              AbdoBest
-            </Text>
-            <ActivityIndicator size="small" color={Colors.dark.primary} style={{marginTop: 16}} />
-          </View>
-        )}
+        <CacheSyncOverlay visible={true} progress={syncProgress} isLaunch />
       </View>
     );
   }
