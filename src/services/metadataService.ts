@@ -373,6 +373,9 @@ export const syncAllWithProgress = async (
     } catch {
       // continue even if one fails
     }
+    // Yield between categories so the JS thread can process UI events
+    // (progress bar updates, touch events) between each heavy parse+sort.
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
   onProgress?.({category: 'done', done: total, total, percent: 100, fromCache: false});
 };

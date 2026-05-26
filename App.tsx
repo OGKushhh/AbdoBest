@@ -71,11 +71,16 @@ const App: React.FC = () => {
 
   if (!ready) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.dark.background}}>
-        <Text style={{color: Colors.dark.primary, fontSize: 28, fontWeight: '900', fontFamily: 'Rubik'}}>
-          AbdoBest
-        </Text>
-        <ActivityIndicator size="small" color={Colors.dark.primary} style={{marginTop: 16}} />
+      <View style={{flex: 1, backgroundColor: Colors.dark.background}}>
+        <CacheSyncOverlay visible={syncRunning} progress={syncProgress} />
+        {!syncRunning && (
+          <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+            <Text style={{color: Colors.dark.primary, fontSize: 28, fontWeight: '900', fontFamily: 'Rubik'}}>
+              AbdoBest
+            </Text>
+            <ActivityIndicator size="small" color={Colors.dark.primary} style={{marginTop: 16}} />
+          </View>
+        )}
       </View>
     );
   }
