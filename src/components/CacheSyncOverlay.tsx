@@ -67,9 +67,10 @@ export function useCacheSync(): CacheSyncState {
 interface OverlayProps {
   visible: boolean;
   progress: SyncProgress | null;
+  isLaunch?: boolean;
 }
 
-export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) => {
+export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, isLaunch }) => {
   const barWidth = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -103,9 +104,8 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) 
   const done  = progress?.done ?? 0;
   const total = progress?.total ?? SYNC_CATEGORIES.length;
 
-  return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
-      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+  const inner = (
+    <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
 
         {/* App name */}
         <Text style={styles.appName}>AbdoBest</Text>
@@ -139,9 +139,11 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) 
         {/* Percent */}
         <Text style={styles.percent}>{progress?.percent ?? 0}%</Text>
 
-      </Animated.View>
-    </Modal>
+    </Animated.View>
   );
+
+  if (isLaunch) return inner;
+  return <Modal visible={visible} transparent animationType="none" statusBarTranslucent>{inner}</Modal>;
 };
 
 // ── Inline progress bar for SettingsScreen ────────────────────────────────────

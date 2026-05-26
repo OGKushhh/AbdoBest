@@ -357,14 +357,6 @@ export const syncAllWithProgress = async (
       getCategoryTimestamp(cat) === 0 ||
       Date.now() - getCategoryTimestamp(cat) > METADATA_TTL_MS;
 
-    onProgress?.({
-      category: cat,
-      done: i,
-      total,
-      percent: Math.round((i / total) * 100),
-      fromCache: !isStale,
-    });
-
     try {
       // Always load every category: stale ones fetch network,
       // fresh ones read disk. Both populate _runtimeCache so
@@ -373,6 +365,15 @@ export const syncAllWithProgress = async (
     } catch {
       // continue even if one fails
     }
+    // Report progress AFTER load completes so bar reflects actual work done,
+    // not work about to start (was one step behind before).
+    onProgress?.({
+      category: cat,
+      done: i + 1,
+      total,
+      percent: Math.round(((i + 1) / total) * 100),
+      fromCache: !isStale,
+    });
     // Yield between categories so the JS thread can process UI events
     // (progress bar updates, touch events) between each heavy parse+sort.
     await new Promise(resolve => setTimeout(resolve, 0));
