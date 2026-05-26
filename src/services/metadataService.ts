@@ -56,9 +56,14 @@ export const sortByNewest = (items: ContentItem[]): ContentItem[] =>
 export const getRuntimeCache = (category: string): ContentItem[] | null =>
   _runtimeCache.get(category) ?? null;
 
-/** Populate runtime cache — sort once here so callers never need to sort again. */
-const _setRuntimeCache = (category: string, items: ContentItem[]): void => {
-  _runtimeCache.set(category, sortByNewest(items));
+/** Populate runtime cache.
+ *  - Pass a pre-sorted array (from disk) → stored as-is, no re-sort.
+ *  - Pass an unsorted array (raw dict values) → sorted here.
+ *  The `alreadySorted` flag is set internally when we know the data came
+ *  from a disk file that was written pre-sorted by fetchAndCache.
+ */
+const _setRuntimeCache = (category: string, items: ContentItem[], alreadySorted = false): void => {
+  _runtimeCache.set(category, alreadySorted ? items : sortByNewest(items));
 };
 
 /** Invalidate one or all entries — called on force refresh. */
@@ -115,7 +120,11 @@ const fetchAndCache = async (
     });
   }
 
-  await setMetadataWithTimestamp(category, data);
+  // Sort once here, write the sorted array to disk.
+  // All subsequent cold-start reads get a pre-sorted array — zero sort cost.
+  const sorted = sortByNewest(Object.values(data) as ContentItem[]);
+  await setMetadataWithTimestamp(category, sorted);
+  _setRuntimeCache(category, sorted, true); // already sorted
   console.log(`[Metadata] Fetched & cached: ${category}`);
   return data;
 };
@@ -143,12 +152,12 @@ export const loadCategory = async (
     _runtimeCache.delete(category);
     try {
       const fresh = await fetchAndCache(category);
-      if (fresh) _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+      // fetchAndCache already populated _runtimeCache — nothing to do here.
       return fresh;
     } catch (error: any) {
       console.warn(`[Metadata] Force-fetch failed for ${category}: ${error.message}`);
       const fallback = await getMetadataAnyAge(category);
-      if (fallback) _setRuntimeCache(category, getMoviesArray(fallback as ContentDict));
+      if (fallback) _setRuntimeCache(category, toItemsArray(fallback), Array.isArray(fallback));
       return fallback;
     }
   }
@@ -162,7 +171,7 @@ export const loadCategory = async (
   if (!isStale) {
     const fresh = await getMetadataIfFresh(category);
     if (fresh !== null) {
-      _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+      _setRuntimeCache(category, toItemsArray(fresh), Array.isArray(fresh));
       return fresh;
     }
   }
@@ -171,13 +180,11 @@ export const loadCategory = async (
   const cached = await getMetadataAnyAge(category);
 
   if (cached !== null && onBackgroundUpdate) {
-    // Return stale cache immediately so the UI renders without waiting,
-    // then fetch in the background and notify caller when fresh data arrives.
-    _setRuntimeCache(category, getMoviesArray(cached as ContentDict));
+    _setRuntimeCache(category, toItemsArray(cached), Array.isArray(cached));
     fetchAndCache(category)
       .then(fresh => {
         if (fresh) {
-          _setRuntimeCache(category, getMoviesArray(fresh as ContentDict));
+          // fetchAndCache already updated _runtimeCache
           onBackgroundUpdate(category, fresh);
         }
       })
@@ -188,11 +195,9 @@ export const loadCategory = async (
   }
 
   if (cached !== null && !onBackgroundUpdate) {
-    // Caller didn't supply a callback — return stale cache and silently
-    // re-fetch so next call gets fresh data (fire-and-forget).
-    _setRuntimeCache(category, getMoviesArray(cached as ContentDict));
+    _setRuntimeCache(category, toItemsArray(cached), Array.isArray(cached));
     fetchAndCache(category)
-      .then(fresh => { if (fresh) _setRuntimeCache(category, getMoviesArray(fresh as ContentDict)); })
+      .then(() => {}) // fetchAndCache updates _runtimeCache internally
       .catch(() => {});
     return cached;
   }
@@ -279,12 +284,12 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
 
     // ── Cache miss: fall back to disk (first launch before HomeScreen loads) ─
     let data = await getMetadataAnyAge(cat);
-    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+    if (!data || typeof data !== 'object' || (Array.isArray(data) ? data.length === 0 : Object.keys(data).length === 0)) {
       try { data = await loadCategory(cat, false); } catch { continue; }
     }
     if (!data || typeof data !== 'object') continue;
 
-    const items = Object.values(data) as ContentItem[];
+    const items = toItemsArray(data) as ContentItem[];
     for (const item of items) {
       if (matches.length >= 60) break;
       if (!seen.has(item.id) && testItem(item)) {
@@ -323,6 +328,15 @@ export const filterByGenre = (movies: ContentDict, genre: string): ContentItem[]
 export const getMoviesArray = (movies: ContentDict | null): ContentItem[] => {
   if (!movies || typeof movies !== 'object') return [];
   return Object.values(movies);
+};
+
+/**
+ * Migration guard: disk files written before this change are dicts,
+ * new ones are sorted arrays. Handle both transparently.
+ */
+const toItemsArray = (data: any): ContentItem[] => {
+  if (!data || typeof data !== 'object') return [];
+  return Array.isArray(data) ? data : Object.values(data);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

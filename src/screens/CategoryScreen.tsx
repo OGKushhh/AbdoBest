@@ -126,7 +126,7 @@ export const CategoryScreen: React.FC = () => {
         const cached = getRuntimeCache(selectedCategory);
         const itemsArray: ContentItem[] = cached
           ? cached  // already sorted by _setRuntimeCache — no sort needed
-          : sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
+          : getRuntimeCache(selectedCategory) ?? sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
 
         // Fix 3: Batch all 10 setState calls into a single re-render.
         // On old arch (Bridge) + async callbacks, React 18 does NOT

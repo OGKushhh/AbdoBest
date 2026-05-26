@@ -443,7 +443,7 @@ export const HomeScreen: React.FC = () => {
         const results = await Promise.all(
           missing.map(cat =>
             loadCategory(cat as any, force, force ? undefined : onBackgroundUpdate)
-              .then(d => ({cat, items: d ? sortByNewest(getMoviesArray(d as any)) : []}))
+              .then(d => ({cat, items: getRuntimeCache(cat) ?? (d ? sortByNewest(getMoviesArray(d as any)) : [])}))
               .catch(() => ({cat, items: [] as ContentItem[]}))
           ),
         );
