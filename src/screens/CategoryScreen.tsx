@@ -76,7 +76,7 @@ export const CategoryScreen: React.FC = () => {
   const lang = isRTL ? 'ar' : 'en';
 
   const [allItems, setAllItems] = useState<ContentItem[]>([]);
-  const allItemsRef = useRef<ContentItem[]>([]);
+  const loadedCategoryRef = useRef<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(route.params?.category || 'movies');
@@ -115,11 +115,9 @@ export const CategoryScreen: React.FC = () => {
 
   // Load data — runtimeCache first (instant), disk fallback, network last
   const loadCategoryData = useCallback(async () => {
-    // Fix 1: Only show the full-screen spinner on first load (empty screen).
-    // On tab switches allItemsRef.current is already populated — don't unmount
-    // the UI by setting loading=true, which was causing the screen to tear down
-    // and remount on every category tap (the real ANR trigger).
-    if (allItemsRef.current.length === 0) setLoading(true);
+    // Fix 1: Only show spinner when switching to a different category or first load.
+    // Avoids tearing down the UI on same-category re-focus.
+    if (loadedCategoryRef.current !== selectedCategory) setLoading(true);
     setError(null);
 
     InteractionManager.runAfterInteractions(async () => {
@@ -129,8 +127,6 @@ export const CategoryScreen: React.FC = () => {
         const itemsArray: ContentItem[] = cached
           ? cached  // already sorted by _setRuntimeCache — no sort needed
           : sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
-
-        allItemsRef.current = itemsArray;
 
         // Fix 3: Batch all 10 setState calls into a single re-render.
         // On old arch (Bridge) + async callbacks, React 18 does NOT
@@ -148,6 +144,7 @@ export const CategoryScreen: React.FC = () => {
           setHasMore(true);
           setPage(1);
           setAllItems(itemsArray);
+          loadedCategoryRef.current = selectedCategory;
           setLoading(false);
         });
 
