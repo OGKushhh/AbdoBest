@@ -42,15 +42,21 @@ const _parseYear = (val: any): number => {
   return isNaN(n) ? 0 : n;
 };
 
-export const sortByNewest = (items: ContentItem[]): ContentItem[] =>
-  [...items].sort((a, b) => {
-    const ya = _parseYear((a as any).ReleaseDate || (a as any).Year);
-    const yb = _parseYear((b as any).ReleaseDate || (b as any).Year);
-    if (ya !== yb) return yb - ya;
-    const sa = (a as any).last_scraped || '';
-    const sb = (b as any).last_scraped || '';
-    return sb.localeCompare(sa);
+export const sortByNewest = (items: ContentItem[]): ContentItem[] => {
+  // Schwartzian transform: compute sort keys once per item (not once per comparison).
+  // Avoids O(n log n) _parseYear + localeCompare calls during the sort itself.
+  type Tagged = { item: ContentItem; year: number; scraped: string };
+  const tagged: Tagged[] = items.map(item => ({
+    item,
+    year:    _parseYear((item as any).ReleaseDate || (item as any).Year),
+    scraped: (item as any).last_scraped || '',
+  }));
+  tagged.sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return b.scraped.localeCompare(a.scraped);
   });
+  return tagged.map(t => t.item);
+};
 
 /** Read from runtime cache. Returns null if not yet populated. */
 export const getRuntimeCache = (category: string): ContentItem[] | null =>
@@ -388,9 +394,11 @@ export const syncAllWithProgress = async (
       percent: Math.round(((i + 1) / total) * 100),
       fromCache: !isStale,
     });
-    // Yield between categories so the JS thread can process UI events
-    // (progress bar updates, touch events) between each heavy parse+sort.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Yield after each category so the JS thread can process UI events
+    // and the progress bar has time to animate smoothly.
+    // Movies is the heaviest file (~12.6MB) so it gets the longest breath.
+    const yieldMs = cat === 'movies' ? 120 : 50;
+    await new Promise(resolve => setTimeout(resolve, yieldMs));
   }
   onProgress?.({category: 'done', done: total, total, percent: 100, fromCache: false});
 };
