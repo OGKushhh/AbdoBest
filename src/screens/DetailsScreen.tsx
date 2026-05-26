@@ -368,9 +368,8 @@ export const DetailsScreen: React.FC = () => {
     const list = lang === 'ar'
       ? (item.GenresAr?.length ? item.GenresAr : item.Genres)
       : (item.Genres?.length ? item.Genres : item.GenresAr);
-    if (!list || list.length === 0) return '';
-    const localized = localizeGenres(list, lang as 'ar' | 'en');
-    return localized.join('  \u2022  ');
+    if (!list || list.length === 0) return [];
+    return localizeGenres(list, lang as 'ar' | 'en');
   }, [item.Genres, item.GenresAr, lang]);
 
   const directors = useMemo(() => {
@@ -1051,7 +1050,7 @@ export const DetailsScreen: React.FC = () => {
             );
           })() : null}
           {/* Genre chips — each navigates to CategoryScreen filtered by that genre */}
-          {genresDisplay ? (
+          {genresDisplay.length > 0 ? (
             <View style={rowS.row}>
               <Text style={rowS.label}>{t('genres')}</Text>
               <View style={{flex: 2, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6}}>

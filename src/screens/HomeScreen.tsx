@@ -11,7 +11,7 @@ import FastImage from 'react-native-fast-image';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTranslation} from 'react-i18next';
 import {
-  loadCategory, getMoviesArray, searchContent,
+  loadCategory, getMoviesArray, getRuntimeCache, searchContent,
   BackgroundUpdateCallback, clearRuntimeCache, sortByNewest,
 } from '../services/metadataService';
 import {ContentItem} from '../types';
@@ -427,15 +427,28 @@ export const HomeScreen: React.FC = () => {
   const loadData = useCallback(async (force = false) => {
     try {
       setError(null);
-      const results = await Promise.all(
-        CATEGORIES.map(cat =>
-          loadCategory(cat as any, force, force ? undefined : onBackgroundUpdate)
-            .then(d => ({cat, items: d ? getMoviesArray(d as any) : []}))
-            .catch(() => ({cat, items: [] as ContentItem[]}))
-        ),
-      );
+      // Runtime cache is populated by syncAllWithProgress on launch.
+      // Read from memory first (instant, no disk, no parse, no sort).
+      // Fall back to loadCategory only on force refresh or cache miss.
       const map: Record<string, ContentItem[]> = {};
-      for (const r of results) map[r.cat] = sortByNewest(r.items);
+      if (!force) {
+        for (const cat of CATEGORIES) {
+          const cached = getRuntimeCache(cat);
+          if (cached) map[cat] = cached;
+        }
+      }
+      // Load any categories not yet in runtime cache (or force refresh)
+      const missing = CATEGORIES.filter(cat => force || !map[cat]);
+      if (missing.length > 0) {
+        const results = await Promise.all(
+          missing.map(cat =>
+            loadCategory(cat as any, force, force ? undefined : onBackgroundUpdate)
+              .then(d => ({cat, items: d ? sortByNewest(getMoviesArray(d as any)) : []}))
+              .catch(() => ({cat, items: [] as ContentItem[]}))
+          ),
+        );
+        for (const r of results) map[r.cat] = r.items;
+      }
       setCategoryData(map);
 
       // ── Most Viewed — 1 fetch, pure array math, no per-title API calls ──────

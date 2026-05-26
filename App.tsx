@@ -47,11 +47,12 @@ const App: React.FC = () => {
     storage.init().then(() => {
       initCounters();
       const shouldShowReward = recordLaunchAndCheckReward();
-      setReady(true);
       restoreDownloads().catch(() => {});
       retrySyncViews().catch(() => {});
       // Start cache sync immediately — overlay shows automatically
-      startSync(false);
+      // startSync populates runtime cache; setReady fires after so
+      // HomeScreen mounts with all data already in memory.
+      startSync(false).then(() => setReady(true));
       if (shouldShowReward) {
         // Small delay so the app finishes rendering before showing the popup
         setTimeout(() => setShowRewardPopup(true), 1500);

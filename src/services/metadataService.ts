@@ -365,12 +365,13 @@ export const syncAllWithProgress = async (
       fromCache: !isStale,
     });
 
-    if (isStale) {
-      try {
-        await loadCategory(cat, true);
-      } catch {
-        // continue even if one fails
-      }
+    try {
+      // Always load every category: stale ones fetch network,
+      // fresh ones read disk. Both populate _runtimeCache so
+      // screens read from memory with zero disk IO afterward.
+      await loadCategory(cat, isStale);
+    } catch {
+      // continue even if one fails
     }
   }
   onProgress?.({category: 'done', done: total, total, percent: 100, fromCache: false});
