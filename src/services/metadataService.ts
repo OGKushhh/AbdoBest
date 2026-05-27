@@ -371,12 +371,9 @@ export const syncAllWithProgress = async (
 ): Promise<void> => {
   const total = SYNC_CATEGORIES.length;
   let done = 0;
-
-  // Concurrency = 3: fetch 3 categories in parallel at a time.
-  // Faster than fully sequential, gentler than all-at-once.
   const CONCURRENCY = 3;
 
-  const runOne = async (cat: ContentCategory): Promise<void> => {
+  const runOne = async (cat: ContentCategory): Promise<{ cat: ContentCategory; isStale: boolean }> => {
     const isStale =
       forceRefresh ||
       getCategoryTimestamp(cat) === 0 ||
@@ -386,23 +383,37 @@ export const syncAllWithProgress = async (
     } catch {
       // continue even if one category fails
     }
-    done += 1;
+    return { cat, isStale };
+  };
+
+  for (let i = 0; i < SYNC_CATEGORIES.length; i += CONCURRENCY) {
+    const batch = SYNC_CATEGORIES.slice(i, i + CONCURRENCY) as ContentCategory[];
+
+    // Report batch start so label shows the first category in this batch
     onProgress?.({
-      category: cat,
+      category: batch[0],
       done,
       total,
       percent: Math.round((done / total) * 100),
-      fromCache: !isStale,
+      fromCache: false,
     });
-    // Yield after each category so the progress bar can animate.
-    const yieldMs = cat === 'movies' ? 120 : 50;
-    await new Promise(resolve => setTimeout(resolve, yieldMs));
-  };
 
-  // Run in batches of CONCURRENCY
-  for (let i = 0; i < SYNC_CATEGORIES.length; i += CONCURRENCY) {
-    const batch = SYNC_CATEGORIES.slice(i, i + CONCURRENCY) as ContentCategory[];
-    await Promise.all(batch.map(cat => runOne(cat)));
+    const results = await Promise.all(batch.map(cat => runOne(cat)));
+
+    // All done — report once with the last category in this batch
+    done += results.length;
+    const last = results[results.length - 1];
+    onProgress?.({
+      category: last.cat,
+      done,
+      total,
+      percent: Math.round((done / total) * 100),
+      fromCache: results.every(r => !r.isStale),
+    });
+
+    // Yield after each batch — movies batch gets more breathing room
+    const hasMovies = batch.includes('movies');
+    await new Promise(resolve => setTimeout(resolve, hasMovies ? 120 : 50));
   }
 
   onProgress?.({ category: 'done', done: total, total, percent: 100, fromCache: false });
