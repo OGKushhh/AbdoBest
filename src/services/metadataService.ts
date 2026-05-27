@@ -3,6 +3,7 @@ import {API_BASE, METADATA_ENDPOINTS} from '../constants/endpoints';
 import {
   setMetadataWithTimestamp, getMetadataIfFresh, getMetadataAnyAge,
   getCategoryTimestamp, isAnyCategoryStale, clearAllMetadataCache,
+  getCategoryFileSize,
 } from '../storage/cache';
 import {ContentItem, TrendingContent} from '../types';
 import {METADATA_TTL_MS} from '../constants/endpoints';
@@ -355,12 +356,19 @@ export const SYNC_CATEGORIES: ContentCategory[] = [
   'trending', 'featured',
 ];
 
+export interface CompletedItem {
+  category: string;
+  fileSizeBytes: number;
+  fromCache: boolean;
+}
+
 export interface SyncProgress {
   category: string;
   done: number;
   total: number;
   percent: number;
   fromCache: boolean;
+  completedItems: CompletedItem[];
 }
 
 export type SyncProgressCallback = (progress: SyncProgress) => void;
@@ -371,9 +379,10 @@ export const syncAllWithProgress = async (
 ): Promise<void> => {
   const total = SYNC_CATEGORIES.length;
   let done = 0;
+  const completedItems: CompletedItem[] = [];
   const CONCURRENCY = 3;
 
-  const runOne = async (cat: ContentCategory): Promise<{ cat: ContentCategory; isStale: boolean }> => {
+  const runOne = async (cat: ContentCategory): Promise<{ cat: ContentCategory; isStale: boolean; sizeBytes: number }> => {
     const isStale =
       forceRefresh ||
       getCategoryTimestamp(cat) === 0 ||
@@ -383,24 +392,30 @@ export const syncAllWithProgress = async (
     } catch {
       // continue even if one category fails
     }
-    return { cat, isStale };
+    const sizeBytes = await getCategoryFileSize(cat);
+    return { cat, isStale, sizeBytes };
   };
 
   for (let i = 0; i < SYNC_CATEGORIES.length; i += CONCURRENCY) {
     const batch = SYNC_CATEGORIES.slice(i, i + CONCURRENCY) as ContentCategory[];
 
-    // Report batch start so label shows the first category in this batch
+    // Report batch start
     onProgress?.({
       category: batch[0],
       done,
       total,
       percent: Math.round((done / total) * 100),
       fromCache: false,
+      completedItems: [...completedItems],
     });
 
     const results = await Promise.all(batch.map(cat => runOne(cat)));
 
-    // All done — report once with the last category in this batch
+    // Prepend newest at top so list reads newest-first
+    for (const r of results) {
+      completedItems.unshift({ category: r.cat, fileSizeBytes: r.sizeBytes, fromCache: !r.isStale });
+    }
+
     done += results.length;
     const last = results[results.length - 1];
     onProgress?.({
@@ -409,14 +424,14 @@ export const syncAllWithProgress = async (
       total,
       percent: Math.round((done / total) * 100),
       fromCache: results.every(r => !r.isStale),
+      completedItems: [...completedItems],
     });
 
-    // Yield after each batch — movies batch gets more breathing room
     const hasMovies = batch.includes('movies');
     await new Promise(resolve => setTimeout(resolve, hasMovies ? 120 : 50));
   }
 
-  onProgress?.({ category: 'done', done: total, total, percent: 100, fromCache: false });
+  onProgress?.({ category: 'done', done: total, total, percent: 100, fromCache: false, completedItems: [...completedItems] });
 };
 
 export const refreshStaleCategories = async (

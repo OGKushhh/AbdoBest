@@ -37,6 +37,18 @@ const getCategoryFilePath = (category: string): string => {
   return `${METADATA_DIR}/${category}.json`;
 };
 
+export const getCategoryFileSize = async (category: string): Promise<number> => {
+  try {
+    const filePath = getCategoryFilePath(category);
+    const exists = await ReactNativeBlobUtil.fs.exists(filePath);
+    if (!exists) return 0;
+    const stat = await ReactNativeBlobUtil.fs.stat(filePath);
+    return stat.size ?? 0;
+  } catch {
+    return 0;
+  }
+};
+
 // ─── Video URL Cache (6hr TTL) ── stays in Storage ─────────────────
 // URL cache entries are small (url + qualities + timestamp) → Storage is ideal.
 
