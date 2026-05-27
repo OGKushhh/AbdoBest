@@ -333,7 +333,7 @@ export const DetailsScreen: React.FC = () => {
             // Split dubbed/subbed episodes into virtual sub-seasons
             const eps: string[] = data.seasons[sk]?.episodes ?? [];
             const isDub = (u: string) => u.toLowerCase().includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac');
-            const isBW  = (u: string) => u.toLowerCase().includes('%d8%a7%d9%84%d8%a3%d8%a8%d9%8a%d8%b6') || u.toLowerCase().includes('%d8%a7%d9%84%d8%a7%d8%b3%d9%88%d8%af');
+            const isBW  = (u: string) => u.toLowerCase().includes('%d9%86%d8%b3%d8%ae%d8%a9'); // نسخة = "version/copy" — B&W URLs always contain this, normal ones never do
             const hasDub   = eps.some(isDub);
             const hasSub   = eps.some((u: string) => !isDub(u));
             const hasBW    = eps.some(isBW);
