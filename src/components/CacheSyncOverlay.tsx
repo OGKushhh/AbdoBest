@@ -48,9 +48,13 @@ export function useCacheSync(): CacheSyncState {
 
   const start = useCallback(async (forceRefresh = false) => {
     setRunning(true);
-    setProgress({ category: SYNC_CATEGORIES[0], done: 0, total: SYNC_CATEGORIES.length, percent: 0, fromCache: false });
+    setProgress({ category: SYNC_CATEGORIES[0], done: 0, total: SYNC_CATEGORIES.length, percent: 0, fromCache: false, completedItems: [] });
     try {
       await syncAllWithProgress(p => setProgress(p), forceRefresh);
+    } catch {
+      // syncAllWithProgress catches per-category errors internally,
+      // but guard here too so the finally block always runs and
+      // running is always reset — prevents the button staying disabled forever.
     } finally {
       // Show 'done' state briefly, then wait for fade animation (600ms delay + 600ms duration)
       // before clearing so the Modal doesn't vanish mid-fade

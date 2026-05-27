@@ -416,8 +416,11 @@ export const HomeScreen: React.FC = () => {
 
   // ── Background update (unchanged) ──────────────────────────────────────────
   const onBackgroundUpdate = useCallback<BackgroundUpdateCallback>(
-    (category, freshData) => {
-      const freshItems = sortByNewest(getMoviesArray(freshData as any));
+    (category) => {
+      // fetchAndCache already sorted the data and stored it in _runtimeCache.
+      // Reading from there is O(1) — no getMoviesArray, no sortByNewest,
+      // no re-processing 13,500+ items on the JS thread.
+      const freshItems = getRuntimeCache(category) ?? [];
       setCategoryData(prev => ({...prev, [category]: freshItems}));
     },
     [],
@@ -485,9 +488,10 @@ export const HomeScreen: React.FC = () => {
       if (!hasMountedRef.current) {
         hasMountedRef.current = true;
         loadData(false);
-      } else {
-        loadData(false);
       }
+      // No else — re-focusing HomeScreen (e.g. back from Details/Category)
+      // must NOT re-trigger loadData. Runtime cache already holds fresh data.
+      // A full reload here is what causes ANR on navigation return.
     }, [loadData]),
   );
 

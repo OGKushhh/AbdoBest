@@ -9,7 +9,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
 import { clearAllMetadataCache } from '../storage/cache';
-import { getLastSyncTime } from '../services/metadataService';
+import { getLastSyncTime, clearRuntimeCache } from '../services/metadataService';
 import { CacheSyncInline, useCacheSync } from '../components/CacheSyncOverlay';
 import { checkForUpdate, openUpdateUrl, skipVersion } from '../services/updateService';
 import { APP_VERSION } from '../constants/endpoints';
@@ -90,6 +90,11 @@ export const SettingsScreen: React.FC = () => {
   }, [settings.language, updateSetting, i18n]);
 
   const handleSync = useCallback(() => {
+    // Clear runtime cache before force-sync so HomeScreen doesn't hold
+    // stale category arrays while fresh data is being written to disk.
+    // Without this, HomeScreen's categoryData state and the runtime cache
+    // diverge — some categories show old data, some show new.
+    clearRuntimeCache();
     startSync(true);
   }, [startSync]);
 
