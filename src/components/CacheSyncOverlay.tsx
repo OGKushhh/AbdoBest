@@ -14,9 +14,9 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Modal, FlatList,
+  View, Text, StyleSheet, Animated, Modal,
 } from 'react-native';
-import { syncAllWithProgress, SyncProgress, SYNC_CATEGORIES, CompletedItem } from '../services/metadataService';
+import { syncAllWithProgress, SyncProgress, SYNC_CATEGORIES } from '../services/metadataService';
 
 // ── Category display names ────────────────────────────────────────────────────
 const CAT_LABELS: Record<string, { ar: string; en: string }> = {
@@ -48,96 +48,43 @@ export function useCacheSync(): CacheSyncState {
 
   const start = useCallback(async (forceRefresh = false) => {
     setRunning(true);
-    setProgress({ category: SYNC_CATEGORIES[0], done: 0, total: SYNC_CATEGORIES.length, percent: 0, fromCache: false, completedItems: [] });
+    setProgress({ category: SYNC_CATEGORIES[0], done: 0, total: SYNC_CATEGORIES.length, percent: 0, fromCache: false });
     try {
       await syncAllWithProgress(p => setProgress(p), forceRefresh);
     } finally {
-      // Keep final state visible briefly then clear
+      // Show 'done' state briefly, then wait for fade animation (600ms delay + 600ms duration)
+      // before clearing so the Modal doesn't vanish mid-fade
       setTimeout(() => {
         setRunning(false);
         setProgress(null);
-      }, 800);
+      }, 1600);
     }
   }, []);
 
   return { running, progress, start };
 }
 
-// ── Animated row — slides + fades in on mount ────────────────────────────────
-interface AnimatedRowProps {
-  item: CompletedItem;
-  targetOpacity: number;
-}
-
-const AnimatedRow: React.FC<AnimatedRowProps> = ({ item, targetOpacity }) => {
-  const anim = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-10)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(anim, {
-        toValue: targetOpacity,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  // When position shifts (older items), fade to new target opacity
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: targetOpacity,
-      duration: 250,
-      useNativeDriver: true,
-    }).start();
-  }, [targetOpacity]);
-
-  const itemLabel = CAT_LABELS[item.category];
-  const formatSize = (bytes: number): string => {
-    if (bytes === 0) return '';
-    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  };
-
-  return (
-    <Animated.View style={[styles.completedRow, { opacity: anim, transform: [{ translateY }] }]}>
-      <Text style={styles.completedCheck}>{item.fromCache ? '✓' : '↓'}</Text>
-      <Text style={styles.completedName}>
-        {itemLabel ? `${itemLabel.en} · ${itemLabel.ar}` : item.category}
-      </Text>
-      <Text style={styles.completedSize}>{formatSize(item.fileSizeBytes)}</Text>
-    </Animated.View>
-  );
-};
-
 // ── Full-screen launch overlay ────────────────────────────────────────────────
 interface OverlayProps {
   visible: boolean;
   progress: SyncProgress | null;
-  isLaunch?: boolean;
 }
 
-export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, isLaunch }) => {
+export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) => {
   const barWidth = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [mounted, setMounted] = useState(true);
 
   // Animate progress bar
   useEffect(() => {
     const pct = progress?.percent ?? 0;
     Animated.timing(barWidth, {
       toValue: pct,
-      duration: 400,
+      duration: 300,
       useNativeDriver: false,
     }).start();
   }, [progress?.percent]);
 
-  // Fade out when done — only unmount after animation fully completes
+  // Fade out when done
   useEffect(() => {
     if (progress?.category === 'done') {
       Animated.timing(fadeAnim, {
@@ -145,54 +92,42 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, is
         duration: 600,
         delay: 400,
         useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setMounted(false);
-      });
+      }).start();
     } else {
       fadeAnim.setValue(1);
-      setMounted(true);
     }
   }, [progress?.category]);
 
-  // Sync external visible flag — if parent hides us, fade out properly
-  useEffect(() => {
-    if (!visible) {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setMounted(false);
-      });
-    }
-  }, [visible]);
+  if (!visible) return null;
 
-  if (!mounted) return null;
+  const label = progress ? CAT_LABELS[progress.category] : null;
+  const done  = progress?.done ?? 0;
+  const total = progress?.total ?? SYNC_CATEGORIES.length;
 
-  const label     = progress ? CAT_LABELS[progress.category] : null;
-  const done      = progress?.done ?? 0;
-  const total     = progress?.total ?? SYNC_CATEGORIES.length;
-  const completed = (progress?.completedItems ?? []).slice(0, 6);
+  return (
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
+      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
 
-  const inner = (
-    <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-
-      {/* Fixed content — never moves */}
-      <View style={styles.fixedBlock}>
+        {/* App name */}
         <Text style={styles.appName}>AbdoBest</Text>
         <Text style={styles.subtitle}>جار تحميل قاعدة البيانات…{'\n'}Loading database…</Text>
 
+        {/* Progress bar track */}
         <View style={styles.track}>
           <Animated.View
-            style={[styles.bar, {
-              width: barWidth.interpolate({
-                inputRange: [0, 100],
-                outputRange: ['0%', '100%'],
-              }),
-            }]}
+            style={[
+              styles.bar,
+              {
+                width: barWidth.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ['0%', '100%'],
+                }),
+              },
+            ]}
           />
         </View>
 
+        {/* Counter + category label */}
         <View style={styles.labelRow}>
           <Text style={styles.counter}>{done} / {total}</Text>
           {label && (
@@ -202,25 +137,12 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, is
           )}
         </View>
 
+        {/* Percent */}
         <Text style={styles.percent}>{progress?.percent ?? 0}%</Text>
-      </View>
 
-      {/* Completed list — absolutely positioned below, never pushes bar */}
-      <View style={styles.completedList} pointerEvents="none">
-        {completed.map((item: CompletedItem, idx: number) => (
-          <AnimatedRow
-            key={item.category}
-            item={item}
-            targetOpacity={Math.max(0.12, 1 - idx * 0.16)}
-          />
-        ))}
-      </View>
-
-    </Animated.View>
+      </Animated.View>
+    </Modal>
   );
-
-  if (isLaunch) return inner;
-  return <Modal visible={visible} transparent animationType="none" statusBarTranslucent>{inner}</Modal>;
 };
 
 // ── Inline progress bar for SettingsScreen ────────────────────────────────────
@@ -287,11 +209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  // fixedBlock holds bar + labels — sits in the vertical center, never moves
-  fixedBlock: {
-    width: '100%',
-    alignItems: 'center',
-  },
   appName: {
     color: '#FF4500',
     fontSize: 36,
@@ -346,36 +263,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontFamily: 'Rubik',
     marginTop: 20,
-  },
-  // Absolutely positioned so it never affects the bar's vertical position
-  completedList: {
-    position: 'absolute',
-    bottom: 60,
-    left: 40,
-    right: 40,
-  },
-  completedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 3,
-  },
-  completedCheck: {
-    color: '#FF4500',
-    fontSize: 12,
-    fontFamily: 'Rubik',
-    width: 16,
-  },
-  completedName: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    fontFamily: 'Rubik',
-    flex: 1,
-  },
-  completedSize: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    fontFamily: 'Rubik',
-    marginLeft: 4,
   },
 });
 

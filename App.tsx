@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, AppStateStatus, StatusBar, LogBox} from 'react-native';
+import {AppState, AppStateStatus, StatusBar, LogBox, View} from 'react-native';
 import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {UpdateModal} from './src/components/UpdateModal';
@@ -47,12 +47,11 @@ const App: React.FC = () => {
     storage.init().then(() => {
       initCounters();
       const shouldShowReward = recordLaunchAndCheckReward();
+      setReady(true);
       restoreDownloads().catch(() => {});
       retrySyncViews().catch(() => {});
       // Start cache sync immediately — overlay shows automatically
-      // startSync populates runtime cache; setReady fires after so
-      // HomeScreen mounts with all data already in memory.
-      startSync(false).then(() => setReady(true));
+      startSync(false);
       if (shouldShowReward) {
         // Small delay so the app finishes rendering before showing the popup
         setTimeout(() => setShowRewardPopup(true), 1500);
@@ -68,6 +67,12 @@ const App: React.FC = () => {
     // Cleanup is returned directly to React so it fires on unmount
     return () => clearTimeout(timer);
   }, []);
+
+  if (!ready) {
+    return (
+      <View style={{flex: 1, backgroundColor: Colors.dark.background}} />
+    );
+  }
 
   return (
     <ThemeProvider>
@@ -91,8 +96,8 @@ const App: React.FC = () => {
             visible={showRewardPopup}
             onClose={() => setShowRewardPopup(false)}
           />
-          {/* Overlay always rendered on top — fades out on its own when done */}
-          <CacheSyncOverlay visible={!ready || syncRunning} progress={syncProgress} isLaunch />
+          {/* Cache sync overlay — shown on launch while downloading database */}
+          <CacheSyncOverlay visible={syncRunning} progress={syncProgress} />
         </AdProvider>
       </SafeAreaProvider>
     </ThemeProvider>
