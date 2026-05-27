@@ -40,6 +40,45 @@ import { resolveAkwamDownloadLink } from '../services/akwamDownload';
 
 const FASEL_BASE = 'https://www.fasel-hd.cam';
 
+/**
+ * Derive a human-readable episode label from a fasel-hd episode URL.
+ * Returns { num, suffix? }
+ *  - num:    the episode number string (or '★' for pure specials)
+ *  - suffix: optional label shown after the number (e.g. "Final Episode", special title)
+ *
+ * Cases:
+ *  1. Normal numeric    → { num: '3' }
+ *  2. الأخيرة           → { num: '8', suffix: 'الأخيرة' / 'Final Episode' }
+ *  3. Special title     → { num: '★', suffix: 'Marvel Special Presentation …' }
+ *  4. Any other non-numeric → { num: '★', suffix: decoded text }
+ */
+const parseEpLabel = (epUrl: string, fallbackNum: number, lang: 'ar' | 'en' = 'ar'): { num: string; suffix?: string } => {
+  try {
+    const slug = decodeURIComponent(epUrl).split('/episodes/').pop() ?? '';
+
+    // Case 2 — الأخيرة
+    if (slug.includes('الأخيرة') || slug.includes('الاخيرة')) {
+      return { num: String(fallbackNum), suffix: lang === 'ar' ? 'والأخيرة' : 'Final Episode' };
+    }
+
+    // Case 3 — special episode: starts with حلقة- but no series/season prefix
+    if (slug.startsWith('حلقة-') && !slug.includes('الموسم') && !slug.includes('مسلسل')) {
+      const titlePart = slug.replace(/^حلقة-/, '').replace(/-/g, ' ').trim();
+      return { num: '★', suffix: titlePart.replace(/\b\w/g, c => c.toUpperCase()) };
+    }
+
+    // Case 4 — any other non-numeric suffix after الحلقة-
+    const afterEp = slug.match(/الحلقة-([^-\s]+.*)$/);
+    if (afterEp) {
+      const val = afterEp[1].replace(/-/g, ' ').trim();
+      if (isNaN(Number(val.split(' ')[0]))) return { num: '★', suffix: val };
+    }
+  } catch {
+    // fall through
+  }
+  return { num: String(fallbackNum) };
+};
+
 const {width: SW} = Dimensions.get('window');
 const POSTER_W = Math.min(SW * 0.48, 200);
 const POSTER_H = POSTER_W * 1.52;
@@ -793,7 +832,10 @@ export const DetailsScreen: React.FC = () => {
 
   // ── Play episode (on-device extraction) ──────────────────────────
   const handlePlayEpisode = useCallback((epUrl: string, epNum: number, allServers = false) => {
-    const title = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNum}`;
+    const { num: epNum2, suffix: epSuffix } = parseEpLabel(epUrl, epNum, 'en');
+    const title = epSuffix
+      ? `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNum2} ${epSuffix}`
+      : `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNum2}`;
     const seasonNum = parseInt(selSeason, 10) || 1;
     showInterstitial(() => startExtraction(epUrl, title, epUrl, allServers, epNum, seasonNum), 'play');
   }, [item.Title, selSeason, t, startExtraction, showInterstitial]);
@@ -1153,6 +1195,9 @@ export const DetailsScreen: React.FC = () => {
             ) : currentEps.length > 0 ? (
               currentEps.map((epUrl, idx) => {
                 const isExtractingThis = extractingEpUrl === epUrl;
+                const { num: epNum, suffix: epSuffix } = parseEpLabel(epUrl, idx + 1, 'ar');
+                const { num: epNumEn, suffix: epSuffixEn } = parseEpLabel(epUrl, idx + 1, 'en');
+                const isSpecial = epNum === '★';
                 return (
                   <TouchableOpacity
                     key={`ep-${selSeason}-${idx}`}
@@ -1161,11 +1206,13 @@ export const DetailsScreen: React.FC = () => {
                     disabled={extracting}
                     activeOpacity={0.75}
                   >
-                    <View style={[S.epNumCircle, isExtractingThis && S.epNumActive]}>
-                      <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{idx + 1}</Text>
+                    <View style={[S.epNumCircle, isExtractingThis && S.epNumActive, isSpecial && {width: 'auto', paddingHorizontal: 6}]}>
+                      <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{epNum}</Text>
                     </View>
                     <TouchableOpacity style={S.epDownloadBtn} onPress={() => {
-                        const epTitle = `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${idx + 1}`;
+                        const epTitle = epSuffixEn
+                          ? `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn} ${epSuffixEn}`
+                          : `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn}`;
                         const seasonNum = parseInt(selSeason, 10) || 1;
                         downloadModeRef.current = true;
                         startExtraction(epUrl, epTitle, epUrl, false, idx + 1, seasonNum);
@@ -1178,7 +1225,9 @@ export const DetailsScreen: React.FC = () => {
                         <Text style={S.epViewsBadgeTxt}>{formatViews(episodeViews[epUrl])}</Text>
                       </View>
                     ) : null}
-                    <Text style={[S.epTitle, {marginStart: 'auto', textAlign: 'right'}]} numberOfLines={1}>{t('episode')} {idx + 1}</Text>
+                    <Text style={[S.epTitle, {marginStart: 'auto', textAlign: 'right'}]} numberOfLines={1}>
+                      {epSuffix ? `${t('episode')} ${epNum} ${epSuffix}` : `${t('episode')} ${epNum}`}
+                    </Text>
                     {isExtractingThis ? (
                       <ActivityIndicator size="small" color={Colors.dark.primary} />
                     ) : (
