@@ -73,6 +73,7 @@ interface OverlayProps {
 export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, isLaunch }) => {
   const barWidth = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [mounted, setMounted] = useState(true);
 
   // Animate progress bar
   useEffect(() => {
@@ -84,7 +85,7 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, is
     }).start();
   }, [progress?.percent]);
 
-  // Fade out when done
+  // Fade out when done — only unmount after animation fully completes
   useEffect(() => {
     if (progress?.category === 'done') {
       Animated.timing(fadeAnim, {
@@ -92,13 +93,29 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress, is
         duration: 600,
         delay: 400,
         useNativeDriver: true,
-      }).start();
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
     } else {
       fadeAnim.setValue(1);
+      setMounted(true);
     }
   }, [progress?.category]);
 
-  if (!visible) return null;
+  // Sync external visible flag — if parent hides us, fade out properly
+  useEffect(() => {
+    if (!visible) {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+  }, [visible]);
+
+  if (!mounted) return null;
 
   const label = progress ? CAT_LABELS[progress.category] : null;
   const done  = progress?.done ?? 0;

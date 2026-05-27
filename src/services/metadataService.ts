@@ -370,37 +370,42 @@ export const syncAllWithProgress = async (
   forceRefresh = false,
 ): Promise<void> => {
   const total = SYNC_CATEGORIES.length;
-  for (let i = 0; i < SYNC_CATEGORIES.length; i++) {
-    const cat = SYNC_CATEGORIES[i];
+  let done = 0;
+
+  // Concurrency = 3: fetch 3 categories in parallel at a time.
+  // Faster than fully sequential, gentler than all-at-once.
+  const CONCURRENCY = 3;
+
+  const runOne = async (cat: ContentCategory): Promise<void> => {
     const isStale =
       forceRefresh ||
       getCategoryTimestamp(cat) === 0 ||
       Date.now() - getCategoryTimestamp(cat) > METADATA_TTL_MS;
-
     try {
-      // Always load every category: stale ones fetch network,
-      // fresh ones read disk. Both populate _runtimeCache so
-      // screens read from memory with zero disk IO afterward.
       await loadCategory(cat, isStale);
     } catch {
-      // continue even if one fails
+      // continue even if one category fails
     }
-    // Report progress AFTER load completes so bar reflects actual work done,
-    // not work about to start (was one step behind before).
+    done += 1;
     onProgress?.({
       category: cat,
-      done: i + 1,
+      done,
       total,
-      percent: Math.round(((i + 1) / total) * 100),
+      percent: Math.round((done / total) * 100),
       fromCache: !isStale,
     });
-    // Yield after each category so the JS thread can process UI events
-    // and the progress bar has time to animate smoothly.
-    // Movies is the heaviest file (~12.6MB) so it gets the longest breath.
+    // Yield after each category so the progress bar can animate.
     const yieldMs = cat === 'movies' ? 120 : 50;
     await new Promise(resolve => setTimeout(resolve, yieldMs));
+  };
+
+  // Run in batches of CONCURRENCY
+  for (let i = 0; i < SYNC_CATEGORIES.length; i += CONCURRENCY) {
+    const batch = SYNC_CATEGORIES.slice(i, i + CONCURRENCY) as ContentCategory[];
+    await Promise.all(batch.map(cat => runOne(cat)));
   }
-  onProgress?.({category: 'done', done: total, total, percent: 100, fromCache: false});
+
+  onProgress?.({ category: 'done', done: total, total, percent: 100, fromCache: false });
 };
 
 export const refreshStaleCategories = async (
