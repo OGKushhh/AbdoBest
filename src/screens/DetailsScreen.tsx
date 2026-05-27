@@ -294,12 +294,20 @@ export const DetailsScreen: React.FC = () => {
             // Split dubbed/subbed episodes into virtual sub-seasons
             const eps: string[] = data.seasons[sk]?.episodes ?? [];
             const isDub = (u: string) => u.toLowerCase().includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac');
-            const hasDub = eps.some(isDub);
-            const hasSub = eps.some((u: string) => !isDub(u));
+            const isBW  = (u: string) => u.toLowerCase().includes('%d8%a7%d9%84%d8%a3%d8%a8%d9%8a%d8%b6') || u.toLowerCase().includes('%d8%a7%d9%84%d8%a7%d8%b3%d9%88%d8%af');
+            const hasDub   = eps.some(isDub);
+            const hasSub   = eps.some((u: string) => !isDub(u));
+            const hasBW    = eps.some(isBW);
+            const hasColor = eps.some((u: string) => !isBW(u));
             if (hasDub && hasSub) {
               const poster = data.seasons[sk]?.poster || '';
               data.seasons[`${sk}_sub`] = {poster, episodes: eps.filter((u: string) => !isDub(u))};
               data.seasons[`${sk}_dub`] = {poster, episodes: eps.filter(isDub)};
+              delete data.seasons[sk];
+            } else if (hasBW && hasColor) {
+              const poster = data.seasons[sk]?.poster || '';
+              data.seasons[`${sk}_color`] = {poster, episodes: eps.filter((u: string) => !isBW(u))};
+              data.seasons[`${sk}_bw`]    = {poster, episodes: eps.filter(isBW)};
               delete data.seasons[sk];
             }
           });
@@ -436,21 +444,25 @@ export const DetailsScreen: React.FC = () => {
   const isOngoing = status === '\u0645\u0633\u062A\u0645\u0631' || status.toLowerCase() === 'ongoing';
 
   // Episode data
-  // Returns the human-readable label for a season key, handling _sub/_dub suffixes
+  // Returns the human-readable label for a season key, handling _sub/_dub/_color/_bw suffixes
   const seasonLabel = (sk: string): string => {
     const numMatch = sk.match(/^(\d+)/);
     const num = numMatch ? numMatch[1] : sk;
-    if (sk.endsWith('_sub')) return `${t('season')} ${num} - ${t('badge_subbed')}`;
-    if (sk.endsWith('_dub')) return `${t('season')} ${num} - ${t('badge_dubbed')}`;
+    if (sk.endsWith('_sub'))   return `${t('season')} ${num} - ${t('badge_subbed')}`;
+    if (sk.endsWith('_dub'))   return `${t('season')} ${num} - ${t('badge_dubbed')}`;
+    if (sk.endsWith('_color')) return `${t('season')} ${num} - ${t('badge_color')}`;
+    if (sk.endsWith('_bw'))    return `${t('season')} ${num} - ${t('badge_bw')}`;
     return `${t('season')} ${num}`;
   };
   const seasonKeys: string[] = epData?.seasons ? Object.keys(epData.seasons).sort((a, b) => {
     const na = parseInt(a.replace(/\D/g, ''), 10) || 0;
     const nb = parseInt(b.replace(/\D/g, ''), 10) || 0;
     if (na !== nb) return na - nb;
-    // Within same season number: _sub before _dub
+    // Within same season number: _sub before _dub, _color before _bw
     if (a.endsWith('_sub') && b.endsWith('_dub')) return -1;
     if (a.endsWith('_dub') && b.endsWith('_sub')) return 1;
+    if (a.endsWith('_color') && b.endsWith('_bw')) return -1;
+    if (a.endsWith('_bw') && b.endsWith('_color')) return 1;
     return 0;
   }) : [];
   const currentEps: string[] = epData?.seasons?.[selSeason]?.episodes ?? [];

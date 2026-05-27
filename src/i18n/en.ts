@@ -135,6 +135,8 @@ export const en = {
   badge_movie: 'Movie',
   badge_dubbed: 'Dubbed',
   badge_subbed: 'Subbed',
+  badge_color: 'Colored',
+  badge_bw: 'Black & White',
   badge_hindi: 'Hindi',
   badge_asian: 'Asian',
   badge_anime: 'Anime',

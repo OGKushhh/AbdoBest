@@ -135,6 +135,8 @@ export const ar = {
   badge_movie: 'فيلم',
   badge_dubbed: 'مدبلج',
   badge_subbed: 'مترجم',
+  badge_color: 'ملون',
+  badge_bw: 'أبيض وأسود',
   badge_hindi: 'هندي',
   badge_asian: 'آسيوي',
   badge_anime: 'أنمي',
