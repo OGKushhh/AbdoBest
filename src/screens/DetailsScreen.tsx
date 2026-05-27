@@ -1201,40 +1201,52 @@ export const DetailsScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={`ep-${selSeason}-${idx}`}
-                    style={[S.epRow, isExtractingThis && S.epRowDisabled]}
+                    style={[S.epRow, isExtractingThis && S.epRowDisabled, isSpecial && S.epRowFat]}
                     onPress={() => handlePlayEpisode(epUrl, idx + 1, false)}
                     disabled={extracting}
                     activeOpacity={0.75}
                   >
-                    <View style={[S.epNumCircle, isExtractingThis && S.epNumActive, isSpecial && {width: 'auto', paddingHorizontal: 6}]}>
-                      <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{epNum}</Text>
-                    </View>
-                    <TouchableOpacity style={S.epDownloadBtn} onPress={() => {
-                        const epTitle = epSuffixEn
-                          ? `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn} ${epSuffixEn}`
-                          : `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn}`;
-                        const seasonNum = parseInt(selSeason, 10) || 1;
-                        downloadModeRef.current = true;
-                        startExtraction(epUrl, epTitle, epUrl, false, idx + 1, seasonNum);
-                      }}>
-                      <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={[S.epPlayIcon, {tintColor: Colors.dark.accent}]} />
-                    </TouchableOpacity>
-                    {episodeViews[epUrl] ? (
-                      <View style={[S.epViewsBadge, {height: 38, borderRadius: 19}]}>
-                        <Image source={require('../../assets/icons/eyes.png')} style={S.epViewsBadgeIcon} />
-                        <Text style={S.epViewsBadgeTxt}>{formatViews(episodeViews[epUrl])}</Text>
+                    {/* Top line — always present */}
+                    <View style={isSpecial ? S.epRowTop : {flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12}}>
+                      <View style={[S.epNumCircle, isExtractingThis && S.epNumActive, isSpecial && {width: 'auto', paddingHorizontal: 8}]}>
+                        <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{epNum}</Text>
                       </View>
-                    ) : null}
-                    <Text style={[S.epTitle, {marginStart: 'auto', textAlign: 'right'}]} numberOfLines={1}>
-                      {epSuffix ? `${t('episode')} ${epNum} ${epSuffix}` : `${t('episode')} ${epNum}`}
-                    </Text>
-                    {isExtractingThis ? (
-                      <ActivityIndicator size="small" color={Colors.dark.primary} />
-                    ) : (
-                      <Image
-                        source={require('../../assets/icons/flash.png')}
-                        style={[S.epPlayIcon, {tintColor: '#FFD700'}]}
-                      />
+                      <TouchableOpacity style={S.epDownloadBtn} onPress={() => {
+                          const epTitle = epSuffixEn
+                            ? `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn} ${epSuffixEn}`
+                            : `${item.Title} - ${t('season')} ${selSeason} ${t('episode')} ${epNumEn}`;
+                          const seasonNum = parseInt(selSeason, 10) || 1;
+                          downloadModeRef.current = true;
+                          startExtraction(epUrl, epTitle, epUrl, false, idx + 1, seasonNum);
+                        }}>
+                        <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={[S.epPlayIcon, {tintColor: Colors.dark.accent}]} />
+                      </TouchableOpacity>
+                      {episodeViews[epUrl] ? (
+                        <View style={[S.epViewsBadge, {height: 38, borderRadius: 19}]}>
+                          <Image source={require('../../assets/icons/eyes.png')} style={S.epViewsBadgeIcon} />
+                          <Text style={S.epViewsBadgeTxt}>{formatViews(episodeViews[epUrl])}</Text>
+                        </View>
+                      ) : null}
+                      {/* Title inline for normal eps, hidden here for specials */}
+                      {!isSpecial && (
+                        <Text style={[S.epTitle, {marginStart: 'auto', textAlign: 'right'}]} numberOfLines={1}>
+                          {epSuffix ? `${t('episode')} ${epNum} ${epSuffix}` : `${t('episode')} ${epNum}`}
+                        </Text>
+                      )}
+                      {isExtractingThis ? (
+                        <ActivityIndicator size="small" color={Colors.dark.primary} />
+                      ) : (
+                        <Image
+                          source={require('../../assets/icons/flash.png')}
+                          style={[S.epPlayIcon, {tintColor: '#FFD700'}]}
+                        />
+                      )}
+                    </View>
+                    {/* Second line — only for specials with long titles */}
+                    {isSpecial && (
+                      <Text style={S.epTitleFat} numberOfLines={2}>
+                        {epSuffix ?? epNum}
+                      </Text>
                     )}
                   </TouchableOpacity>
                 );
@@ -1534,6 +1546,9 @@ const S = StyleSheet.create({
   seasonPosterWrap: {paddingVertical: 10, alignItems: 'center'},
   seasonPoster:     {width: 120, height: 180, borderRadius: 10, backgroundColor: Colors.dark.surfaceLight},
   epRow:           {flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border, gap: 12},
+  epRowFat:        {flexDirection: 'column', alignItems: 'stretch', paddingVertical: 12, gap: 8},
+  epRowTop:        {flexDirection: 'row', alignItems: 'center', gap: 12},
+  epTitleFat:      {color: Colors.dark.text, fontSize: 13, fontWeight: '600', fontFamily: 'Rubik', textAlign: 'right', paddingHorizontal: 4, lineHeight: 20},
   epRowDisabled:   {opacity: 0.5},
   epNumCircle:     {width: 38, height: 38, borderRadius: 19, backgroundColor: `${Colors.dark.primary}20`, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: `${Colors.dark.primary}40`},
   epNumActive:     {backgroundColor: Colors.dark.primary, borderColor: Colors.dark.primary},
