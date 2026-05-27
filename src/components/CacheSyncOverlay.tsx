@@ -1,38 +1,35 @@
-/**
- * CacheSyncOverlay
- *
- * Full-screen overlay shown during initial cache download on app launch.
- * Also exported as a hook (useCacheSync) for use in SettingsScreen.
- *
- * Shows:
- *  - App name / logo
- *  - Current category being fetched (Arabic + English label)
- *  - Animated progress bar
- *  - "X / Y categories" counter
- *  - Tick ✓ when a category was already cached (skipped)
- */
-
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Modal,
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Modal,
 } from 'react-native';
 import { syncAllWithProgress, SyncProgress, SYNC_CATEGORIES } from '../services/metadataService';
 
 // ── Category display names ────────────────────────────────────────────────────
 const CAT_LABELS: Record<string, { ar: string; en: string }> = {
-  movies:          { ar: 'أفلام',              en: 'Movies' },
-  series:          { ar: 'مسلسلات',            en: 'Series' },
-  anime:           { ar: 'أنمي',               en: 'Anime' },
-  tvshows:         { ar: 'برامج تلفزيونية',    en: 'TV Shows' },
-  'asian-series':  { ar: 'مسلسلات آسيوية',    en: 'Asian Series' },
-  'arabic-series': { ar: 'مسلسلات عربية',      en: 'Arabic Series' },
-  'dubbed-movies': { ar: 'أفلام مدبلجة',       en: 'Dubbed Movies' },
-  hindi:           { ar: 'هندي',               en: 'Hindi' },
-  'asian-movies':  { ar: 'أفلام آسيوية',       en: 'Asian Movies' },
-  'anime-movies':  { ar: 'أفلام أنمي',         en: 'Anime Movies' },
-  trending:        { ar: 'الأكثر مشاهدة',      en: 'Trending' },
-  featured:        { ar: 'مميز',               en: 'Featured' },
-  done:            { ar: 'اكتمل!',             en: 'Done!' },
+  movies:           { ar: 'أفلام',             en: 'Movies' },
+  series:           { ar: 'مسلسلات',           en: 'Series' },
+  anime:            { ar: 'أنمي',              en: 'Anime' },
+  tvshows:          { ar: 'برامج تلفزيونية',   en: 'TV Shows' },
+  'asian-series':   { ar: 'مسلسلات آسيوية',   en: 'Asian Series' },
+  'arabic-series':  { ar: 'مسلسلات عربية',     en: 'Arabic Series' },
+  'dubbed-movies':  { ar: 'أفلام مدبلجة',      en: 'Dubbed Movies' },
+  hindi:            { ar: 'هندي',              en: 'Hindi' },
+  'asian-movies':   { ar: 'أفلام آسيوية',      en: 'Asian Movies' },
+  'anime-movies':   { ar: 'أفلام أنمي',        en: 'Anime Movies' },
+  trending:         { ar: 'الأكثر مشاهدة',     en: 'Trending' },
+  featured:         { ar: 'مميز',              en: 'Featured' },
+  done:             { ar: 'اكتمل!',            en: 'Done!' },
+};
+
+/** Format bytes → human-readable KB/MB string */
+const formatSize = (bytes: number): string => {
+  if (bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 // ── Hook: useCacheSync ────────────────────────────────────────────────────────
@@ -48,16 +45,21 @@ export function useCacheSync(): CacheSyncState {
 
   const start = useCallback(async (forceRefresh = false) => {
     setRunning(true);
-    setProgress({ category: SYNC_CATEGORIES[0], done: 0, total: SYNC_CATEGORIES.length, percent: 0, fromCache: false, completedItems: [] });
+    setProgress({
+      category: SYNC_CATEGORIES[0],
+      done: 0,
+      total: SYNC_CATEGORIES.length,
+      percent: 0,
+      fromCache: false,
+      completedItems: [],
+    });
     try {
-      await syncAllWithProgress(p => setProgress(p), forceRefresh);
+      await syncAllWithProgress((p) => setProgress(p), forceRefresh);
     } catch {
       // syncAllWithProgress catches per-category errors internally,
-      // but guard here too so the finally block always runs and
-      // running is always reset — prevents the button staying disabled forever.
+      // but guard here too so finally always runs and button never stays stuck.
     } finally {
       // Show 'done' state briefly, then wait for fade animation (600ms delay + 600ms duration)
-      // before clearing so the Modal doesn't vanish mid-fade
       setTimeout(() => {
         setRunning(false);
         setProgress(null);
@@ -78,17 +80,14 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) 
   const barWidth = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Animate progress bar
   useEffect(() => {
-    const pct = progress?.percent ?? 0;
     Animated.timing(barWidth, {
-      toValue: pct,
+      toValue: progress?.percent ?? 0,
       duration: 300,
       useNativeDriver: false,
     }).start();
   }, [progress?.percent]);
 
-  // Fade out when done
   useEffect(() => {
     if (progress?.category === 'done') {
       Animated.timing(fadeAnim, {
@@ -105,18 +104,25 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) 
   if (!visible) return null;
 
   const label = progress ? CAT_LABELS[progress.category] : null;
-  const done  = progress?.done ?? 0;
+  const done = progress?.done ?? 0;
   const total = progress?.total ?? SYNC_CATEGORIES.length;
+  const isDone = progress?.category === 'done';
+
+  // Total KB downloaded so far across all completed categories
+  const totalBytes =
+    progress?.completedItems
+      .filter((i) => !i.fromCache)
+      .reduce((sum, i) => sum + i.fileSizeBytes, 0) ?? 0;
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
 
-        {/* App name */}
         <Text style={styles.appName}>AbdoBest</Text>
-        <Text style={styles.subtitle}>جار تحميل قاعدة البيانات…{'\n'}Loading database…</Text>
+        <Text style={styles.subtitle}>
+          {'جار تحميل قاعدة البيانات…\nLoading database…'}
+        </Text>
 
-        {/* Progress bar track */}
         <View style={styles.track}>
           <Animated.View
             style={[
@@ -131,18 +137,26 @@ export const CacheSyncOverlay: React.FC<OverlayProps> = ({ visible, progress }) 
           />
         </View>
 
-        {/* Counter + category label */}
         <View style={styles.labelRow}>
-          <Text style={styles.counter}>{done} / {total}</Text>
+          <Text style={styles.counter}>
+            {done} / {total}
+          </Text>
           {label && (
             <Text style={styles.catLabel}>
-              {progress?.fromCache ? '✓ ' : ''}{label.ar} · {label.en}
+              {progress?.fromCache ? '✓ ' : '⟳ '}
+              {label.ar} · {label.en}
             </Text>
           )}
         </View>
 
-        {/* Percent */}
-        <Text style={styles.percent}>{progress?.percent ?? 0}%</Text>
+        <View style={styles.statsRow}>
+          <Text style={styles.percent}>
+            {isDone ? '100' : (progress?.percent ?? 0)}%
+          </Text>
+          {totalBytes > 0 && (
+            <Text style={styles.sizeLabel}>{formatSize(totalBytes)} downloaded</Text>
+          )}
+        </View>
 
       </Animated.View>
     </Modal>
@@ -167,12 +181,18 @@ export const CacheSyncInline: React.FC<InlineProps> = ({ progress }) => {
 
   if (!progress) return null;
 
-  const label  = CAT_LABELS[progress.category];
+  const label = CAT_LABELS[progress.category];
   const isDone = progress.category === 'done';
+
+  // Show the most recently completed item's size
+  const lastCompleted = progress.completedItems[0];
+  const lastSize =
+    lastCompleted && !lastCompleted.fromCache
+      ? formatSize(lastCompleted.fileSizeBytes)
+      : '';
 
   return (
     <View style={inlineStyles.container}>
-      {/* Progress bar */}
       <View style={inlineStyles.track}>
         <Animated.View
           style={[
@@ -188,14 +208,15 @@ export const CacheSyncInline: React.FC<InlineProps> = ({ progress }) => {
         />
       </View>
 
-      {/* Label row */}
       <View style={inlineStyles.row}>
         <Text style={inlineStyles.counter}>
           {isDone ? '✓ اكتمل · Done' : `${progress.done} / ${progress.total}`}
         </Text>
         {!isDone && label && (
           <Text style={inlineStyles.cat} numberOfLines={1}>
-            {progress.fromCache ? '✓ ' : '⟳ '}{label.ar} · {label.en}
+            {progress.fromCache ? '✓ ' : '⟳ '}
+            {label.ar} · {label.en}
+            {lastSize ? `  ${lastSize}` : ''}
           </Text>
         )}
         <Text style={inlineStyles.pct}>{progress.percent}%</Text>
@@ -261,12 +282,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 8,
   },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 16,
+    gap: 12,
+  },
   percent: {
     color: '#FF4500',
     fontSize: 22,
     fontWeight: '700',
     fontFamily: 'Rubik',
-    marginTop: 20,
+  },
+  sizeLabel: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 12,
+    fontFamily: 'Rubik',
   },
 });
 

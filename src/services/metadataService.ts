@@ -380,7 +380,10 @@ export const syncAllWithProgress = async (
   const total = SYNC_CATEGORIES.length;
   let done = 0;
   const completedItems: CompletedItem[] = [];
-  const CONCURRENCY = 3;
+  // 6 concurrent requests — device handles this fine and cuts network phase ~in half
+  // vs the old CONCURRENCY = 3.  No artificial inter-batch delays either; the
+  // Promise.all naturally yields the JS thread between network callbacks.
+  const CONCURRENCY = 6;
 
   const runOne = async (cat: ContentCategory): Promise<{ cat: ContentCategory; isStale: boolean; sizeBytes: number }> => {
     const isStale =
@@ -426,12 +429,20 @@ export const syncAllWithProgress = async (
       fromCache: results.every(r => !r.isStale),
       completedItems: [...completedItems],
     });
-
-    const hasMovies = batch.includes('movies');
-    await new Promise(resolve => setTimeout(resolve, hasMovies ? 120 : 50));
   }
 
   onProgress?.({ category: 'done', done: total, total, percent: 100, fromCache: false, completedItems: [...completedItems] });
+};
+
+/**
+ * Wake the HF Spaces server before sync begins.
+ * HF Spaces sleeps after inactivity — the first real request can wait 10–30s
+ * for the container to boot. Pinging /health early overlaps that boot time
+ * with storage.init() so the user doesn't stare at a blank screen waiting.
+ * Fire-and-forget: if it fails, sync proceeds normally.
+ */
+export const wakeServer = (): void => {
+  metadataApi.get('/health', { timeout: 35000 }).catch(() => {});
 };
 
 export const refreshStaleCategories = async (

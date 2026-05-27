@@ -5,6 +5,7 @@ import {AppNavigator} from './src/navigation/AppNavigator';
 import {UpdateModal} from './src/components/UpdateModal';
 import {checkForUpdate, skipVersion, openUpdateUrl, ReleaseInfo} from './src/services/updateService';
 import {restoreDownloads} from './src/services/downloadService';
+import {wakeServer} from './src/services/metadataService';
 import {retrySyncViews} from './src/services/viewService';
 import {APP_VERSION} from './src/constants/endpoints';
 import {storage} from './src/storage/Storage';
@@ -43,6 +44,9 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Wake the HF Spaces server immediately — before storage.init() — so the
+    // container boot time overlaps with local init work rather than adding to it.
+    wakeServer();
     let timer: ReturnType<typeof setTimeout> | undefined;
     storage.init().then(() => {
       initCounters();
