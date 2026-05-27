@@ -380,31 +380,11 @@ export const syncAllWithProgress = async (
   const total = SYNC_CATEGORIES.length;
   let done = 0;
   const completedItems: CompletedItem[] = [];
-  // 6 concurrent requests — device handles this fine and cuts network phase ~in half
-  // vs the old CONCURRENCY = 3.  No artificial inter-batch delays either; the
-  // Promise.all naturally yields the JS thread between network callbacks.
-  const CONCURRENCY = 6;
 
-  const runOne = async (cat: ContentCategory): Promise<{ cat: ContentCategory; isStale: boolean; sizeBytes: number }> => {
-    const isStale =
-      forceRefresh ||
-      getCategoryTimestamp(cat) === 0 ||
-      Date.now() - getCategoryTimestamp(cat) > METADATA_TTL_MS;
-    try {
-      await loadCategory(cat, isStale);
-    } catch {
-      // continue even if one category fails
-    }
-    const sizeBytes = await getCategoryFileSize(cat);
-    return { cat, isStale, sizeBytes };
-  };
-
-  for (let i = 0; i < SYNC_CATEGORIES.length; i += CONCURRENCY) {
-    const batch = SYNC_CATEGORIES.slice(i, i + CONCURRENCY) as ContentCategory[];
-
-    // Report batch start
+  for (const cat of SYNC_CATEGORIES as ContentCategory[]) {
+    // Report BEFORE starting this category so UI shows what's loading
     onProgress?.({
-      category: batch[0],
+      category: cat,
       done,
       total,
       percent: Math.round((done / total) * 100),
@@ -412,21 +392,28 @@ export const syncAllWithProgress = async (
       completedItems: [...completedItems],
     });
 
-    const results = await Promise.all(batch.map(cat => runOne(cat)));
+    const isStale =
+      forceRefresh ||
+      getCategoryTimestamp(cat) === 0 ||
+      Date.now() - getCategoryTimestamp(cat) > METADATA_TTL_MS;
 
-    // Prepend newest at top so list reads newest-first
-    for (const r of results) {
-      completedItems.unshift({ category: r.cat, fileSizeBytes: r.sizeBytes, fromCache: !r.isStale });
+    try {
+      await loadCategory(cat, isStale);
+    } catch {
+      // continue on failure
     }
 
-    done += results.length;
-    const last = results[results.length - 1];
+    const sizeBytes = await getCategoryFileSize(cat);
+    completedItems.unshift({ category: cat, fileSizeBytes: sizeBytes, fromCache: !isStale });
+    done += 1;
+
+    // Report AFTER completing this category
     onProgress?.({
-      category: last.cat,
+      category: cat,
       done,
       total,
       percent: Math.round((done / total) * 100),
-      fromCache: results.every(r => !r.isStale),
+      fromCache: !isStale,
       completedItems: [...completedItems],
     });
   }
