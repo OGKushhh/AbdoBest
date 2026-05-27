@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, AppStateStatus, StatusBar, LogBox, View, ActivityIndicator, Text} from 'react-native';
+import {AppState, AppStateStatus, StatusBar, LogBox} from 'react-native';
 import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {UpdateModal} from './src/components/UpdateModal';
@@ -69,14 +69,6 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!ready) {
-    return (
-      <View style={{flex: 1, backgroundColor: Colors.dark.background}}>
-        <CacheSyncOverlay visible={true} progress={syncProgress} isLaunch />
-      </View>
-    );
-  }
-
   return (
     <ThemeProvider>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
@@ -99,8 +91,8 @@ const App: React.FC = () => {
             visible={showRewardPopup}
             onClose={() => setShowRewardPopup(false)}
           />
-          {/* Cache sync overlay — shown on launch while downloading database */}
-          <CacheSyncOverlay visible={syncRunning} progress={syncProgress} />
+          {/* Overlay always rendered on top — fades out on its own when done */}
+          <CacheSyncOverlay visible={!ready || syncRunning} progress={syncProgress} isLaunch />
         </AdProvider>
       </SafeAreaProvider>
     </ThemeProvider>
