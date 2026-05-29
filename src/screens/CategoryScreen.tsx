@@ -84,7 +84,7 @@ export const CategoryScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedSort, setSelectedSort] = useState<string>('year_desc');
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -97,6 +97,26 @@ export const CategoryScreen: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [showFilterPopup, setShowFilterPopup] = useState(false);
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = useCallback((key: string) => {
+    setOpenSections(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  const handleOpenFilterPopup = useCallback(() => {
+    const active = new Set<string>();
+    if (selectedSort !== 'year_desc') active.add('sort');
+    if (selectedGenres.length > 0) active.add('genre');
+    if (selectedYear) active.add('year');
+    if (selectedCountry) active.add('country');
+    if (ramadanFilter) active.add('ramadan');
+    setOpenSections(active);
+    setShowFilterPopup(true);
+  }, [selectedSort, selectedGenres, selectedYear, selectedCountry, ramadanFilter]);
 
   // Sync when arriving with different params
   useEffect(() => {
@@ -134,7 +154,7 @@ export const CategoryScreen: React.FC = () => {
         // running all useMemos (filtered, availableGenres, availableYears,
         // availableCountries) on thousands of items per call. One render instead of 10.
         unstable_batchedUpdates(() => {
-          setSelectedGenre(null);
+          setSelectedGenres([]);
           setSelectedYear(null);
           setSelectedCountry(null);
           setRamadanFilter(false);
@@ -185,13 +205,12 @@ export const CategoryScreen: React.FC = () => {
         item.Country?.toLowerCase().includes(q)
       );
     }
-    if (selectedGenre) {
-      // Normalize selected genre to both EN and AR equivalents for robust matching
-      const enKey = localizeGenre(selectedGenre, 'en').toLowerCase();
-      const arKey = localizeGenre(selectedGenre, 'ar').toLowerCase();
+    if (selectedGenres.length > 0) {
+      const enKeys = selectedGenres.map(g => localizeGenre(g, 'en').toLowerCase());
+      const arKeys = selectedGenres.map(g => localizeGenre(g, 'ar').toLowerCase());
       result = result.filter(item =>
-        item.Genres?.some(g => g.toLowerCase() === enKey || g.toLowerCase() === arKey) ||
-        item.GenresAr?.some(g => g.toLowerCase() === enKey || g.toLowerCase() === arKey)
+        item.Genres?.some(g => enKeys.includes(g.toLowerCase()) || arKeys.includes(g.toLowerCase())) ||
+        item.GenresAr?.some(g => enKeys.includes(g.toLowerCase()) || arKeys.includes(g.toLowerCase()))
       );
     }
     if (selectedYear) {
@@ -218,12 +237,12 @@ export const CategoryScreen: React.FC = () => {
         // sorted items for no reason. Filtering preserves relative order, so just return.
         return result;
     }
-  }, [allItems, debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
+  }, [allItems, debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenre, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
 
   useEffect(() => {
     const end = page * PAGE_SIZE;
@@ -248,7 +267,7 @@ export const CategoryScreen: React.FC = () => {
 
   const handleCategorySelect = useCallback((cat: string) => {
     setSelectedCategory(cat);
-    setSelectedGenre(null);
+    setSelectedGenres([]);
     setSelectedYear(null);
     setSelectedCountry(null);
     setSelectedSort('year_desc');
@@ -301,8 +320,8 @@ export const CategoryScreen: React.FC = () => {
 
   const catConfig = CATEGORIES.find(c => c.key === selectedCategory);
   const screenTitle = catConfig ? (lang === 'ar' ? catConfig.labelAr : catConfig.labelEn) : t(selectedCategory);
-  const activeFilterCount = (selectedGenre ? 1 : 0) + (selectedYear ? 1 : 0) + (selectedCountry ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
-  const clearFilters = useCallback(() => { setSelectedGenre(null); setSelectedYear(null); setSelectedCountry(null); setRamadanFilter(false); setSelectedSort('year_desc'); }, []);
+  const activeFilterCount = (selectedGenres.length > 0 ? 1 : 0) + (selectedYear ? 1 : 0) + (selectedCountry ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
+  const clearFilters = useCallback(() => { setSelectedGenres([]); setSelectedYear(null); setSelectedCountry(null); setRamadanFilter(false); setSelectedSort('year_desc'); }, []);
   const closeFilterPopup = useCallback(() => setShowFilterPopup(false), []);
 
   if (loading) return <LoadingSpinner />;
@@ -354,7 +373,7 @@ export const CategoryScreen: React.FC = () => {
         <Image source={require('../../assets/icons/search.png')} style={[styles.searchIcon, { tintColor: Colors.dark.textMuted }]} />
         <TextInput style={[styles.searchInput, isRTL && styles.textRTL]} placeholder={t('search_placeholder')} placeholderTextColor={Colors.dark.textMuted} value={searchQuery} onChangeText={setSearchQuery} textAlign={isRTL ? 'right' : 'left'} />
         {searchQuery.length > 0 && <TouchableOpacity onPress={() => { setSearchQuery(''); setDebouncedQuery(''); }} style={styles.clearBtn}><Text style={{ fontSize: 18, color: Colors.dark.textMuted, fontWeight: '700' }}>×</Text></TouchableOpacity>}
-        <TouchableOpacity style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]} onPress={() => setShowFilterPopup(true)}>
+        <TouchableOpacity style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]} onPress={handleOpenFilterPopup}>
           <Image source={require('../../assets/icons/setting.png')} style={[styles.filterBtnIcon, { tintColor: activeFilterCount > 0 ? Colors.dark.primary : Colors.dark.textSecondary }]} />
           {activeFilterCount > 0 && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{activeFilterCount}</Text></View>}
         </TouchableOpacity>
@@ -363,7 +382,7 @@ export const CategoryScreen: React.FC = () => {
       {/* Active filter chips */}
       {activeFilterCount > 0 && (
         <View style={[styles.activeFiltersRow, isRTL && styles.rowRTL]}>
-          {selectedGenre && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedGenre(null)}><Text style={styles.activeChipText}>{selectedGenre}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
+          {selectedGenres.map(genre => <TouchableOpacity key={genre} style={styles.activeChip} onPress={() => setSelectedGenres(prev => prev.filter(g => g !== genre))}><Text style={styles.activeChipText}>{genre}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>)}
           {selectedYear && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedYear(null)}><Text style={styles.activeChipText}>{selectedYear}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {selectedCountry && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedCountry(null)}><Text style={styles.activeChipText}>{selectedCountry}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {ramadanFilter && <TouchableOpacity style={[styles.activeChip, {borderColor: '#C9A84C'}]} onPress={() => setRamadanFilter(false)}><Text style={[styles.activeChipText, {color: '#C9A84C'}]}>🌙 رمضان</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
@@ -403,95 +422,162 @@ export const CategoryScreen: React.FC = () => {
               <TouchableOpacity onPress={closeFilterPopup}><Image source={require('../../assets/icons/close.png')} style={[styles.headerIcon, { tintColor: Colors.dark.text }]} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: SCREEN_HEIGHT * 0.7 }}>
-              <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('sort_by')}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptionsRow}>
-                {SORT_OPTIONS.map(opt => (
-                  <TouchableOpacity key={opt.key} style={[styles.filterOptionChip, selectedSort === opt.key && styles.filterOptionChipActive]} onPress={() => setSelectedSort(opt.key)}>
-                    <Text style={[styles.filterOptionText, selectedSort === opt.key && styles.filterOptionTextActive]}>{t(opt.labelKey)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
 
+              {/* Sort accordion */}
+              <TouchableOpacity
+                style={[styles.accordionBar, isRTL && styles.rowRTL, (selectedSort !== 'year_desc') && styles.accordionBarActive]}
+                onPress={() => toggleSection('sort')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.accordionLabel, isRTL && styles.textRTL, (selectedSort !== 'year_desc') && styles.accordionLabelActive]}>
+                  {t('sort_by')}{selectedSort !== 'year_desc' ? ` · ${t(SORT_OPTIONS.find(o => o.key === selectedSort)?.labelKey ?? '')}` : ''}
+                </Text>
+                <Text style={[styles.accordionChevron, openSections.has('sort') && styles.accordionChevronOpen]}>›</Text>
+              </TouchableOpacity>
+              {openSections.has('sort') && (
+                <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                  {SORT_OPTIONS.map(opt => (
+                    <TouchableOpacity key={opt.key} style={[styles.filterOptionChip, selectedSort === opt.key && styles.filterOptionChipActive]} onPress={() => setSelectedSort(opt.key)}>
+                      <Text style={[styles.filterOptionText, selectedSort === opt.key && styles.filterOptionTextActive]}>{t(opt.labelKey)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Genres accordion */}
               {availableGenres.length > 0 && (
                 <>
-                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('genres')}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptionsRow}>
-                    <TouchableOpacity style={[styles.filterOptionChip, !selectedGenre && styles.filterOptionChipActive]} onPress={() => setSelectedGenre(null)}>
-                      <Text style={[styles.filterOptionText, !selectedGenre && styles.filterOptionTextActive]}>{t('all')}</Text>
-                    </TouchableOpacity>
-                    {availableGenres.map(genre => (
-                      <TouchableOpacity key={genre} style={[styles.filterOptionChip, selectedGenre === genre && styles.filterOptionChipActive]} onPress={() => setSelectedGenre(selectedGenre === genre ? null : genre)}>
-                        <Text style={[styles.filterOptionText, selectedGenre === genre && styles.filterOptionTextActive]}>{genre}</Text>
+                  <TouchableOpacity
+                    style={[styles.accordionBar, isRTL && styles.rowRTL, selectedGenres.length > 0 && styles.accordionBarActive]}
+                    onPress={() => toggleSection('genre')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.accordionLabel, isRTL && styles.textRTL, selectedGenres.length > 0 && styles.accordionLabelActive]}>
+                      {t('genres')}{selectedGenres.length > 0 ? ` · ${selectedGenres.length}` : ''}
+                    </Text>
+                    <Text style={[styles.accordionChevron, openSections.has('genre') && styles.accordionChevronOpen]}>›</Text>
+                  </TouchableOpacity>
+                  {openSections.has('genre') && (
+                    <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                      <TouchableOpacity style={[styles.filterOptionChip, selectedGenres.length === 0 && styles.filterOptionChipActive]} onPress={() => setSelectedGenres([])}>
+                        <Text style={[styles.filterOptionText, selectedGenres.length === 0 && styles.filterOptionTextActive]}>{t('all')}</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {availableGenres.map(genre => {
+                        const isSel = selectedGenres.includes(genre);
+                        return (
+                          <TouchableOpacity
+                            key={genre}
+                            style={[styles.filterOptionChip, isSel && styles.filterOptionChipActive]}
+                            onPress={() => setSelectedGenres(prev => isSel ? prev.filter(g => g !== genre) : [...prev, genre])}
+                          >
+                            <Text style={[styles.filterOptionText, isSel && styles.filterOptionTextActive]}>{genre}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
                 </>
               )}
 
+              {/* Year accordion */}
               {availableYears.length > 0 && (
                 <>
-                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('year')}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptionsRow}>
-                    <TouchableOpacity style={[styles.filterOptionChip, !selectedYear && styles.filterOptionChipActive]} onPress={() => setSelectedYear(null)}>
-                      <Text style={[styles.filterOptionText, !selectedYear && styles.filterOptionTextActive]}>{t('all')}</Text>
-                    </TouchableOpacity>
-                    {availableYears.map(year => (
-                      <TouchableOpacity key={year} style={[styles.filterOptionChip, selectedYear === year && styles.filterOptionChipActive]} onPress={() => setSelectedYear(selectedYear === year ? null : year)}>
-                        <Text style={[styles.filterOptionText, selectedYear === year && styles.filterOptionTextActive]}>{year}</Text>
+                  <TouchableOpacity
+                    style={[styles.accordionBar, isRTL && styles.rowRTL, !!selectedYear && styles.accordionBarActive]}
+                    onPress={() => toggleSection('year')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.accordionLabel, isRTL && styles.textRTL, !!selectedYear && styles.accordionLabelActive]}>
+                      {t('year')}{selectedYear ? ` · ${selectedYear}` : ''}
+                    </Text>
+                    <Text style={[styles.accordionChevron, openSections.has('year') && styles.accordionChevronOpen]}>›</Text>
+                  </TouchableOpacity>
+                  {openSections.has('year') && (
+                    <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                      <TouchableOpacity style={[styles.filterOptionChip, !selectedYear && styles.filterOptionChipActive]} onPress={() => setSelectedYear(null)}>
+                        <Text style={[styles.filterOptionText, !selectedYear && styles.filterOptionTextActive]}>{t('all')}</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {availableYears.map(year => (
+                        <TouchableOpacity key={year} style={[styles.filterOptionChip, selectedYear === year && styles.filterOptionChipActive]} onPress={() => setSelectedYear(selectedYear === year ? null : year)}>
+                          <Text style={[styles.filterOptionText, selectedYear === year && styles.filterOptionTextActive]}>{year}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </>
               )}
 
+              {/* Country accordion */}
               {availableCountries.length > 0 && (
                 <>
-                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('country')}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterOptionsRow}>
-                    <TouchableOpacity style={[styles.filterOptionChip, !selectedCountry && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(null)}>
-                      <Text style={[styles.filterOptionText, !selectedCountry && styles.filterOptionTextActive]}>{t('all')}</Text>
-                    </TouchableOpacity>
-                    {availableCountries.map(country => (
-                      <TouchableOpacity key={country} style={[styles.filterOptionChip, selectedCountry === country && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(selectedCountry === country ? null : country)}>
-                        <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country === 'USA' ? t('country_usa') : country === 'UK' ? t('country_uk') : country}</Text>
+                  <TouchableOpacity
+                    style={[styles.accordionBar, isRTL && styles.rowRTL, !!selectedCountry && styles.accordionBarActive]}
+                    onPress={() => toggleSection('country')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.accordionLabel, isRTL && styles.textRTL, !!selectedCountry && styles.accordionLabelActive]}>
+                      {t('country')}{selectedCountry ? ` · ${selectedCountry}` : ''}
+                    </Text>
+                    <Text style={[styles.accordionChevron, openSections.has('country') && styles.accordionChevronOpen]}>›</Text>
+                  </TouchableOpacity>
+                  {openSections.has('country') && (
+                    <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                      <TouchableOpacity style={[styles.filterOptionChip, !selectedCountry && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(null)}>
+                        <Text style={[styles.filterOptionText, !selectedCountry && styles.filterOptionTextActive]}>{t('all')}</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {availableCountries.map(country => (
+                        <TouchableOpacity key={country} style={[styles.filterOptionChip, selectedCountry === country && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(selectedCountry === country ? null : country)}>
+                          <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country === 'USA' ? t('country_usa') : country === 'UK' ? t('country_uk') : country}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </>
               )}
 
-              {/* Ramadan filter — only shown for arabic-series */}
+              {/* Ramadan accordion — only for arabic-series */}
               {selectedCategory === 'arabic-series' && (
                 <>
-                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>🌙 رمضان / Ramadan</Text>
-                  <View style={styles.filterOptionsRow}>
-                    <TouchableOpacity
-                      style={[styles.filterOptionChip, !ramadanFilter && styles.filterOptionChipActive]}
-                      onPress={() => setRamadanFilter(false)}
-                    >
-                      <Text style={[styles.filterOptionText, !ramadanFilter && styles.filterOptionTextActive]}>{t('all')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.filterOptionChip,
-                        ramadanFilter && { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.15)' },
-                      ]}
-                      onPress={() => setRamadanFilter(!ramadanFilter)}
-                    >
-                      <Text style={[
-                        styles.filterOptionText,
-                        ramadanFilter && { color: '#C9A84C', fontWeight: '700' },
-                      ]}>
-                        🌙 مسلسلات رمضان
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.accordionBar, isRTL && styles.rowRTL, ramadanFilter && styles.accordionBarRamadan]}
+                    onPress={() => toggleSection('ramadan')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.accordionLabel, isRTL && styles.textRTL, ramadanFilter && { color: '#C9A84C' }]}>
+                      🌙 رمضان / Ramadan{ramadanFilter ? ' · مسلسلات رمضان' : ''}
+                    </Text>
+                    <Text style={[styles.accordionChevron, openSections.has('ramadan') && styles.accordionChevronOpen]}>›</Text>
+                  </TouchableOpacity>
+                  {openSections.has('ramadan') && (
+                    <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                      <TouchableOpacity style={[styles.filterOptionChip, !ramadanFilter && styles.filterOptionChipActive]} onPress={() => setRamadanFilter(false)}>
+                        <Text style={[styles.filterOptionText, !ramadanFilter && styles.filterOptionTextActive]}>{t('all')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.filterOptionChip, ramadanFilter && { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.15)' }]}
+                        onPress={() => setRamadanFilter(!ramadanFilter)}
+                      >
+                        <Text style={[styles.filterOptionText, ramadanFilter && { color: '#C9A84C', fontWeight: '700' }]}>
+                          🌙 مسلسلات رمضان
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </>
               )}
             </ScrollView>
             <View style={[styles.filterFooter, isRTL && styles.rowRTL]}>
               <Text style={[styles.filterResultCount, isRTL && styles.textRTL]}>{filtered.length} {t('results')}</Text>
-              <TouchableOpacity style={styles.filterApplyBtn} onPress={closeFilterPopup}><Text style={styles.filterApplyText}>{t('apply')}</Text></TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {activeFilterCount > 0 && (
+                  <TouchableOpacity style={styles.filterClearBtn} onPress={clearFilters}>
+                    <Text style={styles.filterClearText}>{t('clear')}</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.filterApplyBtn} onPress={closeFilterPopup}>
+                  <Text style={styles.filterApplyText}>{t('apply')}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </TouchableOpacity>
@@ -545,6 +631,16 @@ const styles = StyleSheet.create({
   filterResultCount: { color: Colors.dark.textMuted, fontSize: 13, fontFamily: 'Rubik' },
   filterApplyBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.dark.primary },
   filterApplyText: { color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik' },
+  filterClearBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: Colors.dark.border },
+  filterClearText: { color: Colors.dark.textSecondary, fontSize: 14, fontWeight: '600', fontFamily: 'Rubik' },
   rowRTL: { flexDirection: 'row-reverse' },
   textRTL: { textAlign: 'right', writingDirection: 'rtl' },
+  accordionBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 14, borderRadius: 12, backgroundColor: Colors.dark.background, borderWidth: 1, borderColor: Colors.dark.border, marginBottom: 6 },
+  accordionBarActive: { borderColor: Colors.dark.primary, backgroundColor: `${Colors.dark.primary}15` },
+  accordionBarRamadan: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.1)' },
+  accordionLabel: { color: Colors.dark.textSecondary, fontSize: 14, fontWeight: '600', fontFamily: 'Rubik', flex: 1 },
+  accordionLabelActive: { color: Colors.dark.primary },
+  accordionChevron: { color: Colors.dark.textMuted, fontSize: 20, fontWeight: '300', transform: [{ rotate: '90deg' }] },
+  accordionChevronOpen: { transform: [{ rotate: '-90deg' }] },
+  accordionBody: { marginBottom: 10, paddingHorizontal: 4 },
 });
