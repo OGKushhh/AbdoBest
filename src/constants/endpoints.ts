@@ -40,16 +40,16 @@ export function normalizeAkwamUrl(url: string): string {
 
 // Metadata API endpoints (served by HF Spaces)
 export const METADATA_ENDPOINTS: Record<string, string> = {
-  movies: '/api/movies',
-  'dubbed-movies': '/api/dubbed-movies',
-  hindi: '/api/hindi',
-  'asian-movies': '/api/asian-movies',
-  anime: '/api/anime',
-  'anime-movies': '/api/anime-movies',
-  series: '/api/series',
-  tvshows: '/api/tvshows',
-  'asian-series': '/api/asian-series',
-  'arabic-series': '/api/arabic-series',
+  movies: '/api/sorted/movies',
+  'dubbed-movies': '/api/sorted/dubbed-movies',
+  hindi: '/api/sorted/hindi',
+  'asian-movies': '/api/sorted/asian-movies',
+  anime: '/api/sorted/anime',
+  'anime-movies': '/api/sorted/anime-movies',
+  series: '/api/sorted/series',
+  tvshows: '/api/sorted/tvshows',
+  'asian-series': '/api/sorted/asian-series',
+  'arabic-series': '/api/sorted/arabic-series',
   trending: '/api/trending',
   featured: '/api/featured',
 };

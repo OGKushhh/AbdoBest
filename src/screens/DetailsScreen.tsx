@@ -219,6 +219,9 @@ export const DetailsScreen: React.FC = () => {
     return preRating ? String(preRating) : '';
   });
   const [ratingLoading, setRatingLoading] = useState(false);
+  const [malStudios,   setMalStudios]   = useState<string>('');
+  const [malTitleEn,   setMalTitleEn]   = useState<string>('');
+  const [malSeason,    setMalSeason]    = useState<string>('');
   const [showLightbox, setShowLightbox] = useState(false);
 
   // Live view count (fetched from API, then bumped locally on play)
@@ -272,6 +275,9 @@ export const DetailsScreen: React.FC = () => {
           if (val) setRating(String(val));
           const v = data.votes || data.vote_count || data.numVotes || data.Votes || '';
           if (v) setApiVotes(String(v));
+          if (data.mal_studios?.length) setMalStudios(data.mal_studios.join(', '));
+          if (data.mal_title_en) setMalTitleEn(data.mal_title_en);
+          if (data.mal_season) setMalSeason(data.mal_season);
         }
       })
       .catch(() => {})
@@ -340,8 +346,25 @@ export const DetailsScreen: React.FC = () => {
             const hasColor = eps.some((u: string) => !isBW(u));
             if (hasDub && hasSub) {
               const poster = data.seasons[sk]?.poster || '';
-              data.seasons[`${sk}_sub`] = {poster, episodes: eps.filter((u: string) => !isDub(u))};
-              data.seasons[`${sk}_dub`] = {poster, episodes: eps.filter(isDub)};
+              const subEps = eps.filter((u: string) => !isDub(u));
+              const dubEps = eps.filter(isDub);
+              // Second pass — check each dub/sub bucket for b&w vs color
+              const subHasBW    = subEps.some(isBW);
+              const subHasColor = subEps.some((u: string) => !isBW(u));
+              const dubHasBW    = dubEps.some(isBW);
+              const dubHasColor = dubEps.some((u: string) => !isBW(u));
+              if (subHasBW && subHasColor) {
+                data.seasons[`${sk}_sub_color`] = {poster, episodes: subEps.filter((u: string) => !isBW(u))};
+                data.seasons[`${sk}_sub_bw`]    = {poster, episodes: subEps.filter(isBW)};
+              } else {
+                data.seasons[`${sk}_sub`] = {poster, episodes: subEps};
+              }
+              if (dubHasBW && dubHasColor) {
+                data.seasons[`${sk}_dub_color`] = {poster, episodes: dubEps.filter((u: string) => !isBW(u))};
+                data.seasons[`${sk}_dub_bw`]    = {poster, episodes: dubEps.filter(isBW)};
+              } else {
+                data.seasons[`${sk}_dub`] = {poster, episodes: dubEps};
+              }
               delete data.seasons[sk];
             } else if (hasBW && hasColor) {
               const poster = data.seasons[sk]?.poster || '';
@@ -487,6 +510,10 @@ export const DetailsScreen: React.FC = () => {
   const seasonLabel = (sk: string): string => {
     const numMatch = sk.match(/^(\d+)/);
     const num = numMatch ? numMatch[1] : sk;
+    if (sk.endsWith('_sub_color')) return `${t('season')} ${num} - ${t('badge_subbed_color')}`;
+    if (sk.endsWith('_sub_bw'))    return `${t('season')} ${num} - ${t('badge_subbed_bw')}`;
+    if (sk.endsWith('_dub_color')) return `${t('season')} ${num} - ${t('badge_dubbed_color')}`;
+    if (sk.endsWith('_dub_bw'))    return `${t('season')} ${num} - ${t('badge_dubbed_bw')}`;
     if (sk.endsWith('_sub'))   return `${t('season')} ${num} - ${t('badge_subbed')}`;
     if (sk.endsWith('_dub'))   return `${t('season')} ${num} - ${t('badge_dubbed')}`;
     if (sk.endsWith('_color')) return `${t('season')} ${num} - ${t('badge_color')}`;
@@ -500,6 +527,11 @@ export const DetailsScreen: React.FC = () => {
     // Within same season number: _sub before _dub, _color before _bw
     if (a.endsWith('_sub') && b.endsWith('_dub')) return -1;
     if (a.endsWith('_dub') && b.endsWith('_sub')) return 1;
+    // Combined suffixes sort: sub_color < sub_bw < dub_color < dub_bw
+    const order = ['_sub_color', '_sub_bw', '_sub', '_dub_color', '_dub_bw', '_dub', '_color', '_bw'];
+    const ai = order.findIndex(s => a.endsWith(s));
+    const bi = order.findIndex(s => b.endsWith(s));
+    if (ai !== -1 && bi !== -1 && ai !== bi) return ai - bi;
     if (a.endsWith('_color') && b.endsWith('_bw')) return -1;
     if (a.endsWith('_bw') && b.endsWith('_color')) return 1;
     return 0;
@@ -1151,6 +1183,9 @@ export const DetailsScreen: React.FC = () => {
             </View>
           ) : null}
           {votes ? <InfoRow label={t('votes')} value={Number(votes).toLocaleString()} /> : null}
+          {malStudios ? <InfoRow label={t('studios')} value={malStudios} accent /> : null}
+          {malSeason ? <InfoRow label={t('airing_season')} value={malSeason} /> : null}
+          {malTitleEn ? <InfoRow label={t('title_en')} value={malTitleEn} /> : null}
           {dateAdded ? <InfoRow label={t('date_added')} value={dateAdded} /> : null}
           {dateUpdated ? <InfoRow label={t('date_updated')} value={dateUpdated} /> : null}
         </View>

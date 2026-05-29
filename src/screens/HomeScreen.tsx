@@ -11,8 +11,8 @@ import FastImage from 'react-native-fast-image';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTranslation} from 'react-i18next';
 import {
-  loadCategory, getMoviesArray, getRuntimeCache, searchContent,
-  BackgroundUpdateCallback, clearRuntimeCache, sortByNewest,
+  loadCategory, getRuntimeCache, searchContent,
+  BackgroundUpdateCallback, clearRuntimeCache,
 } from '../services/metadataService';
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
@@ -446,7 +446,7 @@ export const HomeScreen: React.FC = () => {
         const results = await Promise.all(
           missing.map(cat =>
             loadCategory(cat as any, force, force ? undefined : onBackgroundUpdate)
-              .then(d => ({cat, items: getRuntimeCache(cat) ?? (d ? sortByNewest(getMoviesArray(d as any)) : [])}))
+              .then(d => ({cat, items: getRuntimeCache(cat) ?? (d ? (Array.isArray(d) ? d as ContentItem[] : Object.values(d) as ContentItem[]) : [])}))
               .catch(() => ({cat, items: [] as ContentItem[]}))
           ),
         );

@@ -63,14 +63,9 @@ export const sortByNewest = (items: ContentItem[]): ContentItem[] => {
 export const getRuntimeCache = (category: string): ContentItem[] | null =>
   _runtimeCache.get(category) ?? null;
 
-/** Populate runtime cache.
- *  - Pass a pre-sorted array (from disk) → stored as-is, no re-sort.
- *  - Pass an unsorted array (raw dict values) → sorted here.
- *  The `alreadySorted` flag is set internally when we know the data came
- *  from a disk file that was written pre-sorted by fetchAndCache.
- */
-const _setRuntimeCache = (category: string, items: ContentItem[], alreadySorted = false): void => {
-  _runtimeCache.set(category, alreadySorted ? items : sortByNewest(items));
+/** Populate runtime cache. Data is always a pre-sorted array from HF. */
+const _setRuntimeCache = (category: string, items: ContentItem[]): void => {
+  _runtimeCache.set(category, items);
 };
 
 /** Invalidate one or all entries — called on force refresh. */
@@ -127,11 +122,10 @@ const fetchAndCache = async (
     });
   }
 
-  // Sort once here, write the sorted array to disk.
-  // All subsequent cold-start reads get a pre-sorted array — zero sort cost.
-  const sorted = sortByNewest(Object.values(data) as ContentItem[]);
-  await setMetadataWithTimestamp(category, sorted);
-  _setRuntimeCache(category, sorted, true); // already sorted
+  // Data arrives as a pre-sorted array from /api/sorted/* — write directly to disk.
+  const items = Array.isArray(data) ? data as ContentItem[] : Object.values(data) as ContentItem[];
+  await setMetadataWithTimestamp(category, items);
+  _setRuntimeCache(category, items);
   console.log(`[Metadata] Fetched & cached: ${category}`);
   return data;
 };
@@ -164,7 +158,7 @@ export const loadCategory = async (
     } catch (error: any) {
       console.warn(`[Metadata] Force-fetch failed for ${category}: ${error.message}`);
       const fallback = await getMetadataAnyAge(category);
-      if (fallback) _setRuntimeCache(category, toItemsArray(fallback), Array.isArray(fallback));
+      if (fallback) _setRuntimeCache(category, toItemsArray(fallback));
       return fallback;
     }
   }
@@ -178,7 +172,7 @@ export const loadCategory = async (
   if (!isStale) {
     const fresh = await getMetadataIfFresh(category);
     if (fresh !== null) {
-      _setRuntimeCache(category, toItemsArray(fresh), Array.isArray(fresh));
+      _setRuntimeCache(category, toItemsArray(fresh));
       return fresh;
     }
   }
@@ -187,7 +181,7 @@ export const loadCategory = async (
   const cached = await getMetadataAnyAge(category);
 
   if (cached !== null && onBackgroundUpdate) {
-    _setRuntimeCache(category, toItemsArray(cached), Array.isArray(cached));
+    _setRuntimeCache(category, toItemsArray(cached));
     fetchAndCache(category)
       .then(fresh => {
         if (fresh) {
@@ -202,7 +196,7 @@ export const loadCategory = async (
   }
 
   if (cached !== null && !onBackgroundUpdate) {
-    _setRuntimeCache(category, toItemsArray(cached), Array.isArray(cached));
+    _setRuntimeCache(category, toItemsArray(cached));
     fetchAndCache(category)
       .then(() => {}) // fetchAndCache updates _runtimeCache internally
       .catch(() => {});

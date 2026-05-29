@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { loadCategory, getMoviesArray, getRuntimeCache, clearRuntimeCache, sortByNewest } from '../services/metadataService';
+import { loadCategory, getRuntimeCache, clearRuntimeCache } from '../services/metadataService';
 import { ContentItem } from '../types';
 import { MovieCard, CARD_WIDTH } from '../components/MovieCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -125,8 +125,8 @@ export const CategoryScreen: React.FC = () => {
         // ── Runtime cache hit: HomeScreen already loaded this, pre-sorted ──
         const cached = getRuntimeCache(selectedCategory);
         const itemsArray: ContentItem[] = cached
-          ? cached  // already sorted by _setRuntimeCache — no sort needed
-          : sortByNewest(getMoviesArray((await loadCategory(selectedCategory as any)) as any));
+          ? cached
+          : (d => Array.isArray(d) ? d as ContentItem[] : Object.values(d as any) as ContentItem[])((await loadCategory(selectedCategory as any)) ?? []);
 
         // Fix 3: Batch all 10 setState calls into a single re-render.
         // On old arch (Bridge) + async callbacks, React 18 does NOT
