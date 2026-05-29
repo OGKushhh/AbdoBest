@@ -90,19 +90,15 @@ const fetchAndCache = async (
   let data = response.data;
 
   // Normalise arabic-series fields → standard ContentItem fields
-  if (
-    category !== 'trending' &&
-    category !== 'featured' &&
-    data &&
-    typeof data === 'object' &&
-    !Array.isArray(data)
-  ) {
-    Object.keys(data).forEach(id => {
-      if (!data[id]) return;
-      data[id].id = id;
+  const itemsToNormalize: any[] = Array.isArray(data)
+    ? data
+    : (data && typeof data === 'object' ? Object.entries(data).map(([id, v]: any) => { v.id = id; return v; }) : []);
 
-      if (category === 'arabic-series' || data[id].is_ramadan !== undefined) {
-        const item = data[id];
+  if (category !== 'trending' && category !== 'featured') {
+    itemsToNormalize.forEach(item => {
+      if (!item) return;
+
+      if (category === 'arabic-series' || item.is_ramadan !== undefined) {
         if (item.year && !item.Year) {
           const n = parseInt(item.year, 10);
           if (!isNaN(n) && n >= 2000 && n <= 2030) item.Year = String(n);
@@ -118,7 +114,7 @@ const fetchAndCache = async (
         if (item.country  && !item.Country)     item.Country     = item.country;
         if (item.episode_count !== undefined)   item.NumberOfEpisodes = item.episode_count;
         if (!item.Category) item.Category = 'arabic-series';
-      }
+    }
     });
   }
 
