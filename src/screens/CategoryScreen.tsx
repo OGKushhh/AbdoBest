@@ -453,7 +453,7 @@ export const CategoryScreen: React.FC = () => {
                     </TouchableOpacity>
                     {availableCountries.map(country => (
                       <TouchableOpacity key={country} style={[styles.filterOptionChip, selectedCountry === country && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(selectedCountry === country ? null : country)}>
-                        <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country}</Text>
+                        <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country === 'USA' ? t('country_usa') : country === 'UK' ? t('country_uk') : country}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>

@@ -20,6 +20,8 @@ export const en = {
   quality: 'Quality',
   duration: 'Duration',
   country: 'Country',
+  country_usa: 'USA',
+  country_uk: 'UK',
   genre: 'Genre',
   genres: 'Genres',
   no_results: 'No results found',

@@ -20,6 +20,8 @@ export const ar = {
   quality: 'الجودة',
   duration: 'المدة',
   country: 'البلد',
+  country_usa: 'الولايات المتحدة الأمريكية',
+  country_uk: 'المملكة المتحدة',
   genre: 'النوع',
   genres: 'الأنواع',
   no_results: 'لا توجد نتائج',

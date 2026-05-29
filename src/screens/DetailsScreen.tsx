@@ -483,7 +483,7 @@ export const DetailsScreen: React.FC = () => {
   };
   const year        = formatYear(raw.Year || raw.ReleaseDate);
   const releaseDate = formatYear(raw.ReleaseDate || raw.Year);
-  const country     = item.Country || '';
+  const country     = item.Country ? (item.Country === 'USA' ? t('country_usa') : item.Country === 'UK' ? t('country_uk') : item.Country) : '';
   const language    = raw.Language || raw.language || '';
   const format      = (item.Format && item.Format !== 'N/A') ? item.Format
                       : (raw.quality && raw.quality !== 'N/A') ? raw.quality : '';
