@@ -144,8 +144,8 @@ export const SettingsScreen: React.FC = () => {
     },
     headerIconImg: { width: 28, height: 28, tintColor: '#fff' },
     headerTextBlock: { flex: 1 },
-    headerTitle: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
-    headerVersion: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    headerTitle: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5, fontFamily: 'Rubik' },
+    headerVersion: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2, fontFamily: 'Rubik' },
 
     // Section
     section: {
@@ -161,6 +161,7 @@ export const SettingsScreen: React.FC = () => {
       color: colors.textMuted,
       fontSize: 11,
       fontWeight: '700',
+      fontFamily: 'Rubik',
       textTransform: 'uppercase',
       letterSpacing: 1.5,
       marginLeft: 20,
@@ -186,10 +187,10 @@ export const SettingsScreen: React.FC = () => {
     },
     rowIconImg: { width: 18, height: 18, tintColor: colors.primary },
     rowContent: { flex: 1, minWidth: 0 },
-    rowLabel: { fontSize: 15, fontWeight: '500', color: colors.text },
-    rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    rowLabel: { fontSize: 15, fontWeight: '500', color: colors.text, fontFamily: 'Rubik' },
+    rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontFamily: 'Rubik' },
     rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    rowValue: { fontSize: 14, color: colors.textSecondary },
+    rowValue: { fontSize: 14, color: colors.textSecondary, fontFamily: 'Rubik' },
     rowChevron: { width: 18, height: 18, tintColor: colors.textMuted, transform: [{ rotate: '-90deg' }] },
 
     // Donate button
@@ -199,27 +200,27 @@ export const SettingsScreen: React.FC = () => {
       paddingVertical: 18, paddingHorizontal: 24,
     },
     donateIcon: { width: 22, height: 22, tintColor: '#fff' },
-    donateText: { color: '#fff', fontSize: 17, fontWeight: '700', marginLeft: 10 },
+    donateText: { color: '#fff', fontSize: 17, fontWeight: '700', marginLeft: 10, fontFamily: 'Rubik' },
 
     // Modals
-    modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
-    modalBody: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: 20 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8, fontFamily: 'Rubik' },
+    modalBody: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: 20, fontFamily: 'Rubik' },
     modalActions: { flexDirection: 'row', gap: 10 },
     modalBtnPrimary: { flex: 1, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
     modalBtnSecondary: { flex: 1, backgroundColor: colors.surfaceLight || 'rgba(255,255,255,0.08)', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    modalBtnTextPrimary: { color: '#fff', fontWeight: '700', fontSize: 15 },
-    modalBtnTextSecondary: { color: colors.text, fontWeight: '600', fontSize: 15 },
+    modalBtnTextPrimary: { color: '#fff', fontWeight: '700', fontSize: 15, fontFamily: 'Rubik' },
+    modalBtnTextSecondary: { color: colors.text, fontWeight: '600', fontSize: 15, fontFamily: 'Rubik' },
     modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     modalOptionLast: { borderBottomWidth: 0 },
-    modalOptionText: { fontSize: 15, color: colors.text },
+    modalOptionText: { fontSize: 15, color: colors.text, fontFamily: 'Rubik' },
     modalCheck: { width: 18, height: 18, tintColor: colors.primary },
     modalDivider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
 
     // Update extras
     updateBadge: { alignSelf: 'flex-start', backgroundColor: `${colors.primary}20`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 12 },
-    updateBadgeText: { color: colors.primary, fontSize: 12, fontWeight: '700' },
+    updateBadgeText: { color: colors.primary, fontSize: 12, fontWeight: '700', fontFamily: 'Rubik' },
     changelogBox: { backgroundColor: colors.background || '#0F0F1A', borderRadius: 10, padding: 12, marginBottom: 16, maxHeight: 120 },
-    changelogText: { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
+    changelogText: { color: colors.textSecondary, fontSize: 13, lineHeight: 19, fontFamily: 'Rubik' },
   }), [colors]);
 
   // ─── Helper Row Component ──────────────────────────────────────────────────

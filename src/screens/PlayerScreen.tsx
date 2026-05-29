@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
   playPauseButton:  { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginHorizontal: 12 },
   modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent:     { borderRadius: 16, padding: 20, width: '80%', maxWidth: 300, maxHeight: '80%', borderWidth: 1 },
-  modalTitle:       { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  modalTitle:       { fontSize: 18, fontWeight: '700', marginBottom: 16, fontFamily: 'Rubik' },
   modalOption:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   modalOptionText:  { fontSize: 16 },
   errorContainer:   { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
