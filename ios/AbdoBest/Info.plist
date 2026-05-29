@@ -60,7 +60,8 @@
 
 	<key>UIAppFonts</key>
 	<array>
-		<string>RubikVariable.ttf</string>
+		<string>Rubik-Regular.ttf</string>
+		<string>Rubik-Bold.ttf</string>
 	</array>
 
 	<key>LSApplicationQueriesSchemes</key>
