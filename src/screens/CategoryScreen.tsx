@@ -24,7 +24,18 @@ import { CATEGORIES } from '../constants/categories';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'react-native';
 import { getAllViews } from '../services/api';
+
 import { localizeGenre, localizeGenres } from '../i18n/genres';
+
+const ANIME_CATS = new Set(['anime', 'anime-movies']);
+type AnimeSeason = 'Winter' | 'Spring' | 'Summer' | 'Fall';
+
+function getAnimeSeason(dateStr: string | null | undefined): AnimeSeason | null {
+  if (!dateStr) return null;
+  const month = parseInt(String(dateStr).slice(5, 7), 10);
+  if (!month) return null;
+  return month <= 3 ? 'Winter' : month <= 6 ? 'Spring' : month <= 9 ? 'Summer' : 'Fall';
+}
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PAGE_SIZE = 30;
@@ -89,6 +100,7 @@ export const CategoryScreen: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [ramadanFilter, setRamadanFilter] = useState<boolean>(false);
+  const [selectedSeason, setSelectedSeason] = useState<AnimeSeason | null>(null);
 
   const [visibleItems, setVisibleItems] = useState<ContentItem[]>([]);
   const [page, setPage] = useState(1);
@@ -114,9 +126,10 @@ export const CategoryScreen: React.FC = () => {
     if (selectedYear) active.add('year');
     if (selectedCountry) active.add('country');
     if (ramadanFilter) active.add('ramadan');
+    if (selectedSeason) active.add('animeSeason');
     setOpenSections(active);
     setShowFilterPopup(true);
-  }, [selectedSort, selectedGenres, selectedYear, selectedCountry, ramadanFilter]);
+  }, [selectedSort, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSeason]);
 
   // Sync when arriving with different params
   useEffect(() => {
@@ -158,6 +171,7 @@ export const CategoryScreen: React.FC = () => {
           setSelectedYear(null);
           setSelectedCountry(null);
           setRamadanFilter(false);
+          setSelectedSeason(null);
           setSelectedSort('year_desc');
           setSearchQuery('');
           setDebouncedQuery('');
@@ -226,6 +240,11 @@ export const CategoryScreen: React.FC = () => {
     if (ramadanFilter) {
       result = result.filter(item => !!(item as any).IsRamadan);
     }
+    if (selectedSeason && ANIME_CATS.has(selectedCategory)) {
+      result = result.filter(item =>
+        getAnimeSeason((item as any).ReleaseDate || (item as any).Year) === selectedSeason
+      );
+    }
     switch (selectedSort) {
       case 'az': return sortByAZ(result);
       case 'za': return sortByZA(result);
@@ -237,12 +256,12 @@ export const CategoryScreen: React.FC = () => {
         // sorted items for no reason. Filtering preserves relative order, so just return.
         return result;
     }
-  }, [allItems, debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
+  }, [allItems, debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSeason, selectedSort, selectedCategory]);
 
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSort]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedGenres, selectedYear, selectedCountry, ramadanFilter, selectedSeason, selectedSort]);
 
   useEffect(() => {
     const end = page * PAGE_SIZE;
@@ -308,20 +327,21 @@ export const CategoryScreen: React.FC = () => {
     const currentYear = new Date().getFullYear();
     const s = new Set<string>();
     allItems.forEach(item => {
-      // Support both capitalized (other categories) and lowercase (arabic-series)
-      const y = (item as any).Year ?? (item as any).year;
-      if (!y) return;
-      const n = parseInt(y, 10);
-      // Strict validation — reject obvious typos like 20026, 2028 (future)
+      // For anime cats use ReleaseDate first to get accurate year
+      const raw = ANIME_CATS.has(selectedCategory)
+        ? (item as any).ReleaseDate || (item as any).Year ?? (item as any).year
+        : (item as any).Year ?? (item as any).year;
+      if (!raw) return;
+      const n = parseInt(String(raw).slice(0, 4), 10);
       if (!isNaN(n) && n >= 2000 && n <= currentYear + 1) s.add(String(n));
     });
     return Array.from(s).sort((a, b) => b.localeCompare(a));
-  }, [allItems]);
+  }, [allItems, selectedCategory]);
 
   const catConfig = CATEGORIES.find(c => c.key === selectedCategory);
   const screenTitle = catConfig ? (lang === 'ar' ? catConfig.labelAr : catConfig.labelEn) : t(selectedCategory);
-  const activeFilterCount = (selectedGenres.length > 0 ? 1 : 0) + (selectedYear ? 1 : 0) + (selectedCountry ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
-  const clearFilters = useCallback(() => { setSelectedGenres([]); setSelectedYear(null); setSelectedCountry(null); setRamadanFilter(false); setSelectedSort('year_desc'); }, []);
+  const activeFilterCount = (selectedGenres.length > 0 ? 1 : 0) + (selectedYear ? 1 : 0) + (selectedCountry ? 1 : 0) + (ramadanFilter ? 1 : 0) + (selectedSeason ? 1 : 0) + (selectedSort !== 'year_desc' ? 1 : 0);
+  const clearFilters = useCallback(() => { setSelectedGenres([]); setSelectedYear(null); setSelectedCountry(null); setRamadanFilter(false); setSelectedSeason(null); setSelectedSort('year_desc'); }, []);
   const closeFilterPopup = useCallback(() => setShowFilterPopup(false), []);
 
   if (loading) return <LoadingSpinner />;
@@ -386,6 +406,7 @@ export const CategoryScreen: React.FC = () => {
           {selectedYear && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedYear(null)}><Text style={styles.activeChipText}>{selectedYear}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {selectedCountry && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedCountry(null)}><Text style={styles.activeChipText}>{selectedCountry}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {ramadanFilter && <TouchableOpacity style={[styles.activeChip, {borderColor: '#C9A84C'}]} onPress={() => setRamadanFilter(false)}><Text style={[styles.activeChipText, {color: '#C9A84C'}]}>🌙 رمضان</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
+          {selectedSeason && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedSeason(null)}><Text style={styles.activeChipText}>{t(('season_' + selectedSeason.toLowerCase()) as any)}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           {selectedSort !== 'year_desc' && <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedSort('year_desc')}><Text style={styles.activeChipText}>{t(selectedSort)}</Text><Text style={styles.activeChipX}>×</Text></TouchableOpacity>}
           <TouchableOpacity onPress={clearFilters}><Text style={styles.clearAllText}>{t('cancel')}</Text></TouchableOpacity>
         </View>
@@ -528,6 +549,40 @@ export const CategoryScreen: React.FC = () => {
                       {availableCountries.map(country => (
                         <TouchableOpacity key={country} style={[styles.filterOptionChip, selectedCountry === country && styles.filterOptionChipActive]} onPress={() => setSelectedCountry(selectedCountry === country ? null : country)}>
                           <Text style={[styles.filterOptionText, selectedCountry === country && styles.filterOptionTextActive]}>{country === 'USA' ? t('country_usa') : country === 'UK' ? t('country_uk') : country}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Anime Season accordion — only for anime / anime-movies */}
+              {ANIME_CATS.has(selectedCategory) && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.accordionBar, isRTL && styles.rowRTL, !!selectedSeason && styles.accordionBarActive]}
+                    onPress={() => toggleSection('animeSeason')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.accordionLabel, isRTL && styles.textRTL, !!selectedSeason && styles.accordionLabelActive]}>
+                      {t('anime_season_filter')}{selectedSeason ? ` · ${t(('season_' + selectedSeason.toLowerCase()) as any)}` : ''}
+                    </Text>
+                    <Text style={[styles.accordionChevron, openSections.has('animeSeason') && styles.accordionChevronOpen]}>›</Text>
+                  </TouchableOpacity>
+                  {openSections.has('animeSeason') && (
+                    <View style={[styles.filterOptionsRow, styles.accordionBody]}>
+                      <TouchableOpacity style={[styles.filterOptionChip, !selectedSeason && styles.filterOptionChipActive]} onPress={() => setSelectedSeason(null)}>
+                        <Text style={[styles.filterOptionText, !selectedSeason && styles.filterOptionTextActive]}>{t('all')}</Text>
+                      </TouchableOpacity>
+                      {(['Winter', 'Spring', 'Summer', 'Fall'] as AnimeSeason[]).map(s => (
+                        <TouchableOpacity
+                          key={s}
+                          style={[styles.filterOptionChip, selectedSeason === s && styles.filterOptionChipActive]}
+                          onPress={() => setSelectedSeason(selectedSeason === s ? null : s)}
+                        >
+                          <Text style={[styles.filterOptionText, selectedSeason === s && styles.filterOptionTextActive]}>
+                            {t(('season_' + s.toLowerCase()) as any)}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>

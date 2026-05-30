@@ -27,6 +27,24 @@ import {getViewCount, getSeriesTotalViews, getEpisodeViewCount} from '../service
 import {useAds} from '../ads/AdContext';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
+
+const ANIME_CATS_D = new Set(['anime', 'anime-movies']);
+
+function animeSeasonLabelD(dateStr: string | null | undefined, lang: 'en' | 'ar'): string {
+  if (!dateStr) return '';
+  const s = String(dateStr).trim();
+  const year = s.slice(0, 4);
+  const month = parseInt(s.slice(5, 7), 10);
+  if (!month) return year;
+  const seasons: Record<string, { en: string; ar: string }> = {
+    Winter: { en: 'Winter', ar: 'شتاء' },
+    Spring: { en: 'Spring', ar: 'ربيع' },
+    Summer: { en: 'Summer', ar: 'صيف' },
+    Fall:   { en: 'Fall',   ar: 'خريف' },
+  };
+  const key = month <= 3 ? 'Winter' : month <= 6 ? 'Spring' : month <= 9 ? 'Summer' : 'Fall';
+  return `${seasons[key][lang]} ${year}`;
+}
 import {localizeGenres} from '../i18n/genres';
 import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
@@ -483,6 +501,10 @@ export const DetailsScreen: React.FC = () => {
   };
   const year        = formatYear(raw.Year || raw.ReleaseDate);
   const releaseDate = formatYear(raw.ReleaseDate || raw.Year);
+  const isAnimeCat  = ANIME_CATS_D.has(category);
+  const derivedAnimeSeason = isAnimeCat
+    ? animeSeasonLabelD(raw.ReleaseDate || raw.Year, lang as 'en' | 'ar')
+    : '';
   const country     = item.Country ? (item.Country === 'USA' ? t('country_usa') : item.Country === 'UK' ? t('country_uk') : item.Country) : '';
   const language    = raw.Language || raw.language || '';
   const format      = (item.Format && item.Format !== 'N/A') ? item.Format
@@ -1188,7 +1210,7 @@ export const DetailsScreen: React.FC = () => {
           ) : null}
           {votes ? <InfoRow label={t('votes')} value={Number(votes).toLocaleString()} /> : null}
           {malStudios ? <InfoRow label={t('studios')} value={malStudios} accent /> : null}
-          {malSeason ? <InfoRow label={t('airing_season')} value={malSeason} /> : null}
+          {(malSeason || derivedAnimeSeason) ? <InfoRow label={t('airing_season')} value={malSeason || derivedAnimeSeason} /> : null}
           {malTitleEn ? <InfoRow label={t('title_en')} value={malTitleEn} /> : null}
           {dateAdded ? <InfoRow label={t('date_added')} value={dateAdded} /> : null}
           {dateUpdated ? <InfoRow label={t('date_updated')} value={dateUpdated} /> : null}

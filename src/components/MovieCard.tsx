@@ -22,6 +22,25 @@ import {ContentItem} from '../types';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
 
+const ANIME_CATS = new Set(['anime', 'anime-movies']);
+
+/** Jan-Mar=Winter, Apr-Jun=Spring, Jul-Sep=Summer, Oct-Dec=Fall */
+function animeSeasonLabel(dateStr: string | null | undefined, lang: 'en' | 'ar'): string {
+  if (!dateStr) return '';
+  const s = String(dateStr).trim();
+  const year = s.slice(0, 4);
+  const month = parseInt(s.slice(5, 7), 10);
+  if (!month) return year;
+  const seasons: Record<string, { en: string; ar: string }> = {
+    Winter: { en: 'Winter', ar: 'شتاء' },
+    Spring: { en: 'Spring', ar: 'ربيع' },
+    Summer: { en: 'Summer', ar: 'صيف' },
+    Fall:   { en: 'Fall',   ar: 'خريف' },
+  };
+  const key = month <= 3 ? 'Winter' : month <= 6 ? 'Spring' : month <= 9 ? 'Summer' : 'Fall';
+  return `${seasons[key][lang]} ${year}`;
+}
+
 interface MovieCardProps {
   item: ContentItem;
   onPress: (item: ContentItem) => void;
@@ -46,15 +65,17 @@ const CATEGORY_I18N: Record<string, string> = {
 };
 
 const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CARD_WIDTH}) => {
-  const {t} = useTranslation();
+  const {t, i18n} = useTranslation();
   const imageUri = item['Image Source'] || (item as any).Image || '';
   const rating   = (item as any).Rating   || (item as any).imdb_rating || '';
   const views    = (item as any).Views    || (item as any).views       || '';
-  const year     = (item as any).Year     || '';
+  const catKey   = (item.Category || '').toLowerCase();
+  const rawDate  = (item as any).ReleaseDate || (item as any).Year || '';
+  const lang     = (i18n.language?.startsWith('ar') ? 'ar' : 'en') as 'en' | 'ar';
+  const year     = ANIME_CATS.has(catKey) ? animeSeasonLabel(rawDate, lang) : rawDate.slice(0, 4);
 
   const quality  = item.Format || (item as any).quality || '';
 
-  const catKey = (item.Category || '').toLowerCase();
   const categoryLabel = CATEGORY_I18N[catKey] ? t(CATEGORY_I18N[catKey]) : (item.Category || '');
 
   // Seasons badge (episodic content only) – keep it

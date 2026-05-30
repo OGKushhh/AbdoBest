@@ -21,6 +21,24 @@ import AdsterraBanner from '../ads/AdsterraBanner';
 import {getAllViews, invalidateViewsCache} from '../services/api';
 import {retrySyncViews} from '../services/viewService';
 
+const ANIME_CATS = new Set(['anime', 'anime-movies']);
+
+function animeSeasonLabel(dateStr: string | null | undefined, lang: 'en' | 'ar'): string {
+  if (!dateStr) return '';
+  const s = String(dateStr).trim();
+  const year = s.slice(0, 4);
+  const month = parseInt(s.slice(5, 7), 10);
+  if (!month) return year;
+  const seasons: Record<string, { en: string; ar: string }> = {
+    Winter: { en: 'Winter', ar: 'شتاء' },
+    Spring: { en: 'Spring', ar: 'ربيع' },
+    Summer: { en: 'Summer', ar: 'صيف' },
+    Fall:   { en: 'Fall',   ar: 'خريف' },
+  };
+  const key = month <= 3 ? 'Winter' : month <= 6 ? 'Spring' : month <= 9 ? 'Summer' : 'Fall';
+  return `${seasons[key][lang]} ${year}`;
+}
+
 const {width: SW} = Dimensions.get('window');
 
 
@@ -65,7 +83,7 @@ const HeroBanner: React.FC<{
   onPress: (item: ContentItem) => void;
   insetTop?: number;
 }> = ({items, onPress, insetTop = 0}) => {
-  const {t} = useTranslation();
+  const {t, i18n} = useTranslation();
   const flatListRef = useRef<FlatList>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
@@ -130,7 +148,11 @@ const HeroBanner: React.FC<{
         onMomentumScrollEnd={handleManualSwipe}
         renderItem={({item}) => {
           const raw = item as any;
-          const year = String(raw.ReleaseDate || raw.Year || '').slice(0, 4);
+          const _lang = (i18n.language?.startsWith('ar') ? 'ar' : 'en') as 'en' | 'ar';
+          const _rawDate = raw.ReleaseDate || raw.Year || '';
+          const year = ANIME_CATS.has((item.Category || '').toLowerCase())
+            ? animeSeasonLabel(_rawDate, _lang)
+            : String(_rawDate).slice(0, 4);
           const genres = (item.GenresAr?.length ? item.GenresAr : item.Genres)?.slice(0, 3) ?? [];
           const rating = raw.Rating || '';
           const quality = item.Format || raw.quality || '';
@@ -265,7 +287,8 @@ const SectionRow: React.FC<{
   onPress: (item: ContentItem) => void;
   onSeeAll: () => void;
 }> = ({catLabel, cat, items, onPress, onSeeAll}) => {
-  const {t} = useTranslation();
+  const {t, i18n} = useTranslation();
+  const _sLang = (i18n.language?.startsWith('ar') ? 'ar' : 'en') as 'en' | 'ar';
   const emoji = CAT_EMOJI[cat] || '🎬';
 
   if (!items.length) return null;
@@ -332,7 +355,9 @@ const SectionRow: React.FC<{
               </Text>
               {((item as any).ReleaseDate || (item as any).Year) ? (
                 <Text style={sectionS.year}>
-                  {String((item as any).ReleaseDate || (item as any).Year).slice(0, 4)}
+                  {ANIME_CATS.has((cat || '').toLowerCase())
+                    ? animeSeasonLabel((item as any).ReleaseDate || (item as any).Year, _sLang)
+                    : String((item as any).ReleaseDate || (item as any).Year).slice(0, 4)}
                 </Text>
               ) : null}
             </View>
