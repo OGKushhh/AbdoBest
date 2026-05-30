@@ -329,7 +329,7 @@ export const CategoryScreen: React.FC = () => {
     allItems.forEach(item => {
       // For anime cats use ReleaseDate first to get accurate year
       const raw = ANIME_CATS.has(selectedCategory)
-        ? (item as any).ReleaseDate || (item as any).Year ?? (item as any).year
+        ? ((item as any).ReleaseDate || (item as any).Year) ?? (item as any).year
         : (item as any).Year ?? (item as any).year;
       if (!raw) return;
       const n = parseInt(String(raw).slice(0, 4), 10);
