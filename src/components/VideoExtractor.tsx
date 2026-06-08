@@ -1,5 +1,5 @@
 /**
- * VideoExtractor.tsx  v7
+ * VideoExtractor.tsx  v8
  *
  * Fixes vs v6 (original):
  *  1. domStorageEnabled={true}        — JWPlayer requires localStorage to init.
@@ -100,6 +100,30 @@ const PATCH_JS = `
   window.alert   = function() {};
   window.confirm = function() { return false; };
   window.prompt  = function() { return null; };
+
+  // Kill click-stealing overlays: any fixed/absolute full-screen div that isn't
+  // part of JWPlayer gets pointer-events removed so clicks reach JWPlayer.
+  // Runs once on inject + every 1s to catch dynamically inserted overlays.
+  function killOverlays() {
+    try {
+      var all = document.querySelectorAll('div, a, span');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        var cls = (el.className && typeof el.className === 'string') ? el.className : '';
+        var id  = el.id || '';
+        if (cls.indexOf('jw') !== -1 || id.indexOf('jw') !== -1) continue;
+        var st = window.getComputedStyle(el);
+        if ((st.position === 'fixed' || st.position === 'absolute') &&
+            parseInt(st.width)  > window.innerWidth  * 0.8 &&
+            parseInt(st.height) > window.innerHeight * 0.8 &&
+            st.zIndex > 0) {
+          el.style.pointerEvents = 'none';
+          el.style.display = 'none';
+        }
+      }
+    } catch(e) {}
+  }
+  setInterval(killOverlays, 1000);
 
   try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'PATCH: all overrides installed'})); } catch(e) {}
 })();
@@ -275,6 +299,8 @@ const BLOCKED_DOMAINS = [
   'govrrobif.com',
   '6402functions.net',
   'effectivecpmnetwork.com',
+  'xrnrhowppgvxdhm.com',
+  'warehouses2120.net',
 ];
 
 // ── Allowed domains ──────────────────────────────────────────────────────────
