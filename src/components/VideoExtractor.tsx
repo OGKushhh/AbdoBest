@@ -145,10 +145,12 @@ const CLICK_JS = `
   }
 
   // Fallback: any element with player_token in href/data-src
+  // Validate that video_player is in the URL path itself — not buried inside
+  // a refer= param (ad sites piggy-back the real token URL as a referrer).
   var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
   if (candidates.length > 0) {
     var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
-    if (u) {
+    if (u && u.indexOf('video_player') !== -1) {
       try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): ' + u.substring(0,100)})); } catch(e) {}
       window.location.href = u;
       return;
@@ -253,7 +255,12 @@ const BLOCKED_DOMAINS = [
   'clickadu.com', 'adnxs.com', 'ads.yahoo.com',
   'notix.io', 'pushwoosh.com', 'onesignal.com',
   'tmll7.com', '1xlite-24510.bar', 'mahjong778jpx.site',
-  'browsecoherentunrefined.com',
+  'browsecoherentunrefined.com', 'kettledroopingcontinuation.com',
+  'zoologyfibre.com',
+  'gukahdbam.com',
+  'govrrobif.com',
+  '6402functions.net',
+  'effectivecpmnetwork.com',
 ];
 
 // ── Allowed domains ──────────────────────────────────────────────────────────
