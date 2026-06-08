@@ -3,20 +3,16 @@
  *
  * Fixes vs v6 (original):
  *  1. domStorageEnabled={true}        — JWPlayer requires localStorage to init.
- *                                        Without it JWPlayer silently fails before
- *                                        ever requesting the m3u8.
- *  2. thirdPartyCookiesEnabled={true} — player_token page sets session cookies
- *                                        needed for CDN token validation.
- *  3. cacheEnabled left as default (true) — lets JWPlayer's JS bundle cache so
- *                                        it loads fast and doesn't time out.
- *  4. muted removed (defaults false)  — some JWPlayer builds won't fire the
- *                                        stream request if the element is muted.
- *  5. Broader CDN allowlist           — cloudfront.net, akamaized.net, fastly.net
- *                                        etc. added for HLS segment domains.
- *  6. PATCH_JS intercepts video.src   — JWPlayer sometimes sets src directly
- *                                        on HTMLVideoElement instead of fetch/XHR.
- *  7. Removed cacheMode="LOAD_NO_CACHE" — was preventing JWPlayer JS bundle
- *                                        from caching, causing frequent timeouts.
+ *  2. thirdPartyCookiesEnabled={true} — player_token page sets session cookies.
+ *  3. cacheEnabled left as default (true) — lets JWPlayer JS bundle cache.
+ *  4. muted removed (defaults false)  — some JWPlayer builds won't fire stream if muted.
+ *  5. Broader CDN allowlist           — cloudfront.net, akamaized.net, fastly.net etc.
+ *  6. PATCH_JS intercepts video.src   — JWPlayer sometimes sets src directly.
+ *  7. Removed cacheMode="LOAD_NO_CACHE".
+ *
+ * v8 changes:
+ *  8. Added xrnrhowppgvxdhm.com, warehouses2120.net to BLOCKED_DOMAINS.
+ *  9. killOverlays() in PATCH_JS — removes full-screen click-stealing ad overlays.
  */
 
 import React, {useRef, useEffect, useCallback} from 'react';
@@ -103,7 +99,6 @@ const PATCH_JS = `
 
   // Kill click-stealing overlays: any fixed/absolute full-screen div that isn't
   // part of JWPlayer gets pointer-events removed so clicks reach JWPlayer.
-  // Runs once on inject + every 1s to catch dynamically inserted overlays.
   function killOverlays() {
     try {
       var all = document.querySelectorAll('div, a, span');
@@ -116,7 +111,7 @@ const PATCH_JS = `
         if ((st.position === 'fixed' || st.position === 'absolute') &&
             parseInt(st.width)  > window.innerWidth  * 0.8 &&
             parseInt(st.height) > window.innerHeight * 0.8 &&
-            st.zIndex > 0) {
+            parseInt(st.zIndex) > 0) {
           el.style.pointerEvents = 'none';
           el.style.display = 'none';
         }
@@ -136,9 +131,6 @@ const CLICK_JS = `
   try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DOC-END: ' + window.location.href.substring(0,100)})); } catch(e) {}
 
   // ── Report all server token URLs from tabs-ul immediately ─────────────────
-  // fasel-hd embeds all video_player?player_token=... URLs in onclick attrs.
-  // Send them as type:'server_tokens' so the native side can store them in
-  // Sources[] on the item — zero extra network requests needed.
   try {
     var serverTabs = document.querySelectorAll('.tabs-ul li');
     if (serverTabs.length > 0) {
@@ -154,37 +146,34 @@ const CLICK_JS = `
     }
   } catch(e) {}
 
-  // STEP 1 — Movie page: load video_player URL into the iframe (stay on this page)
-  // Python equivalent: iframe.goto(src_attr) — navigates the frame, not the top window.
-  var playerIframe = document.querySelector('iframe[name="player_iframe"]');
-  if (playerIframe) {
-    var playerUrl = playerIframe.getAttribute('data-src') || playerIframe.getAttribute('src');
+  // STEP 1 — Movie page: navigate to video_player page (top-level nav so PATCH_JS re-injects)
+  var iframe = document.querySelector('iframe[name="player_iframe"]');
+  if (iframe) {
+    var playerUrl = iframe.getAttribute('data-src') || iframe.getAttribute('src');
     if (playerUrl && playerUrl.indexOf('video_player') !== -1) {
       if (playerUrl.indexOf('http') !== 0) {
         playerUrl = window.location.origin + (playerUrl.charAt(0) === '/' ? '' : '/') + playerUrl;
       }
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1: loading video_player into iframe: ' + playerUrl.substring(0,100)})); } catch(e) {}
-      // Set src on the iframe — keeps top-level page intact, PATCH_JS session cookies preserved
-      playerIframe.src = playerUrl;
-      // Fall through to STEP 2 below — no return, we run the click loop on this same page
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1: navigating to video_player: ' + playerUrl.substring(0,100)})); } catch(e) {}
+      window.location.href = playerUrl;
+      return;
     }
   }
 
-  // Fallback: any element with player_token in href/data-src (only when no player_iframe found)
-  if (!playerIframe) {
-    var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
-    if (candidates.length > 0) {
-      var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
-      if (u && u.indexOf('video_player') !== -1) {
-        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): top-level nav to: ' + u.substring(0,100)})); } catch(e) {}
-        window.location.href = u;
-        return;
-      }
+  // Fallback: any element with player_token in href/data-src
+  var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
+  if (candidates.length > 0) {
+    var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
+    if (u && u.indexOf('video_player') !== -1) {
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): ' + u.substring(0,100)})); } catch(e) {}
+      window.location.href = u;
+      return;
     }
   }
 
-  // STEP 2 — Click loop: search both top-level doc AND iframe contentDocument
-  // Python equivalent: iframe.click(sel) inside the frame context
+  // STEP 2 — Video player page: remove ads, click play
+  var isVideoPlayer = window.location.href.indexOf('video_player') !== -1;
+
   var AD_SEL = [
     '[class*="popup"]',
     '[id*="popup"]', '[id*="ad-"]',
@@ -223,6 +212,8 @@ const CLICK_JS = `
     } catch(ex) {}
   }, true);
 
+  if (!isVideoPlayer) return;
+
   // Scroll to trigger lazy load
   setTimeout(function() { try { window.scrollTo(0, document.body.scrollHeight / 2); } catch(e) {} }, 800);
 
@@ -244,34 +235,19 @@ const CLICK_JS = `
     attempts++;
     killAds();
 
-    // Build list of documents to search: top-level + all iframe contentDocuments
-    var docs = [document];
-    try {
-      document.querySelectorAll('iframe').forEach(function(f) {
-        try { if (f.contentDocument && f.contentDocument.body) docs.push(f.contentDocument); } catch(e) {}
-      });
-    } catch(e) {}
-
     var clicked = false;
-    var jwCount = 0; var vidCount = 0;
-    outer: for (var d = 0; d < docs.length; d++) {
-      try { jwCount += docs[d].querySelectorAll('[class*="jw"]').length; } catch(e) {}
-      try { vidCount += docs[d].querySelectorAll('video').length; } catch(e) {}
-      for (var i = 0; i < PLAY_SEL.length; i++) {
-        try {
-          var el = docs[d].querySelector(PLAY_SEL[i]);
-          if (el) {
-            el.click();
-            clicked = true;
-            try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i] + (d > 0 ? ' [iframe-' + d + ']' : '')})); } catch(e) {}
-            break outer;
-          }
-        } catch(e) {}
+    for (var i = 0; i < PLAY_SEL.length; i++) {
+      var el = document.querySelector(PLAY_SEL[i]);
+      if (el) {
+        try { el.click(); } catch(e) {}
+        clicked = true;
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i]})); } catch(e) {}
+        break;
       }
     }
 
     if (!clicked) {
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + jwCount + ' | video=' + vidCount + ' | docs=' + docs.length})); } catch(e) {}
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + document.querySelectorAll('[class*="jw"]').length + ' | video=' + document.querySelectorAll('video').length})); } catch(e) {}
     }
 
     if (attempts >= 10) {
@@ -332,8 +308,6 @@ interface VideoExtractorProps {
   timeoutMs?: number;
   collectWindowMs?: number;
   collectAllServers?: boolean;
-  // Called when the page reports all video_player token URLs from tabs-ul.
-  // Use this to pre-populate item.Sources[] in your data layer.
   onServerTokens?: (urls: string[]) => void;
 }
 
@@ -347,8 +321,8 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   collectAllServers = false,
   onServerTokens,
 }) => {
-  const captured      = useRef(false);   // true once we've committed (fired onExtracted or onError)
-  const collected     = useRef<string[]>([]); // all master m3u8s seen so far
+  const captured      = useRef(false);
+  const collected     = useRef<string[]>([]);
   const collectTimer  = useRef<ReturnType<typeof setTimeout>>();
   const globalTimer   = useRef<ReturnType<typeof setTimeout>>();
 
@@ -357,7 +331,6 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
     onDebug?.(msg);
   }, [onDebug]);
 
-  /** Deduplicate by hostname — each unique CDN host = one server entry. */
   const isMasterPlaylist = (url: string) =>
     url.includes('master.m3u8') || url.includes('/master') || !url.match(/\/(sd|hd|[0-9]+p?)[/_]/i);
 
@@ -377,24 +350,19 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   }, [onExtracted, onError, dbg]);
 
   const addUrl = useCallback((url: string) => {
-    // Filter out child/quality playlists — we only want master playlists here.
-    // Child playlists are fetched later by the quality parser in PlayerScreen.
     if (!isMasterPlaylist(url)) {
       dbg('SKIP child playlist: ' + url.substring(0, 80));
       return;
     }
-    // Deduplicate by full URL
     if (collected.current.includes(url)) return;
     collected.current = [...collected.current, url];
     dbg('COLLECTED #' + collected.current.length + ': ' + url.substring(0, 80));
 
     if (!collectAllServers) {
-      // Quick Play — first URL is enough, commit immediately
       commit();
       return;
     }
 
-    // All Servers — reset the collection window on every new URL
     clearTimeout(collectTimer.current);
     collectTimer.current = setTimeout(commit, collectWindowMs);
   }, [commit, collectWindowMs, dbg]);
@@ -407,7 +375,6 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
     dbg('START: ' + pageUrl);
     globalTimer.current = setTimeout(() => {
       if (collected.current.length > 0) {
-        // We have something — commit what we have
         commit();
       } else {
         captured.current = true;
@@ -467,7 +434,7 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   const handleLoadError = useCallback(() => {
     if (!captured.current) {
       if (collected.current.length > 0) {
-        commit(); // partial success — use what we have
+        commit();
       } else {
         captured.current = true;
         clearTimeout(collectTimer.current);
