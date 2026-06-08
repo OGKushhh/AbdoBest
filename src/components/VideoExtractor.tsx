@@ -130,36 +130,37 @@ const CLICK_JS = `
     }
   } catch(e) {}
 
-  // STEP 1 — Movie page: navigate to video_player page
-  var iframe = document.querySelector('iframe[name="player_iframe"]');
-  if (iframe) {
-    var playerUrl = iframe.getAttribute('data-src') || iframe.getAttribute('src');
+  // STEP 1 — Movie page: load video_player URL into the iframe (stay on this page)
+  // Python equivalent: iframe.goto(src_attr) — navigates the frame, not the top window.
+  var playerIframe = document.querySelector('iframe[name="player_iframe"]');
+  if (playerIframe) {
+    var playerUrl = playerIframe.getAttribute('data-src') || playerIframe.getAttribute('src');
     if (playerUrl && playerUrl.indexOf('video_player') !== -1) {
       if (playerUrl.indexOf('http') !== 0) {
         playerUrl = window.location.origin + (playerUrl.charAt(0) === '/' ? '' : '/') + playerUrl;
       }
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1: navigating to video_player: ' + playerUrl.substring(0,100)})); } catch(e) {}
-      window.location.href = playerUrl;
-      return;
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1: loading video_player into iframe: ' + playerUrl.substring(0,100)})); } catch(e) {}
+      // Set src on the iframe — keeps top-level page intact, PATCH_JS session cookies preserved
+      playerIframe.src = playerUrl;
+      // Fall through to STEP 2 below — no return, we run the click loop on this same page
     }
   }
 
-  // Fallback: any element with player_token in href/data-src
-  // Validate that video_player is in the URL path itself — not buried inside
-  // a refer= param (ad sites piggy-back the real token URL as a referrer).
-  var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
-  if (candidates.length > 0) {
-    var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
-    if (u && u.indexOf('video_player') !== -1) {
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): ' + u.substring(0,100)})); } catch(e) {}
-      window.location.href = u;
-      return;
+  // Fallback: any element with player_token in href/data-src (only when no player_iframe found)
+  if (!playerIframe) {
+    var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
+    if (candidates.length > 0) {
+      var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
+      if (u && u.indexOf('video_player') !== -1) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): top-level nav to: ' + u.substring(0,100)})); } catch(e) {}
+        window.location.href = u;
+        return;
+      }
     }
   }
 
-  // STEP 2 — Video player page: remove ads, click play
-  var isVideoPlayer = window.location.href.indexOf('video_player') !== -1;
-
+  // STEP 2 — Click loop: search both top-level doc AND iframe contentDocument
+  // Python equivalent: iframe.click(sel) inside the frame context
   var AD_SEL = [
     '[class*="popup"]',
     '[id*="popup"]', '[id*="ad-"]',
@@ -198,8 +199,6 @@ const CLICK_JS = `
     } catch(ex) {}
   }, true);
 
-  if (!isVideoPlayer) return;
-
   // Scroll to trigger lazy load
   setTimeout(function() { try { window.scrollTo(0, document.body.scrollHeight / 2); } catch(e) {} }, 800);
 
@@ -221,19 +220,34 @@ const CLICK_JS = `
     attempts++;
     killAds();
 
+    // Build list of documents to search: top-level + all iframe contentDocuments
+    var docs = [document];
+    try {
+      document.querySelectorAll('iframe').forEach(function(f) {
+        try { if (f.contentDocument && f.contentDocument.body) docs.push(f.contentDocument); } catch(e) {}
+      });
+    } catch(e) {}
+
     var clicked = false;
-    for (var i = 0; i < PLAY_SEL.length; i++) {
-      var el = document.querySelector(PLAY_SEL[i]);
-      if (el) {
-        try { el.click(); } catch(e) {}
-        clicked = true;
-        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i]})); } catch(e) {}
-        break;
+    var jwCount = 0; var vidCount = 0;
+    outer: for (var d = 0; d < docs.length; d++) {
+      try { jwCount += docs[d].querySelectorAll('[class*="jw"]').length; } catch(e) {}
+      try { vidCount += docs[d].querySelectorAll('video').length; } catch(e) {}
+      for (var i = 0; i < PLAY_SEL.length; i++) {
+        try {
+          var el = docs[d].querySelector(PLAY_SEL[i]);
+          if (el) {
+            el.click();
+            clicked = true;
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i] + (d > 0 ? ' [iframe-' + d + ']' : '')})); } catch(e) {}
+            break outer;
+          }
+        } catch(e) {}
       }
     }
 
     if (!clicked) {
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + document.querySelectorAll('[class*="jw"]').length + ' | video=' + document.querySelectorAll('video').length})); } catch(e) {}
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + jwCount + ' | video=' + vidCount + ' | docs=' + docs.length})); } catch(e) {}
     }
 
     if (attempts >= 10) {
