@@ -1,5 +1,5 @@
 /**
- * VideoExtractor.tsx  v9
+ * VideoExtractor.tsx  v10
  *
  * Fixes vs v6 (original):
  *  1. domStorageEnabled={true}        — JWPlayer requires localStorage to init.
@@ -161,6 +161,44 @@ const CLICK_JS = `
   try { playerIframe.scrollIntoView({behavior: 'instant', block: 'center'}); } catch(e) {}
   try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'SCROLLED: player_iframe into view'})); } catch(e) {}
 
+  // Patch iframe contentWindow directly — MutationObserver fires before content
+  // loads so misses the window. We patch here where we know it will be loaded.
+  function patchIframeWin(win) {
+    try {
+      if (!win) return;
+      var _post = function(url) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'m3u8', url: url})); } catch(e) {}
+      };
+      if (win.fetch) {
+        var origF = win.fetch;
+        win.fetch = function(input, init) {
+          try { var u = typeof input === 'string' ? input : (input && input.url ? input.url : String(input)); if (u && u.indexOf('.m3u8') !== -1) _post(u); } catch(e) {}
+          return origF.apply(this, arguments);
+        };
+      }
+      if (win.XMLHttpRequest) {
+        var origX = win.XMLHttpRequest.prototype.open;
+        win.XMLHttpRequest.prototype.open = function(method, url) {
+          try { if (url && url.indexOf('.m3u8') !== -1) _post(url); } catch(e) {}
+          return origX.apply(this, arguments);
+        };
+      }
+      try {
+        var desc = Object.getOwnPropertyDescriptor(win.HTMLMediaElement.prototype, 'src');
+        if (desc && desc.set) {
+          var origSet = desc.set;
+          Object.defineProperty(win.HTMLMediaElement.prototype, 'src', {
+            set: function(val) { try { if (val && val.indexOf('.m3u8') !== -1) _post(val); } catch(e) {} return origSet.call(this, val); },
+            get: desc.get, configurable: true,
+          });
+        }
+      } catch(e) {}
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'IFRAME PATCHED: fetch/XHR/src overridden'})); } catch(e) {}
+    } catch(ex) {
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'IFRAME PATCH FAILED: ' + String(ex).substring(0,60)})); } catch(e) {}
+    }
+  }
+
   var attempts = 0;
   var PLAY_SEL = [
     '.jw-icon-display',
@@ -181,6 +219,9 @@ const CLICK_JS = `
         if (attempts >= 15) { clearInterval(iv); try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DONE: gave up waiting for contentDocument'})); } catch(e) {} }
         return;
       }
+
+      // Patch on first attempt — iframe is loaded by now
+      if (attempts === 1) patchIframeWin(playerIframe.contentWindow);
 
       var jwCount = doc.querySelectorAll('[class*="jw"]').length;
       var vidCount = doc.querySelectorAll('video').length;
