@@ -540,7 +540,7 @@ export const PlayerScreen: React.FC = () => {
               style={styles.topBadgeBtn}
               onPress={() => { setShowSpeedPicker(true); showControlsTemporarily(); }}
             >
-              <Image source={require('../../assets/icons/flash.png')} style={{ width: 15, height: 15, tintColor: '#fff' }} />
+              <Image source={require('../../assets/icons/run.png')} style={{ width: 15, height: 15, tintColor: '#fff' }} />
               <Text style={styles.topBadgeTxt}>
                 {playbackRate === 1.0 ? '1×' : `${playbackRate}×`}
               </Text>
