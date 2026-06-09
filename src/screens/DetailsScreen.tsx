@@ -354,44 +354,38 @@ export const DetailsScreen: React.FC = () => {
               // Case B: plain array → wrap
               data.seasons[sk] = {episodes: data.seasons[sk]};
             }
-            // Split dubbed/subbed episodes into virtual sub-seasons
+            // Split episodes into typed buckets, then apply b&w/color split per bucket
             const eps: string[] = data.seasons[sk]?.episodes ?? [];
-            const isDub = (u: string) => u.toLowerCase().includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac');
-            const isBW  = (u: string) => {
+            const isEgyDub = (u: string) => u.toLowerCase().includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac%d8%a9-%d9%85'); // مدبلجة-م (Egyptian)
+            const isDub    = (u: string) => !isEgyDub(u) && u.toLowerCase().includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac'); // مدبلجة (regular dub only)
+            const isBW     = (u: string) => {
               const l = u.toLowerCase();
               return l.includes('%d9%86%d8%b3%d8%ae%d8%a9') // نسخة
                   || l.includes('%d9%85%d8%af%d8%a8%d9%84%d8%ac%d8%a9-%d9%86'); // مدبلجة-ن (truncated dubbed b&w)
             };
-            const hasDub   = eps.some(isDub);
-            const hasSub   = eps.some((u: string) => !isDub(u));
-            const hasBW    = eps.some(isBW);
-            const hasColor = eps.some((u: string) => !isBW(u));
-            if (hasDub && hasSub) {
-              const poster = data.seasons[sk]?.poster || '';
-              const subEps = eps.filter((u: string) => !isDub(u));
-              const dubEps = eps.filter(isDub);
-              // Second pass — check each dub/sub bucket for b&w vs color
-              const subHasBW    = subEps.some(isBW);
-              const subHasColor = subEps.some((u: string) => !isBW(u));
-              const dubHasBW    = dubEps.some(isBW);
-              const dubHasColor = dubEps.some((u: string) => !isBW(u));
-              if (subHasBW && subHasColor) {
-                data.seasons[`${sk}_sub_color`] = {poster, episodes: subEps.filter((u: string) => !isBW(u))};
-                data.seasons[`${sk}_sub_bw`]    = {poster, episodes: subEps.filter(isBW)};
+            const subEps = eps.filter((u: string) => !isDub(u) && !isEgyDub(u));
+            const dubEps = eps.filter(isDub);
+            const egyEps = eps.filter(isEgyDub);
+            // assignBucket: writes one or two season keys for a typed bucket.
+            // If the bucket has both b&w and color episodes it splits into _bw/_color,
+            // otherwise it writes a single key. Empty buckets are skipped.
+            const assignBucket = (bucket: string[], suffix: string) => {
+              if (!bucket.length) return;
+              const poster   = data.seasons[sk]?.poster || '';
+              const hasBW    = bucket.some(isBW);
+              const hasColor = bucket.some((u: string) => !isBW(u));
+              if (hasBW && hasColor) {
+                data.seasons[`${sk}${suffix}_color`] = {poster, episodes: bucket.filter((u: string) => !isBW(u))};
+                data.seasons[`${sk}${suffix}_bw`]    = {poster, episodes: bucket.filter(isBW)};
               } else {
-                data.seasons[`${sk}_sub`] = {poster, episodes: subEps};
+                data.seasons[`${sk}${suffix}`] = {poster, episodes: bucket};
               }
-              if (dubHasBW && dubHasColor) {
-                data.seasons[`${sk}_dub_color`] = {poster, episodes: dubEps.filter((u: string) => !isBW(u))};
-                data.seasons[`${sk}_dub_bw`]    = {poster, episodes: dubEps.filter(isBW)};
-              } else {
-                data.seasons[`${sk}_dub`] = {poster, episodes: dubEps};
-              }
-              delete data.seasons[sk];
-            } else if (hasBW && hasColor) {
-              const poster = data.seasons[sk]?.poster || '';
-              data.seasons[`${sk}_color`] = {poster, episodes: eps.filter((u: string) => !isBW(u))};
-              data.seasons[`${sk}_bw`]    = {poster, episodes: eps.filter(isBW)};
+            };
+            const needsSplit = egyEps.length > 0 || dubEps.length > 0 || subEps.length < eps.length;
+            if (needsSplit) {
+              assignBucket(subEps, '_sub');
+              assignBucket(dubEps, '_dub');
+              assignBucket(egyEps, '_egy');
               delete data.seasons[sk];
             }
           });
@@ -532,7 +526,7 @@ export const DetailsScreen: React.FC = () => {
   const isOngoing = status === '\u0645\u0633\u062A\u0645\u0631' || status.toLowerCase() === 'ongoing';
 
   // Episode data
-  // Returns the human-readable label for a season key, handling _sub/_dub/_color/_bw suffixes
+  // Returns the human-readable label for a season key, handling _sub/_dub/_egy/_color/_bw suffixes
   const seasonLabel = (sk: string): string => {
     const numMatch = sk.match(/^(\d+)/);
     const num = numMatch ? numMatch[1] : sk;
@@ -540,8 +534,11 @@ export const DetailsScreen: React.FC = () => {
     if (sk.endsWith('_sub_bw'))    return `${t('season')} ${num} - ${t('badge_subbed_bw')}`;
     if (sk.endsWith('_dub_color')) return `${t('season')} ${num} - ${t('badge_dubbed_color')}`;
     if (sk.endsWith('_dub_bw'))    return `${t('season')} ${num} - ${t('badge_dubbed_bw')}`;
+    if (sk.endsWith('_egy_color')) return `${t('season')} ${num} - ${t('badge_egy_color')}`;
+    if (sk.endsWith('_egy_bw'))    return `${t('season')} ${num} - ${t('badge_egy_bw')}`;
     if (sk.endsWith('_sub'))   return `${t('season')} ${num} - ${t('badge_subbed')}`;
     if (sk.endsWith('_dub'))   return `${t('season')} ${num} - ${t('badge_dubbed')}`;
+    if (sk.endsWith('_egy'))   return `${t('season')} ${num} - ${t('badge_egy')}`;
     if (sk.endsWith('_color')) return `${t('season')} ${num} - ${t('badge_color')}`;
     if (sk.endsWith('_bw'))    return `${t('season')} ${num} - ${t('badge_bw')}`;
     return `${t('season')} ${num}`;
@@ -554,7 +551,7 @@ export const DetailsScreen: React.FC = () => {
     if (a.endsWith('_sub') && b.endsWith('_dub')) return -1;
     if (a.endsWith('_dub') && b.endsWith('_sub')) return 1;
     // Combined suffixes sort: sub_color < sub_bw < dub_color < dub_bw
-    const order = ['_sub_color', '_sub_bw', '_sub', '_dub_color', '_dub_bw', '_dub', '_color', '_bw'];
+    const order = ['_sub_color', '_sub_bw', '_sub', '_dub_color', '_dub_bw', '_dub', '_egy_color', '_egy_bw', '_egy', '_color', '_bw'];
     const ai = order.findIndex(s => a.endsWith(s));
     const bi = order.findIndex(s => b.endsWith(s));
     if (ai !== -1 && bi !== -1 && ai !== bi) return ai - bi;
