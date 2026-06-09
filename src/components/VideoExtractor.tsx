@@ -1,5 +1,5 @@
 /**
- * VideoExtractor.tsx  v8
+ * VideoExtractor.tsx  v9
  *
  * Fixes vs v6 (original):
  *  1. domStorageEnabled={true}        — JWPlayer requires localStorage to init.
@@ -146,76 +146,20 @@ const CLICK_JS = `
     }
   } catch(e) {}
 
-  // STEP 1 — Movie page: navigate to video_player page (top-level nav so PATCH_JS re-injects)
-  var iframe = document.querySelector('iframe[name="player_iframe"]');
-  if (iframe) {
-    var playerUrl = iframe.getAttribute('data-src') || iframe.getAttribute('src');
-    if (playerUrl && playerUrl.indexOf('video_player') !== -1) {
-      if (playerUrl.indexOf('http') !== 0) {
-        playerUrl = window.location.origin + (playerUrl.charAt(0) === '/' ? '' : '/') + playerUrl;
-      }
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1: navigating to video_player: ' + playerUrl.substring(0,100)})); } catch(e) {}
-      window.location.href = playerUrl;
-      return;
-    }
+  // Stay on movie page — scroll player_iframe into view so JWPlayer lazy-loads,
+  // then click .jw-icon-display inside the iframe's contentDocument directly.
+  // No top-level navigation needed (same origin, PATCH_JS MutationObserver already
+  // patched the iframe's fetch/XHR when it was added to the DOM).
+
+  var playerIframe = document.querySelector('iframe[name="player_iframe"]');
+  if (!playerIframe) {
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'NO player_iframe found'})); } catch(e) {}
+    return;
   }
 
-  // Fallback: any element with player_token in href/data-src
-  var candidates = document.querySelectorAll('[href*="player_token"], [data-src*="player_token"]');
-  if (candidates.length > 0) {
-    var u = candidates[0].getAttribute('href') || candidates[0].getAttribute('data-src');
-    if (u && u.indexOf('video_player') !== -1) {
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'STEP1 (fallback): ' + u.substring(0,100)})); } catch(e) {}
-      window.location.href = u;
-      return;
-    }
-  }
-
-  // STEP 2 — Video player page: remove ads, click play
-  var isVideoPlayer = window.location.href.indexOf('video_player') !== -1;
-
-  var AD_SEL = [
-    '[class*="popup"]',
-    '[id*="popup"]', '[id*="ad-"]',
-    '[class*="ad-"]:not([class*="jw"])',
-    '.blockadblock', 'ins',
-    'div[class*="banner"]:not([class*="jw"])',
-    'div[class*="sponsor"]',
-  ];
-  function killAds() {
-    AD_SEL.forEach(function(sel) {
-      try {
-        document.querySelectorAll(sel).forEach(function(el) {
-          var cls = (el.className && typeof el.className === 'string') ? el.className : '';
-          if (cls.indexOf('jw') !== -1 || (el.id && el.id.indexOf('jw') !== -1)) return;
-          el.remove();
-        });
-      } catch(e) {}
-    });
-  }
-  killAds();
-  setInterval(killAds, 1500);
-
-  // Block clicks navigating away from allowed domains
-  var ALLOWED_NAV = ['fasel-hd.cam','faselhd.com','faselhd.tv','faselhdx.bid','scdns.io','jwpcdn.com','jwplayer.com'];
-  document.addEventListener('click', function(e) {
-    try {
-      var t = e.target;
-      while (t && t !== document) {
-        if (t.tagName === 'A' && t.href && t.href.indexOf('javascript:') !== 0) {
-          var ok = ALLOWED_NAV.some(function(d) { return t.href.indexOf(d) !== -1; });
-          if (!ok) { e.preventDefault(); e.stopPropagation(); return; }
-          break;
-        }
-        t = t.parentElement;
-      }
-    } catch(ex) {}
-  }, true);
-
-  if (!isVideoPlayer) return;
-
-  // Scroll to trigger lazy load
-  setTimeout(function() { try { window.scrollTo(0, document.body.scrollHeight / 2); } catch(e) {} }, 800);
+  // Scroll iframe into view to trigger lazy load
+  try { playerIframe.scrollIntoView({behavior: 'instant', block: 'center'}); } catch(e) {}
+  try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'SCROLLED: player_iframe into view'})); } catch(e) {}
 
   var attempts = 0;
   var PLAY_SEL = [
@@ -225,34 +169,43 @@ const CLICK_JS = `
     '[class*="jw-icon"][class*="play"]',
     '.jw-media video',
     'video',
-    '[class*="play"][class*="btn"]',
-    '[class*="play"][class*="button"]',
-    '[class*="video-play"]',
-    '[id*="player"] [class*="play"]',
   ];
 
   var iv = setInterval(function() {
     attempts++;
-    killAds();
 
-    var clicked = false;
-    for (var i = 0; i < PLAY_SEL.length; i++) {
-      var el = document.querySelector(PLAY_SEL[i]);
-      if (el) {
-        try { el.click(); } catch(e) {}
-        clicked = true;
-        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i]})); } catch(e) {}
-        break;
+    try {
+      var doc = playerIframe.contentDocument || (playerIframe.contentWindow && playerIframe.contentWindow.document);
+      if (!doc) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no contentDocument yet'})); } catch(e) {}
+        if (attempts >= 15) { clearInterval(iv); try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DONE: gave up waiting for contentDocument'})); } catch(e) {} }
+        return;
       }
+
+      var jwCount = doc.querySelectorAll('[class*="jw"]').length;
+      var vidCount = doc.querySelectorAll('video').length;
+
+      var clicked = false;
+      for (var i = 0; i < PLAY_SEL.length; i++) {
+        var el = doc.querySelector(PLAY_SEL[i]);
+        if (el) {
+          try { el.click(); } catch(e) {}
+          clicked = true;
+          try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'CLICK #' + attempts + ' on: ' + PLAY_SEL[i] + ' | jw=' + jwCount + ' vid=' + vidCount})); } catch(e) {}
+          break;
+        }
+      }
+
+      if (!clicked) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + jwCount + ' | video=' + vidCount})); } catch(e) {}
+      }
+    } catch(ex) {
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': exception: ' + String(ex).substring(0,60)})); } catch(e) {}
     }
 
-    if (!clicked) {
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'ATTEMPT ' + attempts + ': no play btn | jw=' + document.querySelectorAll('[class*="jw"]').length + ' | video=' + document.querySelectorAll('video').length})); } catch(e) {}
-    }
-
-    if (attempts >= 10) {
+    if (attempts >= 15) {
       clearInterval(iv);
-      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DONE: 10 attempts exhausted'})); } catch(e) {}
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({type:'debug', msg:'DONE: 15 attempts exhausted'})); } catch(e) {}
     }
   }, 2000);
 })();
