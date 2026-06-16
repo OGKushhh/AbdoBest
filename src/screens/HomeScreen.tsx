@@ -4,7 +4,7 @@ import React, {
 import {
   View, Text, StyleSheet, FlatList, RefreshControl, StatusBar,
   TouchableOpacity, Image, TextInput, ActivityIndicator,
-  Dimensions, Animated, ScrollView,
+  Dimensions, Animated, ScrollView, Linking,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import FastImage from 'react-native-fast-image';
@@ -73,6 +73,79 @@ const CAT_EMOJI: Record<string, string> = {
   'tvshows':        '📡',
   'asian-series':   '🌸',
   'arabic-series':  '🌙',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InfoBar – rotating tip strip under the hero banner
+// ─────────────────────────────────────────────────────────────────────────────
+const INFO_TIP_KEYS = [
+  { iconKey: 'info_tip_sync_icon',     textKey: 'info_tip_sync',     link: null,                          linkKey: null },
+  { iconKey: 'info_tip_update_icon',   textKey: 'info_tip_update',   link: null,                          linkKey: null },
+  { iconKey: 'info_tip_auto_icon',     textKey: 'info_tip_auto',     link: null,                          linkKey: null },
+  { iconKey: 'info_tip_play_icon',     textKey: 'info_tip_play',     link: null,                          linkKey: null },
+  { iconKey: 'info_tip_telegram_icon', textKey: 'info_tip_telegram', link: 'https://t.me/Abdobestt',      linkKey: 'info_tip_telegram_link' },
+  { iconKey: 'info_tip_kofi_icon',     textKey: 'info_tip_kofi',     link: 'https://ko-fi.com/abdobest',  linkKey: 'info_tip_kofi_link' },
+] as const;
+
+const InfoBar: React.FC = () => {
+  const {t, i18n} = useTranslation();
+  const isAr = i18n.language?.startsWith('ar');
+  const [idx, setIdx] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+
+  const rotate = useCallback(() => {
+    Animated.timing(fadeAnim, {toValue: 0, duration: 300, useNativeDriver: true}).start(() => {
+      setIdx(prev => (prev + 1) % INFO_TIP_KEYS.length);
+      Animated.timing(fadeAnim, {toValue: 1, duration: 400, useNativeDriver: true}).start();
+    });
+  }, [fadeAnim]);
+
+  useEffect(() => {
+    timerRef.current = setInterval(rotate, 7000);
+    return () => clearInterval(timerRef.current);
+  }, [rotate]);
+
+  const tip = INFO_TIP_KEYS[idx];
+  const text = t(tip.textKey);
+  const linkLabel = tip.linkKey ? t(tip.linkKey) : null;
+
+  return (
+    <View style={infoS.wrapper}>
+      {/* Dot indicators */}
+      <View style={infoS.dots}>
+        {INFO_TIP_KEYS.map((_, i) => (
+          <TouchableOpacity
+            key={i}
+            onPress={() => {
+              clearInterval(timerRef.current);
+              Animated.timing(fadeAnim, {toValue: 0, duration: 200, useNativeDriver: true}).start(() => {
+                setIdx(i);
+                Animated.timing(fadeAnim, {toValue: 1, duration: 300, useNativeDriver: true}).start();
+              });
+              timerRef.current = setInterval(rotate, 7000);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[infoS.dot, i === idx && infoS.dotActive]} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Tip content */}
+      <Animated.View style={[infoS.tipRow, {opacity: fadeAnim}]}>
+        <Text style={infoS.icon}>{t(tip.iconKey)}</Text>
+        <View style={infoS.textCol}>
+          <Text style={[infoS.tipText, isAr && infoS.rtl]}>{text}</Text>
+          {tip.link && (
+            <TouchableOpacity onPress={() => Linking.openURL(tip.link!)} activeOpacity={0.75}>
+              <Text style={[infoS.link, isAr && infoS.rtl]}>{'› '}{linkLabel}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </Animated.View>
+    </View>
+  );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -652,6 +725,9 @@ export const HomeScreen: React.FC = () => {
             {/* Hero — no top padding, goes edge to edge */}
             {heroItems.length > 0 && <HeroBanner items={heroItems} onPress={goDetails} insetTop={insets.top} />}
 
+            {/* Info tip bar */}
+            <InfoBar />
+
             {/* Ads */}
             <View style={{marginTop: 8, marginBottom: 4}}>
               <AdsterraBanner visible type="native" height={90} />
@@ -733,6 +809,68 @@ const S = StyleSheet.create({
   searchGrid: {paddingHorizontal: 14, paddingBottom: 80, paddingTop: 8},
   row: {justifyContent: 'space-between', gap: 12},
   noResults: {color: Colors.dark.textMuted, fontSize: 15, fontFamily: 'Rubik'},
+});
+
+// ─── InfoBar styles ───────────────────────────────────────────────────────────
+const infoS = StyleSheet.create({
+  wrapper: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 2,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    minHeight: 72,
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  dot: {
+    width: 5, height: 5, borderRadius: 3,
+    backgroundColor: Colors.dark.border,
+  },
+  dotActive: {
+    width: 14,
+    backgroundColor: Colors.dark.primary,
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  icon: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  textCol: {
+    flex: 1,
+    gap: 4,
+  },
+  tipText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontFamily: 'Rubik',
+    fontWeight: '400',
+    textAlign: 'left',
+  },
+  rtl: {
+    textAlign: 'right',
+  },
+  link: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Rubik',
+    textAlign: 'left',
+  },
 });
 
 // ─── Hero styles ──────────────────────────────────────────────────────────────
