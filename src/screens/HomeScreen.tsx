@@ -17,7 +17,6 @@ import {
 import {ContentItem} from '../types';
 import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
 import {Colors} from '../theme/colors';
-import AdsterraBanner from '../ads/AdsterraBanner';
 import {getAllViews, invalidateViewsCache} from '../services/api';
 import {retrySyncViews} from '../services/viewService';
 
@@ -727,12 +726,6 @@ export const HomeScreen: React.FC = () => {
 
             {/* Info tip bar */}
             <InfoBar />
-
-            {/* Ads */}
-            <View style={{marginTop: 8, marginBottom: 4}}>
-              <AdsterraBanner visible type="native" height={90} />
-              <AdsterraBanner visible type="propeller" height={90} />
-            </View>
 
             {/* Most Viewed — top 7 across all categories */}
             {mostViewed.length > 0 && (
