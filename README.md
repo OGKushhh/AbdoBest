@@ -26,6 +26,7 @@
   <img src="https://img.shields.io/badge/Size-~24%20MB-blue" alt="Size">
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License">
   <img src="https://img.shields.io/badge/Built%20with-React%20Native-61DAFB?logo=react" alt="React Native">
+  <img src="https://img.shields.io/github/downloads/OGKushhh/AbdoBest/total?color=FF4500&label=Downloads" alt="Downloads">
 </p>
 
 ---
