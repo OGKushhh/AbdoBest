@@ -27,25 +27,12 @@ allprojects {
     }
 }
 
+// This substitution is needed for RN 0.72 – keep it.
 subprojects {
-    // Redirect old react-native artifact to the new one (required for RN 0.72)
     configurations.all {
         resolutionStrategy {
             dependencySubstitution {
                 substitute module('com.facebook.react:react-native') using module('com.facebook.react:react-android:+')
-            }
-        }
-    }
-
-    // Force Java 17 for every Android module – this fixes the pattern‑matching error
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
-                compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_17
-                    targetCompatibility JavaVersion.VERSION_17
-                }
-                // No kotlinOptions here – it breaks non‑Kotlin modules
             }
         }
     }

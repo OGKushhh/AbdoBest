@@ -11,9 +11,9 @@
   "dependencies": {
     "@kesha-antonov/react-native-background-downloader": "^3.2.6",
     "@react-native-async-storage/async-storage": "1.19.3",
-    "@react-native-firebase/app": "^20.0.0",
-    "@react-native-firebase/auth": "^20.0.0",
-    "@react-native-firebase/messaging": "^20.0.0",
+    "@react-native-firebase/app": "^19.2.2",
+    "@react-native-firebase/auth": "^19.2.2",
+    "@react-native-firebase/messaging": "^19.2.2",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/bottom-tabs": "6.5.0",
     "@react-navigation/native": "6.1.6",
