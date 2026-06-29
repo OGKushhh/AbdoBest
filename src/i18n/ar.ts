@@ -253,4 +253,47 @@ export const ar = {
   info_tip_kofi_link: 'تبرع عبر Ko-fi',
   info_tip_update_icon: '🆕',
   info_tip_update: 'يمكنك تحديث التطبيق في أي وقت عبر زر التحديث في الإعدادات.',
+
+// ── NEW KEYS — paste these inside the `ar` object in src/i18n/ar.ts ──────────
+
+  // Tab
+  favorites: 'المفضلة',
+
+  // Favorites screen
+  favorites_tab_favourites:  'المفضلة',
+  favorites_tab_watched:     'شاهدت',
+  favorites_tab_watch_later: 'مشاهدة لاحقاً',
+  favorites_empty_favourites:  'لا يوجد محتوى في المفضلة',
+  favorites_empty_watched:     'لم تضف أي محتوى كمشاهَد',
+  favorites_empty_watch_later: 'قائمة المشاهدة لاحقاً فارغة',
+  favorites_empty_hint:      'اضغط مطولاً على البطاقة لإزالتها',
+  favorites_remove_title:    'إزالة من القائمة',
+  favorites_remove_body:     'هل تريد إزالة "{{title}}" من هذه القائمة؟',
+  remove:                    'إزالة',
+
+  // Details screen — collection popup
+  add_to_list:   'أضف إلى قائمة',
+  tap_to_add:    'اضغط للإضافة',
+  tap_to_remove: 'اضغط للإزالة',
+
+  // Auth prompts
+  sign_in:              'تسجيل الدخول',
+  sign_in_required:     'يجب تسجيل الدخول',
+  sign_in_to_favourite: 'سجّل دخولك لحفظ المفضلة وتلقّي إشعارات عند نزول محتوى جديد.',
+  profile_signin_hint:  'اضغط لتسجيل الدخول',
+
+  // Account section in Settings
+  account: 'الحساب',
+
+  // Profile screen
+  profile:               'الملف الشخصي',
+  profile_guest:         'زائر',
+  profile_guest_sub:     'تصفح كزائر — سجّل دخولك للمزامنة',
+  profile_uid:           'معرف المستخدم',
+  profile_account_type:  'تسجيل الدخول عبر',
+  profile_signout:       'تسجيل الخروج',
+  profile_signout_title: 'تسجيل الخروج',
+  profile_signout_body:  'مفضلتك محفوظة — يمكنك تسجيل الدخول مجدداً في أي وقت.',
+  profile_signout_confirm: 'تسجيل الخروج',
+  profile_signout_error: 'حدث خطأ ما. حاول مرة أخرى.',
 };

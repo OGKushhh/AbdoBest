@@ -14,6 +14,8 @@ import { CacheSyncInline, useCacheSync } from '../components/CacheSyncOverlay';
 import { checkForUpdate, openUpdateUrl, skipVersion } from '../services/updateService';
 import { APP_VERSION } from '../constants/endpoints';
 import { useTheme } from '../hooks/useTheme';
+import { useNavigation } from '@react-navigation/native';
+import { getPersistedUser, AbdoUser } from '../services/authService';
 import { useRewardAd, formatAdFreeRemaining } from '../ads/RewardAdPopup';
 import { Colors } from '../theme/colors'; // for dark background etc. (fallback)
 
@@ -59,6 +61,11 @@ export const SettingsScreen: React.FC = () => {
   const { colors, isDark, setDarkMode } = useTheme();
   const { t, i18n } = useTranslation();
   const [settings, setSettings] = useState(getSettings());
+  const navigation = useNavigation<any>();
+  const [currentUser, setCurrentUser] = React.useState<AbdoUser | null>(null);
+
+  React.useEffect(() => { getPersistedUser().then(setCurrentUser); }, []);
+
   const { rewardElement, triggerReward, adFreeActive, remainingMs } = useRewardAd();
   const { running: syncing, progress: syncProgress, start: startSync } = useCacheSync();
 
@@ -280,6 +287,28 @@ export const SettingsScreen: React.FC = () => {
               <Text style={styles.headerVersion}>v{APP_VERSION}</Text>
             </View>
           </LinearGradient>
+
+          {/* ── Account / Profile ── */}
+          <Text style={styles.sectionTitle}>{t('account')}</Text>
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[styles.row, styles.rowLast]}
+              onPress={() => currentUser && navigation.navigate('Profile', { user: currentUser })}
+              activeOpacity={0.65}>
+              <View style={styles.rowIcon}>
+                <Image source={require('../../assets/icons/account.png')} style={styles.rowIconImg} />
+              </View>
+              <View style={styles.rowContent}>
+                <Text style={styles.rowLabel}>
+                  {currentUser ? (currentUser.displayName ?? t('profile_guest')) : t('sign_in')}
+                </Text>
+                <Text style={styles.rowSub}>
+                  {currentUser ? (currentUser.isGuest ? t('profile_guest_sub') : currentUser.email ?? '') : t('profile_signin_hint')}
+                </Text>
+              </View>
+              <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
+            </TouchableOpacity>
+          </View>
 
           {/* ── Appearance ── */}
           <Text style={styles.sectionTitle}>{t('appearance')}</Text>

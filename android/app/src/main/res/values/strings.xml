@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">AbdoBest</string>
+
+    <!-- Facebook Login — replace with your actual values from developers.facebook.com -->
+    <string name="facebook_app_id">901236965601647</string>
+    <string name="facebook_client_token">8697a894509c399e50f31deb27a2d8c0</string>
+    <string name="fb_login_protocol_scheme">fb901236965601647</string>
 </resources>

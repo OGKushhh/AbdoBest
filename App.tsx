@@ -16,6 +16,9 @@ import {initCounters, recordLaunchAndCheckReward} from './src/ads/adManager';
 import RewardAdPopup from './src/ads/RewardAdPopup';
 import {CacheSyncOverlay, useCacheSync} from './src/components/CacheSyncOverlay';
 import './src/i18n';
+import {initAuth, onAuthStateChanged} from './src/services/authService';
+import {fetchCollections} from './src/services/favoritesService';
+import {initFCM, setupForegroundHandler, setupNotificationOpenedHandler} from './src/services/fcmService';
 
 LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
@@ -52,6 +55,18 @@ const App: React.FC = () => {
       initCounters();
       const shouldShowReward = recordLaunchAndCheckReward();
       setReady(true);
+      // Auth + FCM init
+      initAuth();
+      const unsubAuth = onAuthStateChanged(user => {
+        if (user) {
+          fetchCollections().catch(() => {});
+          initFCM().catch(() => {});
+        }
+      });
+      setupNotificationOpenedHandler(data => {
+        // data.content_id + data.category — navigation handled after navigator mounts
+        console.log('[FCM] Notification tapped:', data);
+      });
       restoreDownloads().catch(() => {});
       retrySyncViews().catch(() => {});
       // Start cache sync immediately — overlay shows automatically

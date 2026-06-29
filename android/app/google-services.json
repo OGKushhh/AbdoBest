@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "682674226016",
+    "project_id": "abdobest-9ffec",
+    "storage_bucket": "abdobest-9ffec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:682674226016:android:236b540946022db7d15405",
+        "android_client_info": {
+          "package_name": "com.abdobest"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "682674226016-hkadmadbqggc6t55kplorpac6mnbv39k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDA1itJnrFYqsAmLQPiSBlHwiamlxzeFyA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "682674226016-hkadmadbqggc6t55kplorpac6mnbv39k.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "682674226016-vad4ndpgnmkq77oqungsqv0lois2ijp9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.abdobest"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

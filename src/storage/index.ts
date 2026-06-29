@@ -11,6 +11,10 @@ export const storageKeys = {
   DOWNLOADS_LIST: 'downloads_list',
   SKIPPED_UPDATE_VERSION: 'skipped_update_version',
 
+  // Auth
+  AUTH_USER: 'auth_user',
+  USER_COLLECTIONS: 'user_collections',
+
   // Per-category metadata data blobs
   METADATA_MOVIES: 'metadata_movies',
   METADATA_ANIME: 'metadata_anime',

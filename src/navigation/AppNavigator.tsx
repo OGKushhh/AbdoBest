@@ -10,6 +10,8 @@ import {DetailsScreen} from '../screens/DetailsScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
 import {DownloadsScreen} from '../screens/DownloadsScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
+import {FavoritesScreen} from '../screens/FavoritesScreen';
+import {ProfileScreen} from '../screens/ProfileScreen';
 import {useTranslation} from 'react-i18next';
 
 // Custom PNG icons
@@ -17,6 +19,7 @@ const Icons = {
   home:      require('../../assets/icons/tv.png'),
   browse:    require('../../assets/icons/browsing.png'),
   downloads: require('../../assets/icons/files.png'),
+  favorites: require('../../assets/icons/heart.png'),
   settings:  require('../../assets/icons/settings.png'),
 };
 
@@ -83,6 +86,13 @@ const HomeTabs: React.FC = () => {
         }}
       />
       <Tab.Screen
+        name="FavoritesTab" component={FavoritesScreen}
+        options={{
+          tabBarLabel: t('favorites'),
+          tabBarIcon: ({color}) => <TabIcon source={Icons.favorites} color={color} />,
+        }}
+      />
+      <Tab.Screen
         name="SettingsTab" component={SettingsScreen}
         options={{
           tabBarLabel: t('settings'),
@@ -129,6 +139,10 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="Player" component={PlayerScreen}
           options={{animation: 'fade', animationDuration: 180}}
+        />
+        <Stack.Screen
+          name="Profile" component={ProfileScreen}
+          options={{animation: 'slide_from_right', animationDuration: 220}}
         />
       </Stack.Navigator>
     </NavigationContainer>

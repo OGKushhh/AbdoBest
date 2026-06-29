@@ -253,4 +253,47 @@ export const en = {
   info_tip_kofi_link: 'Donate on Ko-fi',
   info_tip_update_icon: '🆕',
   info_tip_update: 'You can update the app anytime from the Update button in Settings.',
+
+// ── NEW KEYS — paste these inside the `en` object in src/i18n/en.ts ──────────
+
+  // Tab
+  favorites: 'Favorites',
+
+  // Favorites screen
+  favorites_tab_favourites:  'Favourites',
+  favorites_tab_watched:     'Watched',
+  favorites_tab_watch_later: 'Watch Later',
+  favorites_empty_favourites:  'No favourites yet',
+  favorites_empty_watched:     'Nothing marked as watched',
+  favorites_empty_watch_later: 'Watch Later is empty',
+  favorites_empty_hint:      'Long-press a card to remove it',
+  favorites_remove_title:    'Remove from list',
+  favorites_remove_body:     'Remove "{{title}}" from this list?',
+  remove:                    'Remove',
+
+  // Details screen — collection popup
+  add_to_list:   'Add to List',
+  tap_to_add:    'Tap to add',
+  tap_to_remove: 'Tap to remove',
+
+  // Auth prompts
+  sign_in:            'Sign In',
+  sign_in_required:   'Sign In Required',
+  sign_in_to_favourite: 'Sign in to save favourites and get notified when new content drops.',
+  profile_signin_hint: 'Tap to sign in',
+
+  // Account section in Settings
+  account: 'Account',
+
+  // Profile screen
+  profile:               'Profile',
+  profile_guest:         'Guest',
+  profile_guest_sub:     'Browsing as guest — sign in to sync',
+  profile_uid:           'User ID',
+  profile_account_type:  'Signed in with',
+  profile_signout:       'Sign Out',
+  profile_signout_title: 'Sign Out',
+  profile_signout_body:  'Your favourites are saved — you can sign back in anytime.',
+  profile_signout_confirm: 'Sign Out',
+  profile_signout_error: 'Something went wrong. Please try again.',
 };

@@ -910,6 +910,63 @@ export const DetailsScreen: React.FC = () => {
     startExtraction(url, title, epUrl, false, epNumber, epSeason);
   }, [startExtraction]);
 
+  // ── Collection state ──────────────────────────────────────────────────
+  const [isFavourited, setIsFavourited] = React.useState(false);
+  const [collectionSheet, setCollectionSheet] = React.useState(false);
+  const [inWatched, setInWatched]     = React.useState(false);
+  const [inWatchLater, setInWatchLater] = React.useState(false);
+
+  // Load collection state when screen mounts
+  React.useEffect(() => {
+    const load = async () => {
+      const [fav, watched, wl] = await Promise.all([
+        isInCollection('favourites',  item.id, category),
+        isInCollection('watched',     item.id, category),
+        isInCollection('watch_later', item.id, category),
+      ]);
+      setIsFavourited(fav);
+      setInWatched(watched);
+      setInWatchLater(wl);
+    };
+    load();
+  }, [item.id, category]);
+
+  const handleToggleFavourite = React.useCallback(async () => {
+    const isGuest = !(await getIdToken());
+    if (isGuest) {
+      Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'));
+      return;
+    }
+    const newState = await toggleFavourite({
+      content_id: item.id,
+      category,
+      title: item.Title,
+      image: item['Image Source'] ?? '',
+    });
+    setIsFavourited(newState);
+  }, [item, category, t]);
+
+  const handleCollectionToggle = React.useCallback(async (
+    col: 'watched' | 'watch_later',
+  ) => {
+    const isGuest = !(await getIdToken());
+    if (isGuest) {
+      Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'));
+      return;
+    }
+    const isIn = col === 'watched' ? inWatched : inWatchLater;
+    if (isIn) {
+      await removeFromCollection(col, item.id, category);
+    } else {
+      await addToCollection(col, {
+        content_id: item.id, category,
+        title: item.Title, image: item['Image Source'] ?? '',
+      });
+    }
+    if (col === 'watched')     setInWatched(v => !v);
+    if (col === 'watch_later') setInWatchLater(v => !v);
+  }, [item, category, inWatched, inWatchLater]);
+
   const handleShare = () =>
     Share.share({message: `${item.Title} - AbdoBest`});
 
@@ -954,10 +1011,19 @@ export const DetailsScreen: React.FC = () => {
           </TouchableOpacity>
           <View style={S.navBtnGroup}>
             <TouchableOpacity style={S.navBtn} onPress={() => setShowNotice(v => !v)}>
-              <Image source={require('../../assets/icons/notice.png')} style={[S.iconNav, {tintColor: '#fff'}]} />
+              <Image source={require('../../assets/icons/notice.png')} style={S.iconNav} />
             </TouchableOpacity>
             <TouchableOpacity style={S.navBtn} onPress={handleReport}>
-              <Image source={require('../../assets/icons/flag.png')} style={[S.iconNav, {tintColor: '#fff'}]} />
+              <Image source={require('../../assets/icons/flag.png')} style={S.iconNav} />
+            </TouchableOpacity>
+            <TouchableOpacity style={S.navBtn} onPress={handleToggleFavourite}>
+              <Image
+                source={require('../../assets/icons/heart.png')}
+                style={[S.iconNav, {tintColor: isFavourited ? '#E53935' : Colors.dark.text}]}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={S.navBtn} onPress={() => setCollectionSheet(true)}>
+              <Image source={require('../../assets/icons/plus.png')} style={S.iconNav} />
             </TouchableOpacity>
             <TouchableOpacity style={S.navBtn} onPress={handleShare}>
               <Image source={require('../../assets/icons/share.png')} style={S.iconNav} />
@@ -1504,6 +1570,63 @@ export const DetailsScreen: React.FC = () => {
               )}
             />
           </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Collection popup ── */}
+      <Modal
+        visible={collectionSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCollectionSheet(false)}>
+        <TouchableOpacity
+          style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center'}}
+          activeOpacity={1}
+          onPress={() => setCollectionSheet(false)}>
+          <TouchableOpacity activeOpacity={1}>
+            <View style={{
+              backgroundColor: Colors.dark.surface,
+              borderRadius: 16,
+              paddingHorizontal: 20, paddingVertical: 20,
+              width: 280,
+              borderWidth: 1, borderColor: Colors.dark.border,
+              shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 20, elevation: 10,
+            }}>
+              <Text style={{fontSize: 16, fontWeight: '700', color: Colors.dark.text, fontFamily: 'Rubik-Bold', marginBottom: 16}}>
+                {t('add_to_list')}
+              </Text>
+
+              {/* Watched */}
+              <TouchableOpacity
+                style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border}}
+                onPress={() => { handleCollectionToggle('watched'); setCollectionSheet(false); }}
+                activeOpacity={0.7}>
+                <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: inWatched ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
+                  <Image source={require('../../assets/icons/checkmark.png')} style={{width: 20, height: 20, tintColor: inWatched ? '#E53935' : Colors.dark.textMuted}} />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={{fontSize: 15, color: Colors.dark.text, fontFamily: 'Rubik', fontWeight: '500'}}>{t('favorites_tab_watched')}</Text>
+                  <Text style={{fontSize: 12, color: Colors.dark.textMuted, fontFamily: 'Rubik', marginTop: 2}}>{inWatched ? t('tap_to_remove') : t('tap_to_add')}</Text>
+                </View>
+                {inWatched && <Text style={{color: '#E53935', fontSize: 18}}>✓</Text>}
+              </TouchableOpacity>
+
+              {/* Watch Later */}
+              <TouchableOpacity
+                style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14}}
+                onPress={() => { handleCollectionToggle('watch_later'); setCollectionSheet(false); }}
+                activeOpacity={0.7}>
+                <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: inWatchLater ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
+                  <Image source={require('../../assets/icons/clock.png')} style={{width: 20, height: 20, tintColor: inWatchLater ? '#E53935' : Colors.dark.textMuted}} />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={{fontSize: 15, color: Colors.dark.text, fontFamily: 'Rubik', fontWeight: '500'}}>{t('favorites_tab_watch_later')}</Text>
+                  <Text style={{fontSize: 12, color: Colors.dark.textMuted, fontFamily: 'Rubik', marginTop: 2}}>{inWatchLater ? t('tap_to_remove') : t('tap_to_add')}</Text>
+                </View>
+                {inWatchLater && <Text style={{color: '#E53935', fontSize: 18}}>✓</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
