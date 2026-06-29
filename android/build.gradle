@@ -27,7 +27,6 @@ allprojects {
     }
 }
 
-// Redirect old artifact name to new one for subprojects like blob-util
 subprojects {
     configurations.all {
         resolutionStrategy {
@@ -37,16 +36,23 @@ subprojects {
         }
     }
 
-    // ✅ Force Java 17 for all Android modules – this fixes the compile error
+    // ✅ THIS IS THE MAGIC – force Java 17 for ALL Java compile tasks
     afterEvaluate { project ->
+        // Override android.compileOptions
         if (project.hasProperty('android')) {
             project.android {
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
-                // ⚠️ No kotlinOptions here – it's not needed and breaks non‑Kotlin modules
             }
+        }
+
+        // Override the compile task directly (this is the nuclear option)
+        project.tasks.withType(JavaCompile).configureEach { task ->
+            task.sourceCompatibility = JavaVersion.VERSION_17.toString()
+            task.targetCompatibility = JavaVersion.VERSION_17.toString()
+            task.options.compilerArgs += ['-source', '17', '-target', '17']
         }
     }
 }
