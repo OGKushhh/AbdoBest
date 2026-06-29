@@ -33,26 +33,26 @@ subprojects {
             dependencySubstitution {
                 substitute module('com.facebook.react:react-native') using module('com.facebook.react:react-android:+')
             }
+            // 🔥 Force older versions of libraries that demand compileSdk 34
+            force 'androidx.credentials:credentials:1.0.0'
+            force 'androidx.credentials:credentials-play-services-auth:1.0.0'
+            force 'androidx.datastore:datastore-core-android:1.0.0'
+            force 'androidx.datastore:datastore-preferences-core-android:1.0.0'
+            force 'androidx.datastore:datastore-android:1.0.0'
+            force 'androidx.datastore:datastore-preferences-android:1.0.0'
         }
     }
 
-    // ✅ THIS IS THE MAGIC – force Java 17 for ALL Java compile tasks
+    // Force Java 17 for every Android module (this already works)
     afterEvaluate { project ->
-        // Override android.compileOptions
         if (project.hasProperty('android')) {
             project.android {
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
+                // No kotlinOptions here – it breaks non‑Kotlin modules
             }
-        }
-
-        // Override the compile task directly (this is the nuclear option)
-        project.tasks.withType(JavaCompile).configureEach { task ->
-            task.sourceCompatibility = JavaVersion.VERSION_17.toString()
-            task.targetCompatibility = JavaVersion.VERSION_17.toString()
-            task.options.compilerArgs += ['-source', '17', '-target', '17']
         }
     }
 }
