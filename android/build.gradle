@@ -37,7 +37,7 @@ subprojects {
         }
     }
 
-    // === FIX: Force Java 17 for all Android modules ===
+    // ✅ Force Java 17 for all Android modules – this fixes the compile error
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             project.android {
@@ -45,9 +45,7 @@ subprojects {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
-                kotlinOptions {
-                    jvmTarget = '17'
-                }
+                // ⚠️ No kotlinOptions here – it's not needed and breaks non‑Kotlin modules
             }
         }
     }
