@@ -28,22 +28,16 @@ allprojects {
 }
 
 subprojects {
+    // Redirect old react-native artifact to the new one (required for RN 0.72)
     configurations.all {
         resolutionStrategy {
             dependencySubstitution {
                 substitute module('com.facebook.react:react-native') using module('com.facebook.react:react-android:+')
             }
-            // 🔥 Force older versions of libraries that demand compileSdk 34
-            force 'androidx.credentials:credentials:1.0.0'
-            force 'androidx.credentials:credentials-play-services-auth:1.0.0'
-            force 'androidx.datastore:datastore-core-android:1.0.0'
-            force 'androidx.datastore:datastore-preferences-core-android:1.0.0'
-            force 'androidx.datastore:datastore-android:1.0.0'
-            force 'androidx.datastore:datastore-preferences-android:1.0.0'
         }
     }
 
-    // Force Java 17 for every Android module (this already works)
+    // Force Java 17 for every Android module – this fixes the pattern‑matching error
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             project.android {
