@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [launch-fix]
+    branches: [launch-fix, account-manager]
     tags: ['v*']
   workflow_dispatch:
 
@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Clean install
         run: |
