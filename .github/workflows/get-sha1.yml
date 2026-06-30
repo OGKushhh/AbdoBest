@@ -1,0 +1,33 @@
+name: Get Release SHA-1
+
+on:
+  workflow_dispatch: # Allows you to trigger this manually from the GitHub Actions tab
+
+jobs:
+  extract-sha1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Decode Keystore and Print SHA-1
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ABDOBEST_RELEASE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ABDOBEST_RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ABDOBEST_RELEASE_KEY_ALIAS }}
+        run: |
+          # 1. Decode the base64 string into a keystore file
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          
+          # 2. Extract and print the SHA-1 fingerprint
+          # We use sed to add a space so GitHub doesn't accidentally auto-mask the output string
+          keytool -list -v -keystore release.keystore \
+            -alias "$KEY_ALIAS" \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+
+            | grep "SHA1:" | sed 's/SHA1:/SHA1 Fingerprint: /'
