@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "682674226016-qpa4f2kg2of37s2jikqpfp7dl500ua2c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.abdobest",
+            "certificate_hash": "17b669e421671a9c63634864734bcc701b86a906"
+          }
+        },
+        {
           "client_id": "682674226016-hkadmadbqggc6t55kplorpac6mnbv39k.apps.googleusercontent.com",
           "client_type": 3
         }
