@@ -932,9 +932,16 @@ export const DetailsScreen: React.FC = () => {
   }, [item.id, category]);
 
   const handleToggleFavourite = React.useCallback(async () => {
-    const isGuest = !(await getIdToken());
+    const user = await getPersistedUser(); const isGuest = !user || user.isGuest;
     if (isGuest) {
-      Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'));
+      Alert.alert(
+      t('sign_in_required'),
+      t('sign_in_to_favourite'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('sign_in'), onPress: () => nav.navigate('Settings') },
+      ]
+    );
       return;
     }
     const newState = await toggleFavourite({
@@ -949,9 +956,16 @@ export const DetailsScreen: React.FC = () => {
   const handleCollectionToggle = React.useCallback(async (
     col: 'watched' | 'watch_later',
   ) => {
-    const isGuest = !(await getIdToken());
+    const user = await getPersistedUser(); const isGuest = !user || user.isGuest;
     if (isGuest) {
-      Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'));
+      Alert.alert(
+      t('sign_in_required'),
+      t('sign_in_to_favourite'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('sign_in'), onPress: () => nav.navigate('Settings') },
+      ]
+    );
       return;
     }
     const isIn = col === 'watched' ? inWatched : inWatchLater;
@@ -1016,13 +1030,7 @@ export const DetailsScreen: React.FC = () => {
             <TouchableOpacity style={S.navBtn} onPress={handleReport}>
               <Image source={require('../../assets/icons/flag.png')} style={S.iconNav} />
             </TouchableOpacity>
-            <TouchableOpacity style={S.navBtn} onPress={handleToggleFavourite}>
-              <Image
-                source={require('../../assets/icons/heart.png')}
-                style={[S.iconNav, {tintColor: isFavourited ? '#E53935' : Colors.dark.text}]}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity style={S.navBtn} onPress={() => setCollectionSheet(true)}>
+<TouchableOpacity style={S.navBtn} onPress={() => setCollectionSheet(true)}>
               <Image source={require('../../assets/icons/plus.png')} style={S.iconNav} />
             </TouchableOpacity>
             <TouchableOpacity style={S.navBtn} onPress={handleShare}>
@@ -1595,6 +1603,21 @@ export const DetailsScreen: React.FC = () => {
               <Text style={{fontSize: 16, fontWeight: '700', color: Colors.dark.text, fontFamily: 'Rubik-Bold', marginBottom: 16}}>
                 {t('add_to_list')}
               </Text>
+
+              {/* Favourites */}
+              <TouchableOpacity
+                style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border}}
+                onPress={() => { handleToggleFavourite(); setCollectionSheet(false); }}
+                activeOpacity={0.7}>
+                <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: isFavourited ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
+                  <Image source={require('../../assets/icons/heart.png')} style={{width: 20, height: 20, tintColor: isFavourited ? '#E53935' : Colors.dark.textMuted}} />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={{fontSize: 15, color: Colors.dark.text, fontFamily: 'Rubik', fontWeight: '500'}}>{t('favorites_tab_favourites')}</Text>
+                  <Text style={{fontSize: 12, color: Colors.dark.textMuted, fontFamily: 'Rubik', marginTop: 2}}>{isFavourited ? t('tap_to_remove') : t('tap_to_add')}</Text>
+                </View>
+                {isFavourited && <Text style={{color: '#E53935', fontSize: 18}}>✓</Text>}
+              </TouchableOpacity>
 
               {/* Watched */}
               <TouchableOpacity
