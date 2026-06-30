@@ -939,7 +939,7 @@ export const DetailsScreen: React.FC = () => {
       t('sign_in_to_favourite'),
       [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('sign_in'), onPress: () => nav.navigate('Settings') },
+        { text: t('sign_in'), onPress: () => nav.navigate('Home', { screen: 'SettingsTab' }) },
       ]
     );
       return;
@@ -963,7 +963,7 @@ export const DetailsScreen: React.FC = () => {
       t('sign_in_to_favourite'),
       [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('sign_in'), onPress: () => nav.navigate('Settings') },
+        { text: t('sign_in'), onPress: () => nav.navigate('Home', { screen: 'SettingsTab' }) },
       ]
     );
       return;
@@ -1030,7 +1030,7 @@ export const DetailsScreen: React.FC = () => {
             <TouchableOpacity style={S.navBtn} onPress={handleReport}>
               <Image source={require('../../assets/icons/flag.png')} style={S.iconNav} />
             </TouchableOpacity>
-<TouchableOpacity style={S.navBtn} onPress={() => setCollectionSheet(true)}>
+            <TouchableOpacity style={S.navBtn} onPress={() => setCollectionSheet(true)}>
               <Image source={require('../../assets/icons/plus.png')} style={S.iconNav} />
             </TouchableOpacity>
             <TouchableOpacity style={S.navBtn} onPress={handleShare}>
@@ -1607,7 +1607,7 @@ export const DetailsScreen: React.FC = () => {
               {/* Favourites */}
               <TouchableOpacity
                 style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border}}
-                onPress={() => { handleToggleFavourite(); setCollectionSheet(false); }}
+                onPress={async () => { const user = await getPersistedUser(); if (!user || user.isGuest) { handleToggleFavourite(); } else { await handleToggleFavourite(); setCollectionSheet(false); } }}
                 activeOpacity={0.7}>
                 <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: isFavourited ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
                   <Image source={require('../../assets/icons/heart.png')} style={{width: 20, height: 20, tintColor: isFavourited ? '#E53935' : Colors.dark.textMuted}} />
