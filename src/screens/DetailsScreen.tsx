@@ -54,6 +54,11 @@ import HlsDownloadSheet from '../components/HlsAppChooserModal';
 import AkwamQualityModal, {resolveQuality} from '../components/AkwamQualityModal';
 import AkwamBulkDownloadModal from '../components/AkwamBulkDownloadModal';
 import {getSettings} from '../storage';
+import {
+  toggleFavourite, addToCollection, removeFromCollection,
+  isInCollection,
+} from '../services/favoritesService';
+import {getPersistedUser} from '../services/authService';
 import { resolveAkwamDownloadLink } from '../services/akwamDownload';
 
 const FASEL_BASE = 'https://www.fasel-hd.cam';
@@ -1607,7 +1612,7 @@ export const DetailsScreen: React.FC = () => {
               {/* Favourites */}
               <TouchableOpacity
                 style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border}}
-                onPress={async () => { const user = await getPersistedUser(); if (!user || user.isGuest) { handleToggleFavourite(); } else { await handleToggleFavourite(); setCollectionSheet(false); } }}
+                onPress={() => { handleToggleFavourite(); setCollectionSheet(false); }}
                 activeOpacity={0.7}>
                 <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: isFavourited ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
                   <Image source={require('../../assets/icons/heart.png')} style={{width: 20, height: 20, tintColor: isFavourited ? '#E53935' : Colors.dark.textMuted}} />
