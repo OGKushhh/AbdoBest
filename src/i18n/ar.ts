@@ -296,4 +296,12 @@ export const ar = {
   profile_signout_body:  'مفضلتك محفوظة — يمكنك تسجيل الدخول مجدداً في أي وقت.',
   profile_signout_confirm: 'تسجيل الخروج',
   profile_signout_error: 'حدث خطأ ما. حاول مرة أخرى.',
+
+ // Sign in screen
+  sign_in_subtitle:   'سجّل دخولك لحفظ المفضلة وتلقّي إشعارات عند نزول محتوى جديد.',
+  sign_in_google:     'المتابعة عبر Google',
+  sign_in_facebook:   'المتابعة عبر Facebook',
+  continue_as_guest:  'المتابعة كزائر',
+  or:                 'أو',
+  sign_in_disclaimer: 'مفضلتك محفوظة في حسابك ومزامنة عبر الأجهزة.',
 };

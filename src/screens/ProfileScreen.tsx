@@ -22,13 +22,13 @@ interface Props {
 }
 
 export const ProfileScreen: React.FC<Props> = ({route}) => {
-  const {user}       = route.params;
+  const user = route.params?.user ?? null;
   const {colors}     = useTheme();
   const {t}          = useTranslation();
   const navigation   = useNavigation<any>();
   const [signingOut, setSigningOut] = useState(false);
 
-  const providerLabel = user.isGuest
+  const providerLabel = !user ? t('sign_in') : user.isGuest
     ? t('profile_guest')
     : user.email?.includes('facebook')
     ? 'Facebook'
@@ -64,7 +64,7 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
     );
   }, [navigation, t]);
 
-  const initials = user.displayName
+  const initials = user?.displayName
     ? user.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
@@ -127,18 +127,27 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
             </View>
           </View>
 
-          {/* ── Sign out ── */}
-          <TouchableOpacity
-            style={[styles.signOutBtn, {backgroundColor: 'rgba(229,57,53,0.12)', borderColor: '#E53935'}]}
-            onPress={handleSignOut}
-            disabled={signingOut}
-            activeOpacity={0.75}>
-            {signingOut ? (
-              <ActivityIndicator size="small" color="#E53935" />
-            ) : (
-              <Text style={styles.signOutText}>{t('profile_signout')}</Text>
-            )}
-          </TouchableOpacity>
+          {/* ── Sign out / Sign in ── */}
+          {user ? (
+            <TouchableOpacity
+              style={[styles.signOutBtn, {backgroundColor: 'rgba(229,57,53,0.12)', borderColor: '#E53935'}]}
+              onPress={handleSignOut}
+              disabled={signingOut}
+              activeOpacity={0.75}>
+              {signingOut ? (
+                <ActivityIndicator size="small" color="#E53935" />
+              ) : (
+                <Text style={styles.signOutText}>{t('profile_signout')}</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.signOutBtn, {backgroundColor: 'rgba(229,57,53,0.12)', borderColor: '#E53935'}]}
+              onPress={() => navigation.navigate('SignIn')}
+              activeOpacity={0.75}>
+              <Text style={styles.signOutText}>{t('sign_in')}</Text>
+            </TouchableOpacity>
+          )}
 
         </ScrollView>
       </SafeAreaView>

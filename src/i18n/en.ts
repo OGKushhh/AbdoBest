@@ -296,4 +296,12 @@ export const en = {
   profile_signout_body:  'Your favourites are saved — you can sign back in anytime.',
   profile_signout_confirm: 'Sign Out',
   profile_signout_error: 'Something went wrong. Please try again.',
+
+  // Sign in screen
+  sign_in_subtitle:   'Sign in to save favourites and get notified when new content drops.',
+  sign_in_google:     'Continue with Google',
+  sign_in_facebook:   'Continue with Facebook',
+  continue_as_guest:  'Continue as Guest',
+  or:                 'or',
+  sign_in_disclaimer: 'Your favourites are saved to your account and synced across devices.',
 };
