@@ -27,12 +27,18 @@ allprojects {
     }
 }
 
-// This substitution is needed for RN 0.72 – keep it.
+// Required for RN 0.72 + force a stable Facebook SDK version
 subprojects {
     configurations.all {
         resolutionStrategy {
             dependencySubstitution {
                 substitute module('com.facebook.react:react-native') using module('com.facebook.react:react-android:+')
+            }
+            // ✅ Force a specific Facebook SDK version to avoid snapshot repo timeout
+            eachDependency { DependencyResolveDetails details ->
+                if (details.requested.group == 'com.facebook.android' && details.requested.name == 'facebook-android-sdk') {
+                    details.useVersion '18.3.0'   // use the latest stable from the list you shared
+                }
             }
         }
     }
