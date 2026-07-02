@@ -1016,7 +1016,7 @@ export const DetailsScreen: React.FC = () => {
     });
     if (col === 'watched') setInWatched(true);
     if (col === 'watch_later') setInWatchLater(true);
-  }, [item, category, t, navigation]);
+  }, [item, category, t, nav]);
 
   const handleShare = () =>
     Share.share({message: `${item.Title} - AbdoBest`});
