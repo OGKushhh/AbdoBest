@@ -1,10 +1,10 @@
-name: Get Release SHA-1
+name: Get Release SHA-1 & Facebook Key Hash
 
 on:
   push:
     branches:
       - account-manager
-  workflow_dispatch: # Keeps manual button active once registered
+  workflow_dispatch:   # Manual trigger
 
 jobs:
   extract-sha1:
@@ -24,9 +24,23 @@ jobs:
           KEY_ALIAS: ${{ secrets.ABDOBEST_RELEASE_KEY_ALIAS }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          echo "🔹 SHA‑1 Fingerprint (hex):"
           keytool -list -v -keystore release.keystore \
             -alias "$KEY_ALIAS" \
             -storepass "$STORE_PASSWORD" \
             -keypass "$KEY_PASSWORD" \
-
             | grep "SHA1:" | sed 's/SHA1:/SHA1 Fingerprint: /'
+
+      - name: Compute Facebook Key Hash (Base64)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ABDOBEST_RELEASE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ABDOBEST_RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ABDOBEST_RELEASE_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          echo "🔑 Facebook Key Hash (Base64):"
+          keytool -exportcert -alias "$KEY_ALIAS" -keystore release.keystore \
+            -storepass "$STORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+            | openssl sha1 -binary | openssl base64
+          rm release.keystore
