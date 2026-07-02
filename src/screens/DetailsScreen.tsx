@@ -951,7 +951,7 @@ export const DetailsScreen: React.FC = () => {
       t('sign_in_to_favourite'),
       [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('sign_in'), onPress: () => navigation.navigate('SignIn') },
+        { text: t('sign_in'), onPress: () => nav.navigate('SignIn') },
       ]
     );
       return;
@@ -976,7 +976,7 @@ export const DetailsScreen: React.FC = () => {
       t('sign_in_to_favourite'),
       [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('sign_in'), onPress: () => navigation.navigate('SignIn') },
+        { text: t('sign_in'), onPress: () => nav.navigate('SignIn') },
       ]
     );
       return;
@@ -1005,7 +1005,7 @@ export const DetailsScreen: React.FC = () => {
     if (isGuest) {
       Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'), [
         { text: t('cancel'), style: 'cancel' },
-        { text: t('sign_in'), onPress: () => navigation.navigate('SignIn') },
+        { text: t('sign_in'), onPress: () => nav.navigate('SignIn') },
       ]);
       return;
     }
