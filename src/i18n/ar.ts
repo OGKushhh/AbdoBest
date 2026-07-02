@@ -304,4 +304,16 @@ export const ar = {
   continue_as_guest:  'المتابعة كزائر',
   or:                 'أو',
   sign_in_disclaimer: 'مفضلتك محفوظة في حسابك ومزامنة عبر الأجهزة.',
+ 
+  // Toast messages
+  added_to_favourites:  'تمت الإضافة إلى المفضلة',
+  removed_from_favourites: 'تمت الإزالة من المفضلة',
+  added_to_list_success: 'تمت الإضافة إلى القائمة',
+  removed_from_list:    'تمت الإزالة من القائمة',
+ 
+  // Watched progress
+  watched_progress_title: 'إلى أين وصلت؟',
+  watched_progress_body:  'حدد ما شاهدته',
+  watched_whole:          'شاهدت كل شيء',
+  watched_up_to_s:        'حتى الموسم {{season}}',
 };

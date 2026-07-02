@@ -304,4 +304,16 @@ export const en = {
   continue_as_guest:  'Continue as Guest',
   or:                 'or',
   sign_in_disclaimer: 'Your favourites are saved to your account and synced across devices.',
+
+  // Toast messages
+  added_to_favourites:  'Added to Favourites',
+  removed_from_favourites: 'Removed from Favourites',
+  added_to_list_success: 'Added to list',
+  removed_from_list:    'Removed from list',
+
+  // Watched progress
+  watched_progress_title: 'How far did you watch?',
+  watched_progress_body:  'Mark as fully watched or up to current season',
+  watched_whole:          'Watched it all',
+  watched_up_to_s:        'Up to Season {{season}}',
 };

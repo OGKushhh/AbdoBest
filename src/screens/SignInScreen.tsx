@@ -152,9 +152,9 @@ export const SignInScreen: React.FC = () => {
             <>
               <Image
                 source={require('../../assets/icons/google.png')}
-                style={styles.btnIcon}
+                style={[styles.btnIcon, {tintColor: undefined}]}
               />
-              <Text style={styles.btnText}>{t('sign_in_google')}</Text>
+              <Text style={[styles.btnText, {color: '#1a1a1a'}]}>{t('sign_in_google')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   headerSubtitle:  {fontSize: 15, color: 'rgba(255,255,255,0.8)', fontFamily: 'Rubik', textAlign: 'center', lineHeight: 22},
   body:            {flex: 1, paddingHorizontal: 24, paddingTop: 32},
   btn:             {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 14, marginBottom: 14},
-  btnGoogle:       {backgroundColor: '#4285F4'},
+  btnGoogle:       {backgroundColor: '#fff'},
   btnFacebook:     {backgroundColor: '#1877F2'},
   btnGuest:        {backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border},
   btnIcon:         {width: 22, height: 22, tintColor: '#fff', marginRight: 10},

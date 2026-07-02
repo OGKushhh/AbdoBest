@@ -294,14 +294,13 @@ export const SettingsScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.row, styles.rowLast]}
               onPress={() => {
-                if (currentUser) {
+                if (currentUser && !currentUser.isGuest) {
                   navigation.navigate('Profile', { user: currentUser });
                 } else {
                   navigation.navigate('SignIn');
                 }
               }}
-              activeOpacity={0.65}
-            >
+              activeOpacity={0.65}>
               <View style={styles.rowIcon}>
                 <Image source={require('../../assets/icons/account.png')} style={styles.rowIconImg} />
               </View>

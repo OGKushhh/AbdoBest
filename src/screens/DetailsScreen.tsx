@@ -917,6 +917,13 @@ export const DetailsScreen: React.FC = () => {
 
   // ── Collection state ──────────────────────────────────────────────────
   const [isFavourited, setIsFavourited] = React.useState(false);
+  const [toastMsg, setToastMsg] = React.useState('');
+  const [toastVisible, setToastVisible] = React.useState(false);
+  const showToast = React.useCallback((msg: string) => {
+    setToastMsg(msg);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 2200);
+  }, []);
   const [collectionSheet, setCollectionSheet] = React.useState(false);
   const [inWatched, setInWatched]     = React.useState(false);
   const [inWatchLater, setInWatchLater] = React.useState(false);
@@ -956,7 +963,8 @@ export const DetailsScreen: React.FC = () => {
       image: item['Image Source'] ?? '',
     });
     setIsFavourited(newState);
-  }, [item, category, t]);
+    showToast(newState ? t('added_to_favourites') : t('removed_from_favourites'));
+  }, [item, category, t, showToast]);
 
   const handleCollectionToggle = React.useCallback(async (
     col: 'watched' | 'watch_later',
@@ -984,7 +992,31 @@ export const DetailsScreen: React.FC = () => {
     }
     if (col === 'watched')     setInWatched(v => !v);
     if (col === 'watch_later') setInWatchLater(v => !v);
-  }, [item, category, inWatched, inWatchLater]);
+    const wasIn = col === 'watched' ? inWatched : inWatchLater;
+    showToast(wasIn ? t('removed_from_list') : t('added_to_list_success'));
+  }, [item, category, inWatched, inWatchLater, showToast, t]);
+
+  const handleCollectionToggleWithProgress = React.useCallback(async (
+    col: 'watched' | 'watch_later',
+    progress?: { season?: number; episode?: number },
+  ) => {
+    const user = await getPersistedUser();
+    const isGuest = !user || user.isGuest;
+    if (isGuest) {
+      Alert.alert(t('sign_in_required'), t('sign_in_to_favourite'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('sign_in'), onPress: () => navigation.navigate('SignIn') },
+      ]);
+      return;
+    }
+    await addToCollection(col, {
+      content_id: item.id, category,
+      title: item.Title, image: item['Image Source'] ?? '',
+      progress,
+    });
+    if (col === 'watched') setInWatched(true);
+    if (col === 'watch_later') setInWatchLater(true);
+  }, [item, category, t, navigation]);
 
   const handleShare = () =>
     Share.share({message: `${item.Title} - AbdoBest`});
@@ -1627,7 +1659,38 @@ export const DetailsScreen: React.FC = () => {
               {/* Watched */}
               <TouchableOpacity
                 style={{flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border}}
-                onPress={() => { handleCollectionToggle('watched'); setCollectionSheet(false); }}
+                onPress={() => {
+                  setCollectionSheet(false);
+                  if (inWatched) {
+                    handleCollectionToggle('watched');
+                    return;
+                  }
+                  // Ask for progress if it's a series-type
+                  const isSeries = ['series','tvshows','asian-series','arabic-series','anime'].includes(category);
+                  if (isSeries) {
+                    Alert.prompt
+                      ? Alert.prompt(
+                          t('watched_progress_title'),
+                          t('watched_progress_body'),
+                          [
+                            { text: t('cancel'), style: 'cancel' },
+                            { text: t('watched_whole'), onPress: () => handleCollectionToggle('watched') },
+                          ]
+                        )
+                      : Alert.alert(
+                          t('watched_progress_title'),
+                          t('watched_progress_body'),
+                          [
+                            { text: t('cancel'), style: 'cancel' },
+                            { text: t('watched_whole'), onPress: () => handleCollectionToggle('watched') },
+                            { text: selSeason ? t('watched_up_to_s', {season: selSeason}) : t('watched_whole'),
+                              onPress: () => handleCollectionToggleWithProgress('watched', { season: parseInt(selSeason || '1') }) },
+                          ]
+                        );
+                  } else {
+                    handleCollectionToggle('watched');
+                  }
+                }}
                 activeOpacity={0.7}>
                 <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: inWatched ? 'rgba(229,57,53,0.15)' : 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', marginRight: 14}}>
                   <Image source={require('../../assets/icons/checkmark.png')} style={{width: 20, height: 20, tintColor: inWatched ? '#E53935' : Colors.dark.textMuted}} />
@@ -1657,6 +1720,17 @@ export const DetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      {/* ── Toast ── */}
+      {toastVisible && (
+        <View style={{
+          position: 'absolute', bottom: 90, alignSelf: 'center',
+          backgroundColor: 'rgba(30,30,30,0.95)', paddingHorizontal: 20,
+          paddingVertical: 10, borderRadius: 20, borderWidth: 1,
+          borderColor: Colors.dark.border, elevation: 10,
+        }}>
+          <Text style={{color: '#fff', fontSize: 14, fontFamily: 'Rubik'}}>{toastMsg}</Text>
+        </View>
+      )}
     </View>
   );
 };

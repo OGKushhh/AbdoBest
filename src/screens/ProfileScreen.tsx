@@ -117,8 +117,11 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
           <View style={[styles.section, {backgroundColor: colors.surface, borderColor: colors.border}]}>
             <View style={styles.row}>
               <Text style={[styles.rowLabel, {color: colors.textMuted}]}>{t('profile_uid')}</Text>
-              <Text style={[styles.rowValue, {color: colors.text}]} numberOfLines={1}>
-                {user.uid.slice(0, 16)}…
+              <Text
+                style={[styles.rowValue, {color: colors.text}]}
+                numberOfLines={1}
+                selectable={true}>
+                {user?.uid?.slice(0, 16)}…
               </Text>
             </View>
             <View style={[styles.row, styles.rowLast]}>

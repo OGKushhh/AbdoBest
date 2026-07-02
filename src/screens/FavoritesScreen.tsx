@@ -21,6 +21,7 @@ import {
   removeFromCollection,
   fetchCollections,
 } from '../services/favoritesService';
+import {API_BASE} from '../constants/endpoints';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Tab = 'favourites' | 'watched' | 'watch_later';
@@ -115,13 +116,33 @@ export const FavoritesScreen: React.FC = () => {
     );
   }, [activeTab, load, t]);
 
-  const handlePress = useCallback((item: CollectionEntry) => {
+  const handlePress = useCallback(async (item: CollectionEntry) => {
+    try {
+      const cat = item.category;
+      const res = await fetch();
+      const data = await res.json();
+      const fullItem = data[item.content_id] ?? data[Object.keys(data).find(k => k === item.content_id) ?? ''];
+      if (fullItem) {
+        navigation.navigate('Details', {
+          item: { ...fullItem, id: item.content_id, Category: cat },
+          category: cat,
+        });
+        return;
+      }
+    } catch {}
+    // Fallback to stub if fetch fails
     navigation.navigate('Details', {
       item: {
-        id:             item.content_id,
-        Title:          item.title,
+        id: item.content_id,
+        Title: item.title,
         'Image Source': item.image,
-        Category:       item.category,
+        Category: item.category,
+        Source: '',
+        Genres: [],
+        GenresAr: [],
+        Format: '',
+        Runtime: null,
+        Country: null,
       },
       category: item.category,
     });

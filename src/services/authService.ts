@@ -117,7 +117,7 @@ export async function signOut(): Promise<void> {
   // Sign out from Google if that was the provider
   try {
     const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
-    if (isGoogleUser) await GoogleSignin.signOut();
+    if (isGoogleUser) { try { await GoogleSignin.revokeAccess(); } catch {} await GoogleSignin.signOut(); }
   } catch { /* ignore */ }
 
   // Sign out from Facebook if that was the provider
