@@ -57,9 +57,12 @@ const App: React.FC = () => {
       setReady(true);
       // Auth + FCM init
       initAuth();
+      // Register FCM token immediately for all users (even before sign-in)
+      initFCM().catch(() => {});
       const unsubAuth = onAuthStateChanged(user => {
         if (user) {
           fetchCollections().catch(() => {});
+          // Re-register after sign-in to also link token to user account
           initFCM().catch(() => {});
         }
       });

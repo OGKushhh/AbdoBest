@@ -46,11 +46,20 @@ export async function initFCM(): Promise<void> {
 }
 
 async function registerTokenWithBackend(fcmToken: string): Promise<void> {
-  const idToken = await getIdToken();
-  if (!idToken) {
-    console.warn('[FCM] No Firebase ID token — skipping backend registration');
-    return;
+  // Always register as anonymous device (for general notifications)
+  try {
+    await fetch(`${API_BASE}/api/register-device`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fcm_token: fcmToken }),
+    });
+  } catch (e) {
+    console.warn('[FCM] Anonymous device registration error:', e);
   }
+
+  // Also register with user account if signed in (for personal notifications)
+  const idToken = await getIdToken();
+  if (!idToken) return;
   try {
     const res = await fetch(`${API_BASE}/api/register-fcm`, {
       method:  'POST',
@@ -58,12 +67,12 @@ async function registerTokenWithBackend(fcmToken: string): Promise<void> {
       body:    JSON.stringify({ id_token: idToken, fcm_token: fcmToken }),
     });
     if (res.ok) {
-      console.log('[FCM] Token registered with backend');
+      console.log('[FCM] Token registered with user account');
     } else {
-      console.warn('[FCM] Backend registration failed:', res.status);
+      console.warn('[FCM] User account registration failed:', res.status);
     }
   } catch (e) {
-    console.warn('[FCM] Backend registration error:', e);
+    console.warn('[FCM] User account registration error:', e);
   }
 }
 
