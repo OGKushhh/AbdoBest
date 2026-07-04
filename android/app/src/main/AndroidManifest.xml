@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Required on Android 11+ for Linking.canOpenURL to detect installed apps -->
     <queries>
@@ -66,10 +67,12 @@
             android:resource="@drawable/ic_notification" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/notification_color" />
+            android:resource="@color/notification_color"
+            tools:replace="android:resource" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="abdobest_default" />
+            android:value="abdobest_default"
+            tools:replace="android:value" />
 
         <!-- FCM -->
         <service
