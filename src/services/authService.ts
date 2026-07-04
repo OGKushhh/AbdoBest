@@ -32,7 +32,7 @@ export function initAuth() {
   GoogleSignin.configure({
     // Get this from your Firebase project:
     // Firebase Console → Project settings → Your apps → Web client ID
-    webClientId: '682674226016-hkadmadbqggc6t55kplorpac6mnbv39k.apps.googleusercontent.com',
+    webClientId: 'YOUR_WEB_CLIENT_ID_HERE',
   });
 }
 
@@ -104,6 +104,39 @@ export async function signInWithFacebook(): Promise<AbdoUser> {
 // ─── Guest sign-in (anonymous) ───────────────────────────────────────────────
 export async function signInAsGuest(): Promise<AbdoUser> {
   const result = await auth().signInAnonymously();
+  const user = mapFirebaseUser(result.user);
+  await persistUser(user);
+  return user;
+}
+
+// ─── Email + Password ────────────────────────────────────────────────────────
+export async function signInWithEmail(email: string, password: string): Promise<AbdoUser> {
+  const result = await auth().signInWithEmailAndPassword(email, password);
+  const user = mapFirebaseUser(result.user);
+  await persistUser(user);
+  return user;
+}
+
+export async function signUpWithEmail(email: string, password: string): Promise<AbdoUser> {
+  const result = await auth().createUserWithEmailAndPassword(email, password);
+  await result.user.sendEmailVerification();
+  const user = mapFirebaseUser(result.user);
+  await persistUser(user);
+  return user;
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await auth().sendPasswordResetEmail(email);
+}
+
+// ─── Phone OTP ───────────────────────────────────────────────────────────────
+export async function sendPhoneOTP(phoneNumber: string): Promise<any> {
+  const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
+  return confirmation;
+}
+
+export async function confirmPhoneOTP(confirmation: any, code: string): Promise<AbdoUser> {
+  const result = await confirmation.confirm(code);
   const user = mapFirebaseUser(result.user);
   await persistUser(user);
   return user;
