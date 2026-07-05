@@ -99,11 +99,11 @@ AbdoBest also supports **iOS 13.0 and later**. Check the [Releases](https://gith
 ## 📱 Screenshots
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/cbc40f5a-cc1f-4e85-9642-04f81dc2b65e" width="200" alt="Home"/>
-  &nbsp;
-  <!-- <img src="SCREENSHOT_URL" width="200" alt="Details"/> -->
-  <!-- <img src="SCREENSHOT_URL" width="200" alt="Player"/> -->
-  <!-- <img src="SCREENSHOT_URL" width="200" alt="Search"/> -->
+  <img height="400" alt="Home" src="https://github.com/user-attachments/assets/a7963db5-741b-45f7-9cba-01abb9597e46" />
+  <img height="400" alt="Search" src="https://github.com/user-attachments/assets/3ef7de9a-7f20-4de4-8a7b-439dce577056" />
+  <img height="400" alt="Details" src="https://github.com/user-attachments/assets/44fe88eb-1b62-43b8-86a5-44f4e723d8d3" />
+  <img height="400" alt="Episodes" src="https://github.com/user-attachments/assets/bcfc9289-a0ac-4c97-8bb9-c3fa9606018b" />
+  <img height="400" alt="Player" src="https://github.com/user-attachments/assets/18c94899-05c3-4436-9411-ac4565fb0f71" />
 </div>
 
 ---
