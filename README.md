@@ -5,7 +5,7 @@
   <img src="https://github.com/user-attachments/assets/cbc40f5a-cc1f-4e85-9642-04f81dc2b65e" alt="AbdoBest Banner" width="140" style="border-radius:28px">
 </p>
 
-<h1 align="center">🎬 AbdoBest – Arabic Streaming App for Android</h1>
+<h1 align="center">🎬 AbdoBest – Arabic Streaming App for Android & iOS</h1>
 
 <p align="center">
   <strong>Movies, series, anime, and TV shows — free, bilingual, and built for Arabic audiences.</strong>
@@ -22,7 +22,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/v/release/OGKushhh/AbdoBest?label=Latest%20Release&color=FF4500" alt="Release">
-  <img src="https://img.shields.io/badge/Platform-Android%207.0%2B-green" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20%7C%20iOS%2013.0%2B-green" alt="Platform">
   <img src="https://img.shields.io/badge/Size-~24%20MB-blue" alt="Size">
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License">
   <img src="https://img.shields.io/badge/Built%20with-React%20Native-61DAFB?logo=react" alt="React Native">
@@ -32,6 +32,8 @@
 ---
 
 ## 🔥 What is AbdoBest?
+
+> 📱 **Now available for Android and iOS.**
 
 AbdoBest is a **free Arabic streaming app** built with React Native. It aggregates movies, series, anime, and TV shows into one clean interface — with full Arabic and English support, RTL layout, and a player that actually works.
 
@@ -72,6 +74,10 @@ Go to **Settings → Security** (or **Settings → Apps → Special app access**
 
 Open the downloaded `.apk`, tap **Install**, then open AbdoBest and start watching.
 
+### 📱 iOS
+
+AbdoBest also supports **iOS 13.0 and later**. Check the [Releases](https://github.com/OGKushhh/AbdoBest/releases/latest) page for the current iOS build/distribution method.
+
 ---
 
 ## ✨ Features
@@ -83,8 +89,7 @@ Open the downloaded `.apk`, tap **Install**, then open AbdoBest and start watchi
 | 🎛️ **Smart Player** | Quality switching (1080p → 360p), full playback controls, resume support. |
 | 📥 **Offline Downloads** | Download individual episodes or bulk-download full series. |
 | 🔍 **Advanced Search** | Filter by title, genre, year, country, or quality. |
-| 🌓 **Dark & Light Theme** | Full theme switching with RTL layout support. |
-| 🌐 **Bilingual** | Arabic and English UI — switch in Settings. |
+| 🌐 **Bilingual** | Arabic and English UI with full RTL layout — switch in Settings. |
 | ⭐ **MAL Ratings** | Anime entries show MyAnimeList ratings. |
 | 🔄 **Auto-Update** | The app notifies you when a new version is available. |
 | 📦 **Tiny APK** | Only 24 MB — fast to download on any connection. |
@@ -107,7 +112,7 @@ Open the downloaded `.apk`, tap **Install**, then open AbdoBest and start watchi
 
 AbdoBest is built on **React Native** and communicates with a backend API that indexes and serves content metadata.
 
-- **Content loading** — the app fetches category data and caches it locally so subsequent loads are instant (no re-downloading 13,000+ items on every launch).
+- **Content loading** — the app fetches category data and caches it locally so subsequent loads are instant (no re-downloading 20,000+ items on every launch).
 - **Streaming** — video URLs are resolved at play time, with quality options extracted from the source before playback begins.
 - **Downloads** — powered by `react-native-background-downloader`, queued per episode, with pause/resume/retry support and group tracking for series.
 - **Updates** — on launch the app silently checks the GitHub Releases API. If a newer version exists, a non-blocking modal appears with the changelog.
@@ -119,13 +124,24 @@ AbdoBest is built on **React Native** and communicates with a backend API that i
 
 | Technology | Purpose |
 |------------|---------|
-| **React Native** + TypeScript | Cross-platform core |
-| **React Navigation** | Tab & stack routing |
+| **React Native** + TypeScript | Cross-platform core (Android & iOS) |
+| **React Navigation** (bottom-tabs, native-stack) | Tab & stack routing |
 | **AsyncStorage** | Settings & local cache |
 | **react-native-fast-image** | Performant image loading |
 | **react-native-background-downloader** | Queued episode downloads |
-| **i18next** | Arabic / English i18n + RTL |
+| **react-native-video** | Video playback |
+| **react-native-webview** | Embedded web content & source resolution |
+| **react-native-blob-util** | File system & binary data handling |
+| **i18next** + **react-i18next** | Arabic / English i18n + RTL |
 | **Axios** | API requests |
+| **Firebase** (App, Auth, Messaging) | Authentication & push notifications |
+| **Google Sign-In** | Google account authentication |
+| **react-native-fbsdk-next** | Facebook SDK integration |
+| **react-native-linear-gradient** | Gradient UI elements |
+| **react-native-orientation-locker** | Screen orientation control |
+| **react-native-immersive-mode** | Fullscreen/immersive playback |
+| **react-native-send-intent** | Native intent handling (Android) |
+| **react-native-vector-icons** | Icon sets |
 
 ---
 
@@ -148,7 +164,6 @@ AbdoBest is built on **React Native** and communicates with a backend API that i
 AbdoBest is **free**. To keep development going, the app shows non-intrusive ads.
 
 - **Ad placements** — standard formats that don't interrupt playback.
-- **EEA/UK users** — a GDPR-compliant consent banner appears on first launch (IAB TCF v2). Change preferences anytime in Settings.
 - **No personal data** collected or stored by us. Our ad partner may use anonymized signals — see their privacy policy.
 - **No account required** — ever.
 
