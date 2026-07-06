@@ -23,3 +23,10 @@
 
 ## Content Sync / Push Notifications
 - [ ] Every new push to the backend with new content should trigger a content update fetch in the frontend, so that general notifications and content on the app stay in sync, while keeping everything else intact (e.g., the 24h cache).
+
+## In-App Updates (Full APK/AAB)
+- [ ] Implement full APK in-app update mechanism for Android, same current github source and checker mechanism (react-native-simple-updater or rn-apk-update or react-native-update-in-app)(what is the best?).
+- [ ] Add download progress UI (show percentage and download speed).
+- [ ] Handle Android 10+ (Scoped Storage) and Android 12+ (PendingIntent mutability) requirements for APK installation.
+- [ ] Add fallback logic: if in-app download fails, use the current implementation as a backup.
+- [ ] iOS stays the same (current implementation).
