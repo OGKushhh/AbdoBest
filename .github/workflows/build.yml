@@ -1,9 +1,6 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [launch-fix, account-manager]
-    tags: ['v*']
   workflow_dispatch:
 
 jobs:

@@ -15,7 +15,11 @@
 
 ## Auth
 - [ ] After signing out of Google, the app should allow signing in with a different Google account without requiring a full app restart. Currently the sign-in state only resets after closing and reopening the app.
+- [ ] Sign in with phone does not work and throws a "something went wrong" error.
 
 ## Genres / filters
 - [ ] Pressing any genre currently crashes the app.
 - [ ] Rework the genres and filter system — consider moving genre/filter parsing and fetching to the backend instead of doing it on the frontend.
+
+## Content Sync / Push Notifications
+- [ ] Every new push to the backend with new content should trigger a content update fetch in the frontend, so that general notifications and content on the app stay in sync, while keeping everything else intact (e.g., the 24h cache).
