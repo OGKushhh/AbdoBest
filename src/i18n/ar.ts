@@ -301,9 +301,21 @@ export const ar = {
   sign_in_subtitle:   'سجّل دخولك لحفظ المفضلة وتلقّي إشعارات عند نزول محتوى جديد.',
   sign_in_google:     'المتابعة عبر Google',
   sign_in_facebook:   'المتابعة عبر Facebook',
+  sign_in_email_btn:  'البريد الإلكتروني',
+  sign_in_phone_btn:  'رقم الهاتف',
   continue_as_guest:  'المتابعة كزائر',
   or:                 'أو',
   sign_in_disclaimer: 'مفضلتك محفوظة في حسابك ومزامنة عبر الأجهزة.',
+
+  // Email sign-in screen
+  email_signin_title:    'تسجيل الدخول بالبريد الإلكتروني',
+  email_signin_subtitle: 'أدخل بريدك الإلكتروني وكلمة المرور للمتابعة.',
+
+  // Phone sign-in screen
+  phone_signin_title:    'تسجيل الدخول بالهاتف',
+  phone_signin_subtitle: 'سنرسل لك رمز تحقق عبر رسالة نصية.',
+  select_country:        'اختر الدولة',
+  search_country:        'ابحث عن دولة أو رمز',
  
   // Toast messages
   added_to_favourites:  'تمت الإضافة إلى المفضلة',

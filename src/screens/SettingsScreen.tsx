@@ -4,7 +4,7 @@ import {
   Linking, ActivityIndicator, Image, ScrollView, Modal,
   Dimensions, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
@@ -60,6 +60,8 @@ const AppModal: React.FC<AppModalProps> = ({ visible, onClose, children, colors 
 export const SettingsScreen: React.FC = () => {
   const { colors, isDark, setDarkMode } = useTheme();
   const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
+  const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState(getSettings());
   const navigation = useNavigation<any>();
   const [currentUser, setCurrentUser] = React.useState<AbdoUser | null>(null);
@@ -134,25 +136,25 @@ export const SettingsScreen: React.FC = () => {
 
     // Gradient Header Banner
     headerBanner: {
-      paddingTop: 50,
-      paddingBottom: 30,
+      paddingTop: insets.top + 14,
+      paddingBottom: 18,
       paddingHorizontal: 20,
       borderBottomLeftRadius: 24,
       borderBottomRightRadius: 24,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
+      gap: 14,
       marginBottom: 16,
     },
     headerIconCircle: {
-      width: 48, height: 48, borderRadius: 24,
+      width: 44, height: 44, borderRadius: 22,
       backgroundColor: 'rgba(255,255,255,0.15)',
       justifyContent: 'center', alignItems: 'center',
     },
-    headerIconImg: { width: 28, height: 28, tintColor: '#fff' },
+    headerIconImg: { width: 24, height: 24, tintColor: '#fff' },
     headerTextBlock: { flex: 1 },
-    headerTitle: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5, fontFamily: 'Rubik' },
-    headerVersion: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2, fontFamily: 'Rubik' },
+    headerTitle: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5, fontFamily: 'Rubik', textAlign: isRTL ? 'right' : 'left' },
+    headerVersion: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2, fontFamily: 'Rubik', textAlign: isRTL ? 'right' : 'left' },
 
     // Section
     section: {
@@ -228,7 +230,7 @@ export const SettingsScreen: React.FC = () => {
     updateBadgeText: { color: colors.primary, fontSize: 12, fontWeight: '700', fontFamily: 'Rubik' },
     changelogBox: { backgroundColor: colors.background || '#0F0F1A', borderRadius: 10, padding: 12, marginBottom: 16, maxHeight: 120 },
     changelogText: { color: colors.textSecondary, fontSize: 13, lineHeight: 19, fontFamily: 'Rubik' },
-  }), [colors]);
+  }), [colors, insets.top, isRTL]);
 
   // ─── Helper Row Component ──────────────────────────────────────────────────
   const SettingRow = ({ icon, label, sub, value, onPress, toggle, settingKey, last }: any) => {

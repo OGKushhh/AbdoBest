@@ -301,9 +301,21 @@ export const en = {
   sign_in_subtitle:   'Sign in to save favourites and get notified when new content drops.',
   sign_in_google:     'Continue with Google',
   sign_in_facebook:   'Continue with Facebook',
+  sign_in_email_btn:  'Email',
+  sign_in_phone_btn:  'Phone Number',
   continue_as_guest:  'Continue as Guest',
   or:                 'or',
   sign_in_disclaimer: 'Your favourites are saved to your account and synced across devices.',
+
+  // Email sign-in screen
+  email_signin_title:    'Sign in with Email',
+  email_signin_subtitle: 'Enter your email and password to continue.',
+
+  // Phone sign-in screen
+  phone_signin_title:    'Sign in with Phone',
+  phone_signin_subtitle: 'We\u2019ll text you a verification code.',
+  select_country:        'Select Country',
+  search_country:        'Search country or code',
 
   // Toast messages
   added_to_favourites:  'Added to Favourites',

@@ -13,6 +13,8 @@ import {SettingsScreen} from '../screens/SettingsScreen';
 import {FavoritesScreen} from '../screens/FavoritesScreen';
 import {ProfileScreen} from '../screens/ProfileScreen';
 import {SignInScreen} from '../screens/SignInScreen';
+import {EmailSignInScreen} from '../screens/EmailSignInScreen';
+import {PhoneSignInScreen} from '../screens/PhoneSignInScreen';
 import {useTranslation} from 'react-i18next';
 
 // Custom PNG icons
@@ -148,6 +150,14 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="SignIn" component={SignInScreen}
           options={{animation: 'slide_from_bottom', animationDuration: 280}}
+        />
+        <Stack.Screen
+          name="EmailSignIn" component={EmailSignInScreen}
+          options={{animation: 'slide_from_right', animationDuration: 220}}
+        />
+        <Stack.Screen
+          name="PhoneSignIn" component={PhoneSignInScreen}
+          options={{animation: 'slide_from_right', animationDuration: 220}}
         />
       </Stack.Navigator>
     </NavigationContainer>
