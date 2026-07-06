@@ -5,7 +5,7 @@ import {
   getCategoryTimestamp, isAnyCategoryStale, clearAllMetadataCache,
   getCategoryFileSize,
 } from '../storage/cache';
-import {ContentItem, TrendingContent} from '../types';
+import {ContentItem} from '../types';
 import {METADATA_TTL_MS} from '../constants/endpoints';
 
 const metadataApi = axios.create({
@@ -16,13 +16,13 @@ const metadataApi = axios.create({
 export type ContentCategory =
   | 'movies' | 'dubbed-movies' | 'hindi' | 'asian-movies'
   | 'anime'  | 'anime-movies'  | 'series' | 'tvshows'
-  | 'asian-series' | 'arabic-series' | 'trending' | 'featured';
+  | 'asian-series' | 'arabic-series';
 
 type ContentDict = Record<string, ContentItem>;
 
 export type BackgroundUpdateCallback = (
   category: ContentCategory,
-  data: ContentDict | TrendingContent,
+  data: ContentDict,
 ) => void;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export const clearRuntimeCache = (category?: string): void => {
 // ─────────────────────────────────────────────────────────────────────────────
 const fetchAndCache = async (
   category: ContentCategory,
-): Promise<ContentDict | TrendingContent | null> => {
+): Promise<ContentDict | null> => {
   const endpoint = METADATA_ENDPOINTS[category];
   if (!endpoint) {
     console.warn(`[Metadata] Unknown category: ${category}`);
@@ -94,29 +94,27 @@ const fetchAndCache = async (
     ? data
     : (data && typeof data === 'object' ? Object.entries(data).map(([id, v]: any) => { v.id = id; return v; }) : []);
 
-  if (category !== 'trending' && category !== 'featured') {
-    itemsToNormalize.forEach(item => {
-      if (!item) return;
+  itemsToNormalize.forEach(item => {
+    if (!item) return;
 
-      if (category === 'arabic-series' || item.is_ramadan !== undefined) {
-        if (item.year && !item.Year) {
-          const n = parseInt(item.year, 10);
-          if (!isNaN(n) && n >= 2000 && n <= 2030) item.Year = String(n);
-        }
-        if (item.is_ramadan !== undefined) item.IsRamadan = !!item.is_ramadan;
-        if (item.title    && !item.Title)       item.Title       = item.title;
-        if (item.genres_en && !item.Genres)     item.Genres      = item.genres_en;
-        if (item.genres_ar && !item.GenresAr)   item.GenresAr    = item.genres_ar;
-        if (item.poster   && !item.Image)       item.Image       = item.poster;
-        if (item.poster   && !item['Image Source']) item['Image Source'] = item.poster;
-        if (item.rating !== undefined && !item.Rating) item.Rating = String(item.rating);
-        if (item.quality  && !item.Format)      item.Format      = item.quality;
-        if (item.country  && !item.Country)     item.Country     = item.country;
-        if (item.episode_count !== undefined)   item.NumberOfEpisodes = item.episode_count;
-        if (!item.Category) item.Category = 'arabic-series';
+    if (category === 'arabic-series' || item.is_ramadan !== undefined) {
+      if (item.year && !item.Year) {
+        const n = parseInt(item.year, 10);
+        if (!isNaN(n) && n >= 2000 && n <= 2030) item.Year = String(n);
+      }
+      if (item.is_ramadan !== undefined) item.IsRamadan = !!item.is_ramadan;
+      if (item.title    && !item.Title)       item.Title       = item.title;
+      if (item.genres_en && !item.Genres)     item.Genres      = item.genres_en;
+      if (item.genres_ar && !item.GenresAr)   item.GenresAr    = item.genres_ar;
+      if (item.poster   && !item.Image)       item.Image       = item.poster;
+      if (item.poster   && !item['Image Source']) item['Image Source'] = item.poster;
+      if (item.rating !== undefined && !item.Rating) item.Rating = String(item.rating);
+      if (item.quality  && !item.Format)      item.Format      = item.quality;
+      if (item.country  && !item.Country)     item.Country     = item.country;
+      if (item.episode_count !== undefined)   item.NumberOfEpisodes = item.episode_count;
+      if (!item.Category) item.Category = 'arabic-series';
     }
-    });
-  }
+  });
 
   // Data arrives as a pre-sorted array from /api/sorted/* — write directly to disk.
   const items = Array.isArray(data) ? data as ContentItem[] : Object.values(data) as ContentItem[];
@@ -142,7 +140,7 @@ export const loadCategory = async (
   category: ContentCategory,
   forceRefresh = false,
   onBackgroundUpdate?: BackgroundUpdateCallback,
-): Promise<ContentDict | TrendingContent | null> => {
+): Promise<ContentDict | null> => {
 
   // ── Force refresh: skip cache entirely, also clear runtime cache ───────────
   if (forceRefresh) {
@@ -215,16 +213,6 @@ export const loadCategory = async (
 export const loadMovies = async (forceRefresh = false): Promise<ContentDict> => {
   const data = await loadCategory('movies', forceRefresh);
   return (data as ContentDict) || {};
-};
-
-export const loadTrending = async (forceRefresh = false): Promise<TrendingContent | null> => {
-  const data = await loadCategory('trending', forceRefresh);
-  return data as TrendingContent | null;
-};
-
-export const loadFeatured = async (forceRefresh = false): Promise<TrendingContent | null> => {
-  const data = await loadCategory('featured', forceRefresh);
-  return data as TrendingContent | null;
 };
 
 export const loadSeries = async (forceRefresh = false): Promise<ContentDict> => {
@@ -343,7 +331,6 @@ const toItemsArray = (data: any): ContentItem[] => {
 export const SYNC_CATEGORIES: ContentCategory[] = [
   'movies', 'series', 'anime', 'tvshows', 'asian-series', 'arabic-series',
   'dubbed-movies', 'hindi', 'asian-movies', 'anime-movies',
-  'trending', 'featured',
 ];
 
 export interface CompletedItem {
@@ -443,7 +430,7 @@ export const syncIfNeeded = async (
 export const getLastSyncTime = (): number => {
   let latest = 0;
   const categories: ContentCategory[] = [
-    'movies', 'anime', 'series', 'tvshows', 'asian-series', 'trending', 'featured',
+    'movies', 'anime', 'series', 'tvshows', 'asian-series',
   ];
   for (const cat of categories) {
     const ts = getCategoryTimestamp(cat);

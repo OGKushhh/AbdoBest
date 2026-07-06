@@ -20,8 +20,6 @@ const CAT_LABELS: Record<string, { ar: string; en: string }> = {
   hindi:            { ar: 'هندي',              en: 'Hindi' },
   'asian-movies':   { ar: 'أفلام آسيوية',      en: 'Asian Movies' },
   'anime-movies':   { ar: 'أفلام أنمي',        en: 'Anime Movies' },
-  trending:         { ar: 'الأكثر مشاهدة',     en: 'Trending' },
-  featured:         { ar: 'مميز',              en: 'Featured' },
   done:             { ar: 'اكتمل!',            en: 'Done!' },
 };
 

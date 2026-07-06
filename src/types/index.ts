@@ -30,22 +30,6 @@ export interface ContentItem {
   NumberOfEpisodes?: number;
 }
 
-export interface TrendingItem {
-  title: string;
-  link: string;
-  image: string;
-  quality?: string;
-  imdb_rating?: string;
-  views?: string;
-  content_type: string;
-}
-
-export interface TrendingContent {
-  movies: TrendingItem[];
-  episodes: TrendingItem[];
-  most_viewed: TrendingItem[];
-}
-
 export interface VideoStreamInfo {
   video_url: string;
   quality_options: string[];

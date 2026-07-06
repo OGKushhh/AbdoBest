@@ -50,8 +50,6 @@ export const METADATA_ENDPOINTS: Record<string, string> = {
   tvshows: '/api/sorted/tvshows',
   'asian-series': '/api/sorted/asian-series',
   'arabic-series': '/api/sorted/arabic-series',
-  trending: '/api/trending',
-  featured: '/api/featured',
 };
 
 // Dynamic API endpoints
