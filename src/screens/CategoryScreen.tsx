@@ -136,7 +136,7 @@ export const CategoryScreen: React.FC = () => {
     const incomingCat = route.params?.category;
     const incomingGenre = route.params?.genre;
     if (incomingCat && incomingCat !== selectedCategory) setSelectedCategory(incomingCat);
-    if (incomingGenre !== undefined) setSelectedGenre(incomingGenre || null);
+    if (incomingGenre !== undefined) setSelectedGenres(incomingGenre ? [incomingGenre] : []);
   }, [route.params?.category, route.params?.genre]);
 
   // Debounce search

@@ -18,7 +18,7 @@
 - [ ] Sign in with phone does not work and throws a "something went wrong" error.
 
 ## Genres / filters
-- [ ] Pressing any genre currently crashes the app.
+- [x] Pressing any genre currently crashes the app. — **Fixed**: `CategoryScreen.tsx` was calling a nonexistent `setSelectedGenre(...)` (leftover from before multi-genre support); state is actually the plural `selectedGenres` array. Changed to `setSelectedGenres(incomingGenre ? [incomingGenre] : [])`.
 - [ ] Rework the genres and filter system — consider moving genre/filter parsing and fetching to the backend instead of doing it on the frontend.
 
 ## Content Sync / Push Notifications
