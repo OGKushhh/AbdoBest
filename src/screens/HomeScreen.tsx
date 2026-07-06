@@ -86,63 +86,86 @@ const INFO_TIP_KEYS = [
   { iconKey: 'info_tip_kofi_icon',     textKey: 'info_tip_kofi',     link: 'https://ko-fi.com/abdobest',  linkKey: 'info_tip_kofi_link' },
 ] as const;
 
+// Tip content is the wrapper's content width: card marginHorizontal(14*2) + paddingHorizontal(14*2)
+const INFO_TIP_ITEM_W = SW - 56;
+
 const InfoBar: React.FC = () => {
   const {t, i18n} = useTranslation();
   const isAr = i18n.language?.startsWith('ar');
+  const flatListRef = useRef<FlatList>(null);
   const [idx, setIdx] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const rotate = useCallback(() => {
-    Animated.timing(fadeAnim, {toValue: 0, duration: 300, useNativeDriver: true}).start(() => {
+  const restartTimer = useCallback(() => {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
       setIdx(prev => (prev + 1) % INFO_TIP_KEYS.length);
-      Animated.timing(fadeAnim, {toValue: 1, duration: 400, useNativeDriver: true}).start();
-    });
-  }, [fadeAnim]);
+    }, 7000);
+  }, []);
 
   useEffect(() => {
-    timerRef.current = setInterval(rotate, 7000);
+    restartTimer();
     return () => clearInterval(timerRef.current);
-  }, [rotate]);
+  }, [restartTimer]);
 
-  const tip = INFO_TIP_KEYS[idx];
-  const text = t(tip.textKey);
-  const linkLabel = tip.linkKey ? t(tip.linkKey) : null;
+  // Keep the FlatList in sync whenever idx changes — from auto-rotate, a dot tap, or a manual swipe.
+  useEffect(() => {
+    flatListRef.current?.scrollToIndex({index: idx, animated: true});
+  }, [idx]);
+
+  const handleManualSwipe = useCallback((e: any) => {
+    const offset = e.nativeEvent.contentOffset.x;
+    const newIdx = Math.round(offset / INFO_TIP_ITEM_W);
+    if (newIdx !== idx && newIdx >= 0 && newIdx < INFO_TIP_KEYS.length) {
+      setIdx(newIdx);
+      restartTimer();
+    }
+  }, [idx, restartTimer]);
+
+  const handleDotPress = useCallback((i: number) => {
+    setIdx(i);
+    restartTimer();
+  }, [restartTimer]);
 
   return (
     <View style={infoS.wrapper}>
-      {/* Dot indicators */}
+      {/* Dot indicators — tap to jump to a tip */}
       <View style={infoS.dots}>
         {INFO_TIP_KEYS.map((_, i) => (
-          <TouchableOpacity
-            key={i}
-            onPress={() => {
-              clearInterval(timerRef.current);
-              Animated.timing(fadeAnim, {toValue: 0, duration: 200, useNativeDriver: true}).start(() => {
-                setIdx(i);
-                Animated.timing(fadeAnim, {toValue: 1, duration: 300, useNativeDriver: true}).start();
-              });
-              timerRef.current = setInterval(rotate, 7000);
-            }}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity key={i} onPress={() => handleDotPress(i)} activeOpacity={0.7}>
             <View style={[infoS.dot, i === idx && infoS.dotActive]} />
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Tip content */}
-      <Animated.View style={[infoS.tipRow, {opacity: fadeAnim}]}>
-        <Text style={infoS.icon}>{t(tip.iconKey)}</Text>
-        <View style={infoS.textCol}>
-          <Text style={[infoS.tipText, isAr && infoS.rtl]}>{text}</Text>
-          {tip.link && (
-            <TouchableOpacity onPress={() => Linking.openURL(tip.link!)} activeOpacity={0.75}>
-              <Text style={[infoS.link, isAr && infoS.rtl]}>{'› '}{linkLabel}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
+      {/* Swipeable tip content — same swipe + auto-rotate pattern as the hero banner */}
+      <FlatList
+        ref={flatListRef}
+        data={INFO_TIP_KEYS}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, i) => String(i)}
+        getItemLayout={(_, i) => ({length: INFO_TIP_ITEM_W, offset: INFO_TIP_ITEM_W * i, index: i})}
+        onMomentumScrollEnd={handleManualSwipe}
+        renderItem={({item: tip}) => {
+          const text = t(tip.textKey);
+          const linkLabel = tip.linkKey ? t(tip.linkKey) : null;
+          return (
+            <View style={[infoS.tipRow, {width: INFO_TIP_ITEM_W}]}>
+              <Text style={infoS.icon}>{t(tip.iconKey)}</Text>
+              <View style={infoS.textCol}>
+                <Text style={[infoS.tipText, isAr && infoS.rtl]}>{text}</Text>
+                {tip.link && (
+                  <TouchableOpacity onPress={() => Linking.openURL(tip.link!)} activeOpacity={0.75}>
+                    <Text style={[infoS.link, isAr && infoS.rtl]}>{'› '}{linkLabel}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          );
+        }}
+      />
     </View>
   );
 };
