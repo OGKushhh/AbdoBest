@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [showRewardPopup, setShowRewardPopup] = useState(false);
   const { running: syncRunning, progress: syncProgress, start: startSync } = useCacheSync();
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const unsubForegroundRef = useRef<(() => void) | null>(null);
 
   // Retry any queued view counts when app comes to foreground
   useEffect(() => {
@@ -70,6 +71,11 @@ const App: React.FC = () => {
         // data.content_id + data.category — navigation handled after navigator mounts
         console.log('[FCM] Notification tapped:', data);
       });
+      // Foreground pushes: content sync happens inside setupForegroundHandler itself;
+      // this callback is just for an optional in-app banner later.
+      unsubForegroundRef.current = setupForegroundHandler((title, body, data) => {
+        console.log('[FCM] Foreground notification:', title, body, data);
+      });
       restoreDownloads().catch(() => {});
       retrySyncViews().catch(() => {});
       // Start cache sync immediately — overlay shows automatically
@@ -87,7 +93,10 @@ const App: React.FC = () => {
       }, 3000);
     });
     // Cleanup is returned directly to React so it fires on unmount
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      unsubForegroundRef.current?.();
+    };
   }, []);
 
   if (!ready) {

@@ -22,7 +22,11 @@
 - [ ] Rework the genres and filter system — consider moving genre/filter parsing and fetching to the backend instead of doing it on the frontend.
 
 ## Content Sync / Push Notifications
-- [ ] Every new push to the backend with new content should trigger a content update fetch in the frontend, so that general notifications and content on the app stay in sync, while keeping everything else intact (e.g., the 24h cache).
+- [x] Every new push to the backend with new content should trigger a content update fetch in the frontend, so that general notifications and content on the app stay in sync, while keeping everything else intact (e.g., the 24h cache). — **Implemented**:
+  - Added `syncContentFromPush(data)` in `fcmService.ts`. On `type: "content_update"` it force-refreshes just that one category via `loadCategory(cat, true)`; on `type: "general_update"` (new titles / counts, no category info in the payload) it force-refreshes all `SYNC_CATEGORIES`. Either way this reuses the existing forced-refresh path, so the on-disk cache + timestamp update exactly like a pull-to-refresh — the 24h TTL logic itself is untouched, just reset early.
+  - Wired into all three FCM entry points: the foreground handler, the notification-tap handler (background/quit), and the background message handler in `index.js`.
+  - Found and fixed a related bug while in there: `setupForegroundHandler` was imported in `App.tsx` but never actually called, so foreground pushes were previously doing nothing at all. Now wired up (with proper unsubscribe on unmount).
+  - Known limitation: this refreshes the cache, but a screen that's already open won't auto-re-render with the new data until it's revisited — no global state/event bus exists yet to push updates into a mounted HomeScreen/CategoryScreen. Worth a follow-up if you want live in-place updates too.
 
 ## In-App Updates (Full APK/AAB)
 - [ ] Implement full APK in-app update mechanism for Android, same current github source and checker mechanism (react-native-simple-updater or rn-apk-update or react-native-update-in-app)(what is the best?).

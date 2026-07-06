@@ -13,6 +13,7 @@ import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 import { getIdToken } from './authService';
 import { API_BASE } from '../constants/endpoints';
+import { loadCategory, ContentCategory, SYNC_CATEGORIES } from './metadataService';
 
 // ─── Request permission + register token with backend ────────────────────────
 export async function initFCM(): Promise<void> {
@@ -76,6 +77,46 @@ async function registerTokenWithBackend(fcmToken: string): Promise<void> {
   }
 }
 
+// ─── Push-triggered content sync ──────────────────────────────────────────────
+// The backend's /api/notify diffs its content snapshots after every git push
+// and sends an FCM data payload:
+//   { type: "general_update", new_count, update_count }              — new titles / episode updates, anywhere
+//   { type: "content_update", content_id, category }                 — one specific title got new episodes/season
+//
+// Rather than waiting for the normal 24h cache TTL to expire, we use that
+// payload to force a fresh network refetch of just the affected categories
+// (or, for a general update, all of them — the payload doesn't say which).
+// This reuses loadCategory's existing forceRefresh path, so the on-disk
+// cache + its timestamp are updated exactly the way a pull-to-refresh would —
+// the 24h TTL mechanism itself is untouched, we're just resetting the clock early.
+const CATEGORY_ALIAS: Record<string, ContentCategory> = {
+  movies: 'movies', 'dubbed-movies': 'dubbed-movies', hindi: 'hindi',
+  'asian-movies': 'asian-movies', 'anime-movies': 'anime-movies',
+  anime: 'anime', series: 'series', tvshows: 'tvshows',
+  'asian-series': 'asian-series', 'arabic-series': 'arabic-series',
+};
+
+export async function syncContentFromPush(data: Record<string, string>): Promise<void> {
+  const type = data?.type;
+  if (type !== 'general_update' && type !== 'content_update') return;
+
+  const categories: ContentCategory[] =
+    type === 'content_update'
+      ? [CATEGORY_ALIAS[data.category ?? '']].filter(Boolean) as ContentCategory[]
+      : SYNC_CATEGORIES;
+
+  if (categories.length === 0) return;
+
+  await Promise.all(
+    categories.map(cat =>
+      loadCategory(cat, true).catch(e =>
+        console.warn(`[FCM] Push-triggered refresh failed for ${cat}:`, e?.message),
+      ),
+    ),
+  );
+  console.log(`[FCM] Push-triggered content sync done (${type}) — ${categories.length} categor${categories.length === 1 ? 'y' : 'ies'}`);
+}
+
 // ─── Foreground message handler ───────────────────────────────────────────────
 // When the app is open, FCM doesn't show a system notification automatically.
 // We handle it here and can show an in-app banner instead.
@@ -87,6 +128,7 @@ export function setupForegroundHandler(
     const body  = remoteMessage.notification?.body  ?? '';
     const data  = (remoteMessage.data ?? {}) as Record<string, string>;
     console.log('[FCM] Foreground message:', title, body);
+    syncContentFromPush(data).catch(() => {});
     onNotification(title, body, data);
   });
 }
@@ -102,6 +144,7 @@ export function setupNotificationOpenedHandler(
   messaging().onNotificationOpenedApp(remoteMessage => {
     const data = (remoteMessage.data ?? {}) as Record<string, string>;
     console.log('[FCM] Notification opened app from background:', data);
+    syncContentFromPush(data).catch(() => {});
     onTap(data);
   });
 
@@ -112,6 +155,7 @@ export function setupNotificationOpenedHandler(
       if (remoteMessage) {
         const data = (remoteMessage.data ?? {}) as Record<string, string>;
         console.log('[FCM] App launched from notification:', data);
+        syncContentFromPush(data).catch(() => {});
         onTap(data);
       }
     });
@@ -121,7 +165,13 @@ export function setupNotificationOpenedHandler(
 // Call this at the top of index.js, before AppRegistry.registerComponent
 export function registerBackgroundHandler(): void {
   messaging().setBackgroundMessageHandler(async remoteMessage => {
-    // Nothing to do — system tray handles display automatically
+    // System tray handles display automatically — we just piggyback the sync.
     console.log('[FCM] Background message received:', remoteMessage.messageId);
+    const data = (remoteMessage.data ?? {}) as Record<string, string>;
+    try {
+      await syncContentFromPush(data);
+    } catch (e) {
+      console.warn('[FCM] Background sync failed:', e);
+    }
   });
 }
