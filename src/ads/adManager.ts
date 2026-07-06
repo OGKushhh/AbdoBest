@@ -9,7 +9,11 @@ const KEY_LAUNCH_COUNT       = 'ad_launch_count';
 // ─── Thresholds ──────────────────────────────────────────────────────────────
 const INTERSTITIAL_EVERY_N       = 15; // every 15 screen interactions
 const PLAY_INTERSTITIAL_EVERY_N  = 3;  // every 3 play presses
-const AD_FREE_DURATION_MS        = 3 * 60 * 60 * 1000; // 3 hours
+const AD_FREE_DURATION_MS        = 2 * 60 * 60 * 1000; // 2 hours
+// NOTE: if you change this, also update `reward_hours` in src/i18n/en.ts and
+// src/i18n/ar.ts (used by RewardAdPopup.tsx) — it's a separate hardcoded
+// string, not derived from this constant, and Arabic needs correct dual/
+// plural grammar (e.g. 2 → "ساعتين", not "٢ ساعات").
 const REWARD_POPUP_EVERY_N       = 3;  // show reward popup every 3rd launch
 
 // ─── Ad-free window ──────────────────────────────────────────────────────────

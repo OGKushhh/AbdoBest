@@ -232,7 +232,7 @@ export const ar = {
   // نافذة مكافأة الإعلان
   reward_title: 'شاهد إعلاناً واحداً',
   reward_body: 'استمتع بتجربة بدون إعلانات لمدة {{hours}} مقابل مشاهدة إعلان واحد قصير.',
-  reward_hours: '3 ساعات',
+  reward_hours: 'ساعتين',
   reward_later: 'لاحقاً',
   reward_watch: '▶ شاهد',
   reward_hint: 'يمكنك تفعيل هذا لاحقاً من الإعدادات',

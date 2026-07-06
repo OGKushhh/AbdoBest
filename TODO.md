@@ -6,9 +6,9 @@
 - [ ] Add filter options to the Favorites screen.
 
 ## Ads
-- [ ] Startup ad popup: Arabic text is missing the number of hours — needs to be filled in / interpolated correctly.
-- [ ] Startup ad popup should load after category fetching and/or the home screen has finished loading, not before.
-- [ ] Reward-ad ad-free cooldown: change from 3h to 2h.
+- [x] Startup ad popup: Arabic text is missing the number of hours. — **Fixed**: `RewardAdPopup.tsx` called `t('reward_body', { hours: '' })`, which made i18next substitute `{{hours}}` with an empty string *before* the code tried to `.split('{{hours}}')` on the result — the placeholder was already gone, so the highlighted hours text never got inserted (this was silently broken in English too, just not visible since the fallback happened to still show the sentence minus the number in a less obvious way). Fixed by calling `t('reward_body')` with no options, so i18next leaves `{{hours}}` untouched for the manual split to find. Also fixed a separate bug where the English template had a duplicate "hours hours" (the `reward_hours` string already contains the word "hours").
+- [x] Startup ad popup should load after category fetching and/or the home screen has finished loading. — **Fixed**: `App.tsx` was firing the popup on a blind `setTimeout(1500)` running in parallel with the category sync, with no relation to whether it had actually finished. Changed to chain the popup onto `startSync(false).then(...)`, so it only appears once the initial category fetch genuinely completes.
+- [x] Reward-ad ad-free cooldown: change from 3h to 2h. — **Fixed**: `AD_FREE_DURATION_MS` in `adManager.ts` changed to 2h. Also updated the `reward_hours` i18n string (was hardcoded to "3 hours" / "3 ساعات", now "2 hours" / "ساعتين" — using the correct Arabic dual grammatical form). Left a comment noting this value isn't auto-derived from the constant, so it needs a manual update if the duration changes again.
 
 ## Settings screen
 - [ ] Ko-fi button UI needs a redesign — should look like the button style used in the README, not the current gradient pill.

@@ -231,8 +231,8 @@ export const en = {
   ad_free_watch_prompt: 'Watch 1 ad for 3h ad-free',
   // RewardAdPopup
   reward_title: 'Watch 1 Ad',
-  reward_body: 'Enjoy {{hours}} hours ad-free by watching one short ad.',
-  reward_hours: '3 hours',
+  reward_body: 'Enjoy {{hours}} ad-free by watching one short ad.',
+  reward_hours: '2 hours',
   reward_later: 'Later',
   reward_watch: '▶ Watch',
   reward_hint: 'You can activate this later from Settings',

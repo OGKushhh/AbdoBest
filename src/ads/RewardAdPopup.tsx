@@ -1,7 +1,7 @@
 /**
  * RewardAdPopup
  *
- * A friendly modal that offers the user 3 hours ad-free in exchange for
+ * A friendly modal that offers the user 2 hours ad-free in exchange for
  * watching one interstitial ad.
  *
  * Used in two places:
@@ -10,7 +10,7 @@
  *
  * Flow:
  *   Show popup → user taps "Watch" → popup closes → interstitial plays
- *   → interstitial closes → activateAdFree() → 3h timer starts
+ *   → interstitial closes → activateAdFree() → 2h timer starts
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -62,7 +62,7 @@ const RewardAdPopup: React.FC<Props> = ({ visible, onClose }) => {
 
   const handleInterstitialClose = () => {
     setShowInterstitial(false);
-    // Grant 3h ad-free after the ad is watched
+    // Grant ad-free time after the ad is watched (duration set in adManager's AD_FREE_DURATION_MS)
     activateAdFree();
   };
 
@@ -91,7 +91,7 @@ const RewardAdPopup: React.FC<Props> = ({ visible, onClose }) => {
 
             {/* Body — highlight the hours token */}
             <Text style={styles.body}>
-              {t('reward_body', { hours: '' })
+              {t('reward_body')
                 .split('{{hours}}')
                 .reduce<React.ReactNode[]>((acc, part, i, arr) => {
                   acc.push(part);

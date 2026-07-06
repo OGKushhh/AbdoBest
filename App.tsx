@@ -78,12 +78,14 @@ const App: React.FC = () => {
       });
       restoreDownloads().catch(() => {});
       retrySyncViews().catch(() => {});
-      // Start cache sync immediately — overlay shows automatically
-      startSync(false);
-      if (shouldShowReward) {
-        // Small delay so the app finishes rendering before showing the popup
-        setTimeout(() => setShowRewardPopup(true), 1500);
-      }
+      // Start cache sync immediately — overlay shows automatically.
+      // The reward popup is chained onto its completion (not a blind timer)
+      // so it never interrupts the initial category fetch / home screen load.
+      startSync(false).then(() => {
+        if (shouldShowReward) {
+          setTimeout(() => setShowRewardPopup(true), 800);
+        }
+      });
       timer = setTimeout(async () => {
         const update = await checkForUpdate();
         if (update) {
