@@ -202,14 +202,23 @@ export const SettingsScreen: React.FC = () => {
     rowValue: { fontSize: 14, color: colors.textSecondary, fontFamily: 'Rubik' },
     rowChevron: { width: 18, height: 18, tintColor: colors.textMuted, transform: [{ rotate: '-90deg' }] },
 
-    // Donate button
-    donateBtn: { marginHorizontal: 16, marginTop: 8, marginBottom: 40, borderRadius: 16, overflow: 'hidden' },
-    donateInner: {
+    // Donate button — small badge, matching the Ko-fi button style used in the README
+    donateBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      paddingVertical: 18, paddingHorizontal: 24,
+      alignSelf: 'center',
+      backgroundColor: '#72A4F2',
+      borderRadius: 19,
+      paddingVertical: 8, paddingHorizontal: 14,
+      marginTop: 8, marginBottom: 40,
     },
-    donateIcon: { width: 22, height: 22, tintColor: '#fff' },
-    donateText: { color: '#fff', fontSize: 17, fontWeight: '700', marginLeft: 10, fontFamily: 'Rubik' },
+    donateIconCircle: {
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: '#fff',
+      justifyContent: 'center', alignItems: 'center',
+      marginRight: 8,
+    },
+    donateIcon: { fontSize: 12 },
+    donateText: { color: '#202020', fontSize: 13, fontWeight: '800', fontFamily: 'Rubik' },
 
     // Modals
     modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8, fontFamily: 'Rubik' },
@@ -466,16 +475,12 @@ export const SettingsScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.donateBtn}
             onPress={() => Linking.openURL('https://ko-fi.com/abdobest')}
-            activeOpacity={0.85}
+            activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={['#E53935', '#FF6D00']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.donateInner}
-            >
-              <Image source={require('../../assets/icons/heart.png')} style={styles.donateIcon} />
-              <Text style={styles.donateText}>Support on Ko-fi ☕</Text>
-            </LinearGradient>
+            <View style={styles.donateIconCircle}>
+              <Text style={styles.donateIcon}>☕</Text>
+            </View>
+            <Text style={styles.donateText}>Support me on Ko-fi</Text>
           </TouchableOpacity>
 
           <View style={{ height: 32 }} />

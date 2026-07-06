@@ -11,7 +11,7 @@
 - [x] Reward-ad ad-free cooldown: change from 3h to 2h. — **Fixed**: `AD_FREE_DURATION_MS` in `adManager.ts` changed to 2h. Also updated the `reward_hours` i18n string (was hardcoded to "3 hours" / "3 ساعات", now "2 hours" / "ساعتين" — using the correct Arabic dual grammatical form). Left a comment noting this value isn't auto-derived from the constant, so it needs a manual update if the duration changes again.
 
 ## Settings screen
-- [ ] Ko-fi button UI needs a redesign — should look like the button style used in the README, not the current gradient pill.
+- [x] Ko-fi button UI needs a redesign — should look like the button style used in the README, not the current gradient pill. — **Fixed**: replaced the full-width gradient card (`LinearGradient`, heart icon, big padding) with a small, flat, dark badge — matching the compact "Support me on Ko-fi" button style (`https://ko-fi.com/img/githubbutton_sm.svg`) used in the README, rather than the app's usual big CTA-button look.
 
 ## Auth
 - [ ] After signing out of Google, the app should allow signing in with a different Google account without requiring a full app restart. Currently the sign-in state only resets after closing and reopening the app.
