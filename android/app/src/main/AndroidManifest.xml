@@ -5,6 +5,13 @@
     <queries>
         <package android:name="idm.internet.download.manager" />
         <package android:name="com.dv.adm" />
+        <!-- Android 11+ package-visibility: without this, actionViewIntent's
+             internal resolveActivity() check silently returns null and the
+             installer screen never opens, even though no error is thrown. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -16,6 +23,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    <!-- Android 8+ (API 26+): required to install an APK the app downloaded itself -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".MainApplication"
@@ -82,5 +91,23 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!--
+          react-native-blob-util's own manifest normally supplies this via
+          manifest merging, but that has a documented history of silently
+          not being picked up (see RonRadtke/react-native-blob-util#76) —
+          declaring it explicitly here means the in-app APK update/install
+          flow doesn't depend on that merge succeeding.
+        -->
+        <provider
+            android:name="com.ReactNativeBlobUtil.Utils.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true"
+            tools:replace="android:authorities">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
     </application>
 </manifest>

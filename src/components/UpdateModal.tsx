@@ -1,17 +1,19 @@
 import React from 'react';
 import {
   View, Modal, TouchableOpacity, Text, StyleSheet,
-  ScrollView, Linking, Dimensions, Image,
+  ScrollView, Dimensions, Image,
 } from 'react-native';
 import {Colors} from '../theme/colors';
 import {Typography} from '../theme/typography';
 import {useTranslation} from 'react-i18next';
-import {ReleaseInfo} from '../services/updateService';
+import {ReleaseInfo, DownloadProgress} from '../services/updateService';
 
 interface UpdateModalProps {
   visible: boolean;
   release: ReleaseInfo | null;
   currentVersion: string;
+  downloading?: boolean;
+  progress?: DownloadProgress | null;
   onDownload: (url: string) => void;
   onSkip: (version: string) => void;
   onDismiss: () => void;
@@ -19,8 +21,14 @@ interface UpdateModalProps {
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export const UpdateModal: React.FC<UpdateModalProps> = ({
-  visible, release, currentVersion, onDownload, onSkip, onDismiss,
+  visible, release, currentVersion, downloading, progress, onDownload, onSkip, onDismiss,
 }) => {
   const {t} = useTranslation();
 
@@ -76,22 +84,38 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           </Text>
 
           {/* Actions */}
-          <TouchableOpacity
-            style={styles.downloadButton}
-            onPress={() => onDownload(release.downloadUrl)}
-          >
-            <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 22, height: 22, tintColor: '#fff'}} />
-            <Text style={styles.downloadButtonText}>{t('download_update')}</Text>
-          </TouchableOpacity>
+          {downloading ? (
+            <View style={styles.progressContainer}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, {width: `${progress?.percent ?? 0}%`}]} />
+              </View>
+              <View style={styles.progressLabelRow}>
+                <Text style={styles.progressPercent}>{progress?.percent ?? 0}%</Text>
+                {!!progress?.bytesPerSecond && (
+                  <Text style={styles.progressSpeed}>{formatBytes(progress.bytesPerSecond)}/s</Text>
+                )}
+              </View>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.downloadButton}
+                onPress={() => onDownload(release.downloadUrl)}
+              >
+                <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 22, height: 22, tintColor: '#fff'}} />
+                <Text style={styles.downloadButtonText}>{t('download_update')}</Text>
+              </TouchableOpacity>
 
-          <View style={styles.bottomRow}>
-            <TouchableOpacity style={styles.skipButton} onPress={() => onSkip(release.version)}>
-              <Text style={styles.skipText}>{t('skip_version')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.laterButton} onPress={onDismiss}>
-              <Text style={styles.laterText}>{t('later')}</Text>
-            </TouchableOpacity>
-          </View>
+              <View style={styles.bottomRow}>
+                <TouchableOpacity style={styles.skipButton} onPress={() => onSkip(release.version)}>
+                  <Text style={styles.skipText}>{t('skip_version')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.laterButton} onPress={onDismiss}>
+                  <Text style={styles.laterText}>{t('later')}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -204,6 +228,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.bold,
     marginLeft: 8,
+  },
+  progressContainer: {
+    marginBottom: 12,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.dark.background,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: Colors.dark.primary,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  progressPercent: {
+    color: Colors.dark.text,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+  },
+  progressSpeed: {
+    color: Colors.dark.textMuted,
+    fontSize: Typography.sizes.sm,
   },
   bottomRow: {
     flexDirection: 'row',

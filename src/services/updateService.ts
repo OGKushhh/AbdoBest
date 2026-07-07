@@ -1,5 +1,6 @@
 import axios from 'axios';
 import {Platform, Linking} from 'react-native';
+import RNBlobUtil from 'react-native-blob-util';
 import {GITHUB_RELEASES_URL, APP_VERSION} from '../constants/endpoints';
 import {storage} from '../storage/Storage';
 
@@ -9,6 +10,13 @@ export interface ReleaseInfo {
   changelog: string;
   publishedAt: string;
   assetName: string;
+}
+
+export interface DownloadProgress {
+  percent: number;          // 0–100
+  receivedBytes: number;
+  totalBytes: number;
+  bytesPerSecond: number;   // rolling speed estimate
 }
 
 /**
@@ -90,8 +98,72 @@ export const skipVersion = (version: string) => {
 };
 
 /**
- * Open the update download URL in the device browser
+ * Open the update download URL in the device browser.
+ * Used for iOS always, and as the Android fallback if the in-app
+ * download/install below fails for any reason.
  */
 export const openUpdateUrl = (url: string) => {
   Linking.openURL(url).catch(() => {});
+};
+
+/**
+ * Android only: download the APK straight into the app's private cache dir
+ * (no storage permission needed — this is why we don't touch
+ * WRITE/READ_EXTERNAL_STORAGE for this), then hand it to the system
+ * installer via a content:// URI through react-native-blob-util's
+ * FileProvider (declared explicitly in AndroidManifest.xml — see the
+ * comment there for why).
+ *
+ * Throws on any failure — the caller should catch and fall back to
+ * openUpdateUrl() so the user can still update via the browser.
+ */
+export const downloadAndInstallApk = async (
+  release: ReleaseInfo,
+  onProgress: (p: DownloadProgress) => void,
+): Promise<void> => {
+  if (Platform.OS !== 'android') {
+    throw new Error('downloadAndInstallApk is Android-only');
+  }
+
+  const destPath = `${RNBlobUtil.fs.dirs.CacheDir}/update-${release.version}.apk`;
+
+  // Clean up any partial file from a previous failed attempt
+  try {
+    if (await RNBlobUtil.fs.exists(destPath)) {
+      await RNBlobUtil.fs.unlink(destPath);
+    }
+  } catch {
+    // non-fatal — fetch will just overwrite/fail on its own below
+  }
+
+  let lastBytes = 0;
+  let lastTs = Date.now();
+
+  const res = await RNBlobUtil
+    .config({path: destPath, timeout: 60000})
+    .fetch('GET', release.downloadUrl)
+    .progress({interval: 250}, (received, total) => {
+      const receivedBytes = Number(received);
+      const totalBytes = Number(total);
+      const now = Date.now();
+      const deltaBytes = receivedBytes - lastBytes;
+      const deltaSec = Math.max((now - lastTs) / 1000, 0.001);
+      const bytesPerSecond = deltaBytes / deltaSec;
+      lastBytes = receivedBytes;
+      lastTs = now;
+
+      onProgress({
+        percent: totalBytes > 0 ? Math.min(100, Math.round((receivedBytes / totalBytes) * 100)) : 0,
+        receivedBytes,
+        totalBytes,
+        bytesPerSecond: Math.max(0, bytesPerSecond),
+      });
+    });
+
+  const filePath = res.path();
+
+  // Android 8+ requires this permission be granted for the specific installer flow;
+  // if missing, the system shows its own "allow from this source" screen automatically
+  // when actionViewIntent below fires — no extra code needed on our end for that prompt.
+  await RNBlobUtil.android.actionViewIntent(filePath, 'application/vnd.android.package-archive');
 };

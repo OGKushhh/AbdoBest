@@ -1,9 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, AppStateStatus, StatusBar, LogBox, View} from 'react-native';
+import {AppState, AppStateStatus, StatusBar, LogBox, View, Platform} from 'react-native';
 import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {UpdateModal} from './src/components/UpdateModal';
-import {checkForUpdate, skipVersion, openUpdateUrl, ReleaseInfo} from './src/services/updateService';
+import {
+  checkForUpdate, skipVersion, openUpdateUrl, downloadAndInstallApk,
+  ReleaseInfo, DownloadProgress,
+} from './src/services/updateService';
 import {restoreDownloads} from './src/services/downloadService';
 import {wakeServer} from './src/services/metadataService';
 import {retrySyncViews} from './src/services/viewService';
@@ -31,6 +34,8 @@ const App: React.FC = () => {
   const [ready, setReady] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<ReleaseInfo | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<DownloadProgress | null>(null);
   const [showRewardPopup, setShowRewardPopup] = useState(false);
   const { running: syncRunning, progress: syncProgress, start: startSync } = useCacheSync();
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -101,6 +106,34 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Android: download the APK in-app with progress, then hand it to the
+  // system installer. iOS keeps the old browser-open behaviour (no APK to
+  // install there). If the in-app flow fails for any reason, fall back to
+  // opening the browser link — same as before this feature existed.
+  const handleUpdateDownload = async (url: string) => {
+    if (Platform.OS !== 'android' || !updateInfo) {
+      setShowUpdateModal(false);
+      openUpdateUrl(url);
+      return;
+    }
+
+    setUpdateDownloading(true);
+    setUpdateProgress(null);
+    try {
+      await downloadAndInstallApk(updateInfo, setUpdateProgress);
+      // actionViewIntent already handed off to the system installer —
+      // safe to close our modal now.
+      setShowUpdateModal(false);
+    } catch (e: any) {
+      console.warn('[Update] In-app download/install failed, falling back to browser:', e?.message);
+      openUpdateUrl(url);
+      setShowUpdateModal(false);
+    } finally {
+      setUpdateDownloading(false);
+      setUpdateProgress(null);
+    }
+  };
+
   if (!ready) {
     return (
       <View style={{flex: 1, backgroundColor: Colors.dark.background}} />
@@ -121,7 +154,9 @@ const App: React.FC = () => {
             visible={showUpdateModal}
             release={updateInfo}
             currentVersion={APP_VERSION}
-            onDownload={(url: string) => { setShowUpdateModal(false); openUpdateUrl(url); }}
+            downloading={updateDownloading}
+            progress={updateProgress}
+            onDownload={handleUpdateDownload}
             onSkip={(version: string) => { skipVersion(version); setShowUpdateModal(false); }}
             onDismiss={() => setShowUpdateModal(false)}
           />
