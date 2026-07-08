@@ -121,6 +121,7 @@ export const en = {
   sort_top_rated: 'Top Rated',
   results: 'results',
   category: 'Category',
+  clear_all_filters: 'Clear all',
   directors: 'Directors',
   of_10: '/ 10',
   random_picks: 'Recommended',

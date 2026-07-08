@@ -121,6 +121,7 @@ export const ar = {
   sort_top_rated: 'الأعلى تقييماً',
   results: 'نتيجة',
   category: 'القسم',
+  clear_all_filters: 'مسح الكل',
   directors: 'المخرجين',
   of_10: 'من 10',
   random_picks: 'موصى به',

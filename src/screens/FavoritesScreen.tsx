@@ -1,17 +1,23 @@
 /**
  * FavoritesScreen.tsx
  * Three-tab screen: Favourites / Watched / Watch Later
- * Tapping a card navigates to DetailsScreen.
+ * Tapping a card navigates to DetailsScreen. Long-press removes it.
+ *
+ * Grid uses the same MovieCard component as CategoryScreen (2 columns,
+ * same title styling, same rating/quality/category/season badges) —
+ * whenever the full item is available in the runtime cache. If a title
+ * isn't cached yet (e.g. fresh app launch, that category hasn't loaded),
+ * falls back to a stub card with just the title/image that were saved
+ * when the user favourited it.
  */
 
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useMemo} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  StatusBar, Image, RefreshControl, Alert,
+  StatusBar, Image, RefreshControl, Alert, Modal, ScrollView,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import FastImage from 'react-native-fast-image';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
 import {
@@ -22,9 +28,13 @@ import {
   fetchCollections,
 } from '../services/favoritesService';
 import {getRuntimeCache} from '../services/metadataService';
+import {ContentItem} from '../types';
+import {MovieCard, CARD_WIDTH} from '../components/MovieCard';
+import {CATEGORIES} from '../constants/categories';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Tab = 'favourites' | 'watched' | 'watch_later';
+type SortKey = 'added_desc' | 'added_asc' | 'az' | 'za';
 
 const TABS: {key: Tab; labelKey: string}[] = [
   {key: 'favourites',  labelKey: 'favorites_tab_favourites'},
@@ -32,46 +42,33 @@ const TABS: {key: Tab; labelKey: string}[] = [
   {key: 'watch_later', labelKey: 'favorites_tab_watch_later'},
 ];
 
-// ─── Card ────────────────────────────────────────────────────────────────────
-const CARD_W = 110;
-const CARD_H = 160;
+const SORT_OPTIONS: {key: SortKey; labelKey: string}[] = [
+  {key: 'added_desc', labelKey: 'sort_newest'},
+  {key: 'added_asc',  labelKey: 'sort_oldest'},
+  {key: 'az',         labelKey: 'sort_az'},
+  {key: 'za',         labelKey: 'sort_za'},
+];
 
-interface CardProps {
-  item: CollectionEntry;
-  tab:  Tab;
-  onPress:  () => void;
-  onRemove: () => void;
+const CATEGORY_LABEL: Record<string, {en: string; ar: string}> =
+  Object.fromEntries(CATEGORIES.map(c => [c.key, {en: c.labelEn, ar: c.labelAr}]));
+
+/** Builds a minimal ContentItem-shaped stub so MovieCard can still render
+ *  (title/image only — every badge in MovieCard is already guarded with a
+ *  truthy check, so empty fields here just mean no badges, not a crash). */
+function stubContentItem(entry: CollectionEntry): ContentItem {
+  return {
+    id: entry.content_id,
+    Title: entry.title,
+    'Image Source': entry.image,
+    Category: entry.category,
+    Source: '',
+    Genres: [],
+    GenresAr: [],
+    Format: '',
+    Runtime: null,
+    Country: null,
+  } as unknown as ContentItem;
 }
-
-const FavCard: React.FC<CardProps> = ({item, tab, onPress, onRemove}) => {
-  const {t} = useTranslation();
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={onPress}
-      onLongPress={onRemove}
-      activeOpacity={0.75}>
-      <FastImage
-        source={{uri: item.image, priority: FastImage.priority.normal}}
-        style={styles.cardImage}
-        resizeMode={FastImage.resizeMode.cover}
-      />
-      {/* progress badge for watched */}
-      {tab === 'watched' && item.progress && (item.progress.season || item.progress.episode) && (
-        <View style={styles.progressBadge}>
-          <Text style={styles.progressText}>
-            {item.progress.season
-              ? `S${item.progress.season}E${item.progress.episode ?? '?'}`
-              : `E${item.progress.episode}`}
-          </Text>
-        </View>
-      )}
-      <View style={styles.cardOverlay}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export const FavoritesScreen: React.FC = () => {
@@ -79,10 +76,16 @@ export const FavoritesScreen: React.FC = () => {
   const insets    = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const isRTL     = i18n.language === 'ar';
+  const lang      = isRTL ? 'ar' : 'en';
 
-  const [activeTab, setActiveTab] = useState<Tab>('favourites');
-  const [items,     setItems]     = useState<CollectionEntry[]>([]);
+  const [activeTab, setActiveTab]   = useState<Tab>('favourites');
+  const [items, setItems]           = useState<CollectionEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Filters
+  const [showFilterPopup, setShowFilterPopup] = useState(false);
+  const [selectedSort, setSelectedSort]         = useState<SortKey>('added_desc');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const load = useCallback(async (withServerSync = false) => {
     if (withServerSync) {
@@ -97,6 +100,9 @@ export const FavoritesScreen: React.FC = () => {
   // Reload when tab changes or screen comes into focus
   useFocusEffect(useCallback(() => { load(false); }, [load]));
   useEffect(() => { load(false); }, [activeTab]);
+
+  // Reset category filter when switching tabs — categories present differ per tab
+  useEffect(() => { setSelectedCategories([]); }, [activeTab]);
 
   const handleRemove = useCallback((item: CollectionEntry) => {
     Alert.alert(
@@ -116,42 +122,81 @@ export const FavoritesScreen: React.FC = () => {
     );
   }, [activeTab, load, t]);
 
-  const handlePress = useCallback((item: CollectionEntry) => {
-    const cat = item.category;
-    // Use runtime cache — already in memory from home/category screens
-    const cached = getRuntimeCache(cat);
-    const fullItem = cached?.find(i => i.id === item.content_id);
-    if (fullItem) {
-      navigation.navigate('Details', {item: fullItem, category: cat});
-      return;
-    }
-    // Fallback stub if category not cached yet
-    navigation.navigate('Details', {
-      item: {
-        id: item.content_id,
-        Title: item.title,
-        'Image Source': item.image,
-        Category: cat,
-        Source: '',
-        Genres: [],
-        GenresAr: [],
-        Format: '',
-        Runtime: null,
-        Country: null,
-      },
-      category: cat,
-    });
+  const handlePress = useCallback((fullItem: ContentItem) => {
+    navigation.navigate('Details', {item: fullItem});
   }, [navigation]);
+
+  // Hydrate each saved entry with its full cached ContentItem when available,
+  // so the card gets the same rating/quality/category/season badges as
+  // CategoryScreen — falls back to a title/image-only stub otherwise.
+  const hydrated = useMemo(() => {
+    return items.map(entry => {
+      const cached = getRuntimeCache(entry.category);
+      const full = cached?.find(i => i.id === entry.content_id);
+      return {entry, full: full ?? stubContentItem(entry)};
+    });
+  }, [items]);
+
+  // Distinct categories present in this tab, for the filter chips
+  const availableCategories = useMemo(() => {
+    const set = new Set(items.map(i => i.category));
+    return Array.from(set);
+  }, [items]);
+
+  const activeFilterCount = selectedCategories.length + (selectedSort !== 'added_desc' ? 1 : 0);
+
+  const visibleItems = useMemo(() => {
+    let list = hydrated;
+    if (selectedCategories.length > 0) {
+      list = list.filter(({entry}) => selectedCategories.includes(entry.category));
+    }
+    const sorted = [...list];
+    switch (selectedSort) {
+      case 'added_asc':
+        sorted.sort((a, b) => a.entry.added_at.localeCompare(b.entry.added_at));
+        break;
+      case 'az':
+        sorted.sort((a, b) => a.entry.title.localeCompare(b.entry.title));
+        break;
+      case 'za':
+        sorted.sort((a, b) => b.entry.title.localeCompare(a.entry.title));
+        break;
+      case 'added_desc':
+      default:
+        sorted.sort((a, b) => b.entry.added_at.localeCompare(a.entry.added_at));
+        break;
+    }
+    return sorted;
+  }, [hydrated, selectedCategories, selectedSort]);
+
+  const toggleCategory = useCallback((cat: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSelectedSort('added_desc');
+    setSelectedCategories([]);
+  }, []);
 
   const isEmpty = items.length === 0;
 
   return (
-    <View style={[styles.container, {paddingTop: insets.top}]}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.dark.background} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('favorites')}</Text>
+      {/* Header — same title styling as CategoryScreen */}
+      <View style={[styles.header, {paddingTop: insets.top + 6}, isRTL && styles.rowRTL]}>
+        <Text style={[styles.headerTitle, isRTL && styles.textRTL]}>{t('favorites')}</Text>
+        {!isEmpty && (
+          <TouchableOpacity
+            style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]}
+            onPress={() => setShowFilterPopup(true)}
+          >
+            <Image source={require('../../assets/icons/setting.png')} style={[styles.filterBtnIcon, {tintColor: activeFilterCount > 0 ? Colors.dark.primary : Colors.dark.textSecondary}]} />
+            {activeFilterCount > 0 && <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{activeFilterCount}</Text></View>}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tabs */}
@@ -169,7 +214,26 @@ export const FavoritesScreen: React.FC = () => {
         ))}
       </View>
 
-      {/* List */}
+      {/* Active filter chips */}
+      {activeFilterCount > 0 && (
+        <View style={[styles.activeFiltersRow, isRTL && styles.rowRTL]}>
+          {selectedCategories.map(cat => (
+            <TouchableOpacity key={cat} style={styles.activeChip} onPress={() => toggleCategory(cat)}>
+              <Text style={styles.activeChipText}>{CATEGORY_LABEL[cat]?.[lang] ?? cat}</Text>
+              <Text style={styles.activeChipX}>×</Text>
+            </TouchableOpacity>
+          ))}
+          {selectedSort !== 'added_desc' && (
+            <TouchableOpacity style={styles.activeChip} onPress={() => setSelectedSort('added_desc')}>
+              <Text style={styles.activeChipText}>{t(SORT_OPTIONS.find(s => s.key === selectedSort)!.labelKey)}</Text>
+              <Text style={styles.activeChipX}>×</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={clearFilters}><Text style={styles.clearAllText}>{t('clear_all_filters')}</Text></TouchableOpacity>
+        </View>
+      )}
+
+      {/* Grid */}
       {isEmpty ? (
         <View style={styles.emptyContainer}>
           <Image
@@ -179,12 +243,18 @@ export const FavoritesScreen: React.FC = () => {
           <Text style={styles.emptyTitle}>{t(`favorites_empty_${activeTab}`)}</Text>
           <Text style={styles.emptySubtitle}>{t('favorites_empty_hint')}</Text>
         </View>
+      ) : visibleItems.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptySubtitle}>{t('no_results')}</Text>
+        </View>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={item => `${item.category}:${item.content_id}`}
-          numColumns={3}
-          contentContainerStyle={styles.grid}
+          data={visibleItems}
+          keyExtractor={({entry}) => `${entry.category}:${entry.content_id}`}
+          numColumns={2}
+          columnWrapperStyle={styles.row}
+          contentContainerStyle={[styles.grid, {paddingBottom: insets.bottom + 100}]}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -192,16 +262,82 @@ export const FavoritesScreen: React.FC = () => {
               tintColor={Colors.dark.primary}
             />
           }
-          renderItem={({item}) => (
-            <FavCard
-              item={item}
-              tab={activeTab}
-              onPress={() => handlePress(item)}
-              onRemove={() => handleRemove(item)}
-            />
+          renderItem={({item: {entry, full}}) => (
+            <View>
+              <MovieCard
+                item={full}
+                onPress={handlePress}
+                onLongPress={() => handleRemove(entry)}
+                width={CARD_WIDTH}
+              />
+              {activeTab === 'watched' && entry.progress && (entry.progress.season || entry.progress.episode) && (
+                <View style={styles.progressBadge}>
+                  <Text style={styles.progressText}>
+                    {entry.progress.season
+                      ? `S${entry.progress.season}E${entry.progress.episode ?? '?'}`
+                      : `E${entry.progress.episode}`}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
         />
       )}
+
+      {/* Filter Modal */}
+      <Modal visible={showFilterPopup} transparent animationType="fade" onRequestClose={() => setShowFilterPopup(false)}>
+        <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setShowFilterPopup(false)}>
+          <View style={styles.filterPanel} onStartShouldSetResponder={() => true}>
+            <View style={[styles.filterHeader, isRTL && styles.rowRTL]}>
+              <Text style={[styles.filterTitle, isRTL && styles.textRTL]}>{t('filter')}</Text>
+              <TouchableOpacity onPress={() => setShowFilterPopup(false)}>
+                <Image source={require('../../assets/icons/close.png')} style={[styles.headerIcon, {tintColor: Colors.dark.text}]} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('filter')}</Text>
+              <View style={[styles.chipsWrap, isRTL && styles.rowRTL]}>
+                {SORT_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.chip, selectedSort === opt.key && styles.chipActive]}
+                    onPress={() => setSelectedSort(opt.key)}
+                  >
+                    <Text style={[styles.chipText, selectedSort === opt.key && styles.chipTextActive]}>{t(opt.labelKey)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {availableCategories.length > 1 && (
+                <>
+                  <Text style={[styles.filterSectionTitle, isRTL && styles.textRTL]}>{t('category')}</Text>
+                  <View style={[styles.chipsWrap, isRTL && styles.rowRTL]}>
+                    {availableCategories.map(cat => {
+                      const active = selectedCategories.includes(cat);
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[styles.chip, active && styles.chipActive]}
+                          onPress={() => toggleCategory(cat)}
+                        >
+                          <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                            {CATEGORY_LABEL[cat]?.[lang] ?? cat}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.applyBtn} onPress={() => setShowFilterPopup(false)}>
+              <Text style={styles.applyBtnText}>{t('filter')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -213,15 +349,37 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.background,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 10, gap: 10,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.dark.text,
-    fontFamily: 'Rubik-Bold',
+    fontFamily: 'Rubik',
   },
+  filterBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.dark.surface,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.dark.border,
+  },
+  filterBtnActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: `${Colors.dark.primary}20`,
+  },
+  filterBtnIcon: {width: 18, height: 18},
+  filterBadge: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: Colors.dark.primary,
+    width: 16, height: 16, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  filterBadgeText: {color: '#fff', fontSize: 9, fontWeight: '700'},
+  headerIcon: {width: 20, height: 20},
+  rowRTL: {flexDirection: 'row-reverse'},
+  textRTL: {textAlign: 'right', writingDirection: 'rtl'},
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: 16,
@@ -249,41 +407,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'Rubik-Bold',
   },
-  grid: {
-    paddingHorizontal: 12,
-    paddingBottom: 20,
+  activeFiltersRow: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: 16, marginBottom: 8, gap: 6, alignItems: 'center',
   },
-  card: {
-    width: CARD_W,
-    height: CARD_H,
-    margin: 5,
-    borderRadius: 10,
-    overflow: 'hidden',
+  activeChip: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.dark.surface,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: Colors.dark.primary, gap: 4,
   },
-  cardImage: {
-    width: '100%',
-    height: '100%',
+  activeChipText: {color: Colors.dark.primary, fontSize: 12, fontFamily: 'Rubik'},
+  activeChipX: {color: Colors.dark.primary, fontSize: 14, fontWeight: '700'},
+  clearAllText: {color: Colors.dark.textMuted, fontSize: 12, fontFamily: 'Rubik', textDecorationLine: 'underline'},
+  grid: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
   },
-  cardOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  cardTitle: {
-    fontSize: 11,
-    color: '#fff',
-    fontFamily: 'Rubik',
-    lineHeight: 14,
+  row: {
+    justifyContent: 'space-between',
   },
   progressBadge: {
     position: 'absolute',
     top: 6,
-    right: 6,
+    left: 6,
     backgroundColor: Colors.dark.primary,
     borderRadius: 4,
     paddingHorizontal: 5,
@@ -321,4 +468,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  // Filter modal
+  filterOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end',
+  },
+  filterPanel: {
+    backgroundColor: Colors.dark.surface,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, maxHeight: '70%',
+  },
+  filterHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  filterTitle: {fontSize: 18, fontWeight: '700', color: Colors.dark.text, fontFamily: 'Rubik-Bold'},
+  filterSectionTitle: {
+    fontSize: 13, fontWeight: '600', color: Colors.dark.textMuted,
+    fontFamily: 'Rubik', marginBottom: 8, marginTop: 12,
+  },
+  chipsWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: Colors.dark.background,
+    borderWidth: 1, borderColor: Colors.dark.border,
+  },
+  chipActive: {borderColor: Colors.dark.primary, backgroundColor: `${Colors.dark.primary}20`},
+  chipText: {color: Colors.dark.textSecondary, fontSize: 13, fontFamily: 'Rubik'},
+  chipTextActive: {color: Colors.dark.primary, fontWeight: '700'},
+  applyBtn: {
+    backgroundColor: Colors.dark.primary, borderRadius: 12,
+    paddingVertical: 13, alignItems: 'center', marginTop: 16,
+  },
+  applyBtnText: {color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Rubik-Bold'},
 });

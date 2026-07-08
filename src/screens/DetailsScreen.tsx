@@ -235,6 +235,11 @@ export const DetailsScreen: React.FC = () => {
   const [selSeason, setSelSeason] = useState<string>('1');
   const [showSeasonDlg, setShowSeasonDlg] = useState(false);
 
+  // "Mark as watched — how far did you get?" picker
+  const [showWatchedProgressModal, setShowWatchedProgressModal] = useState(false);
+  const [wpSeason, setWpSeason]   = useState<string>('1');
+  const [wpEpisode, setWpEpisode] = useState<number>(1);
+
   // Rating fetch state
   const [rating, setRating] = useState<string>(() => {
     // arabic-series has rating float directly on the item — pre-fill immediately
@@ -566,6 +571,7 @@ export const DetailsScreen: React.FC = () => {
   }) : [];
   const currentEps: string[] = epData?.seasons?.[selSeason]?.episodes ?? [];
   const seasonPoster: string = epData?.seasons?.[selSeason]?.poster || '';
+  const wpEpisodeCount: number = epData?.seasons?.[wpSeason]?.episodes?.length ?? 0;
 
   const totalSeasons = seasonKeys.length;
 
@@ -1618,6 +1624,86 @@ export const DetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
+      {/* ── Watched progress picker (season + episode) ── */}
+      <Modal
+        visible={showWatchedProgressModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWatchedProgressModal(false)}
+      >
+        <TouchableOpacity
+          style={S.seasonModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowWatchedProgressModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={S.seasonModalContent} onPress={() => {}}>
+            <View style={S.seasonModalHeader}>
+              <Text style={S.seasonModalTitle}>{t('watched_progress_title')}</Text>
+              <TouchableOpacity onPress={() => setShowWatchedProgressModal(false)}>
+                <Text style={{color: Colors.dark.textMuted, fontSize: 20}}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={S.wpSectionLabel}>{t('season')}</Text>
+            <View style={S.wpChipsRow}>
+              {seasonKeys.map(sk => (
+                <TouchableOpacity
+                  key={sk}
+                  style={[S.wpChip, wpSeason === sk && S.wpChipActive]}
+                  onPress={() => { setWpSeason(sk); setWpEpisode(1); }}
+                >
+                  <Text style={[S.wpChipText, wpSeason === sk && S.wpChipTextActive]}>
+                    {seasonLabel(sk)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={S.wpSectionLabel}>{t('episode')}</Text>
+            <View style={S.wpStepperRow}>
+              <TouchableOpacity
+                style={S.wpStepperBtn}
+                onPress={() => setWpEpisode(e => Math.max(1, e - 1))}
+              >
+                <Text style={S.wpStepperBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={S.wpStepperValue}>{wpEpisode}</Text>
+              <TouchableOpacity
+                style={S.wpStepperBtn}
+                onPress={() => setWpEpisode(e => wpEpisodeCount ? Math.min(wpEpisodeCount, e + 1) : e + 1)}
+              >
+                <Text style={S.wpStepperBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            {wpEpisodeCount > 0 && (
+              <Text style={S.wpRangeHint}>{t('episode')} 1 – {wpEpisodeCount}</Text>
+            )}
+
+            <TouchableOpacity
+              style={S.wpApplyBtn}
+              onPress={() => {
+                handleCollectionToggleWithProgress('watched', {
+                  season: parseInt(wpSeason, 10) || 1,
+                  episode: wpEpisode,
+                });
+                setShowWatchedProgressModal(false);
+                showToast(t('added_to_list_success'));
+              }}
+            >
+              <Text style={S.wpApplyBtnText}>{t('apply')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                handleCollectionToggle('watched');
+                setShowWatchedProgressModal(false);
+              }}
+            >
+              <Text style={S.wpWholeText}>{t('watched_whole')}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── Collection popup ── */}
       <Modal
         visible={collectionSheet}
@@ -1665,28 +1751,13 @@ export const DetailsScreen: React.FC = () => {
                     handleCollectionToggle('watched');
                     return;
                   }
-                  // Ask for progress if it's a series-type
+                  // Series-type: ask exactly how far the user watched (season + episode)
                   const isSeries = ['series','tvshows','asian-series','arabic-series','anime'].includes(category);
-                  if (isSeries) {
-                    Alert.prompt
-                      ? Alert.prompt(
-                          t('watched_progress_title'),
-                          t('watched_progress_body'),
-                          [
-                            { text: t('cancel'), style: 'cancel' },
-                            { text: t('watched_whole'), onPress: () => handleCollectionToggle('watched') },
-                          ]
-                        )
-                      : Alert.alert(
-                          t('watched_progress_title'),
-                          t('watched_progress_body'),
-                          [
-                            { text: t('cancel'), style: 'cancel' },
-                            { text: t('watched_whole'), onPress: () => handleCollectionToggle('watched') },
-                            { text: selSeason ? t('watched_up_to_s', {season: selSeason}) : t('watched_whole'),
-                              onPress: () => handleCollectionToggleWithProgress('watched', { season: parseInt(selSeason || '1') }) },
-                          ]
-                        );
+                  if (isSeries && seasonKeys.length > 0) {
+                    const defaultSeason = seasonKeys.includes(selSeason) ? selSeason : seasonKeys[0];
+                    setWpSeason(defaultSeason);
+                    setWpEpisode(1);
+                    setShowWatchedProgressModal(true);
                   } else {
                     handleCollectionToggle('watched');
                   }
@@ -1949,6 +2020,48 @@ const S = StyleSheet.create({
   seasonModalOptionTextActive: {
     color: Colors.dark.primary,
     fontWeight: '700',
+  },
+  wpSectionLabel: {
+    color: Colors.dark.textMuted, fontSize: 13, fontFamily: 'Rubik', marginBottom: 10,
+  },
+  wpChipsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18,
+  },
+  wpChip: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+    backgroundColor: Colors.dark.background,
+    borderWidth: 1, borderColor: Colors.dark.border,
+  },
+  wpChipActive: {
+    borderColor: Colors.dark.primary, backgroundColor: `${Colors.dark.primary}20`,
+  },
+  wpChipText: {color: Colors.dark.textSecondary, fontSize: 13, fontFamily: 'Rubik'},
+  wpChipTextActive: {color: Colors.dark.primary, fontWeight: '700'},
+  wpStepperRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 4,
+  },
+  wpStepperBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.dark.background,
+    borderWidth: 1, borderColor: Colors.dark.border,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  wpStepperBtnText: {color: Colors.dark.text, fontSize: 20, fontWeight: '700'},
+  wpStepperValue: {
+    color: Colors.dark.text, fontSize: 22, fontWeight: '700',
+    fontFamily: 'Rubik-Bold', minWidth: 44, textAlign: 'center',
+  },
+  wpRangeHint: {
+    color: Colors.dark.textMuted, fontSize: 12, fontFamily: 'Rubik',
+    textAlign: 'center', marginTop: 8, marginBottom: 18,
+  },
+  wpApplyBtn: {
+    backgroundColor: Colors.dark.primary, borderRadius: 12,
+    paddingVertical: 13, alignItems: 'center', marginBottom: 10,
+  },
+  wpApplyBtnText: {color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Rubik-Bold'},
+  wpWholeText: {
+    color: Colors.dark.textMuted, fontSize: 13, fontFamily: 'Rubik', textAlign: 'center',
   },
 });
 

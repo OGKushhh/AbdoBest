@@ -44,6 +44,7 @@ function animeSeasonLabel(dateStr: string | null | undefined, lang: 'en' | 'ar')
 interface MovieCardProps {
   item: ContentItem;
   onPress: (item: ContentItem) => void;
+  onLongPress?: (item: ContentItem) => void;
   width?: number;
 }
 
@@ -64,7 +65,7 @@ const CATEGORY_I18N: Record<string, string> = {
   'arabic-series': 'arabic_series',
 };
 
-const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CARD_WIDTH}) => {
+const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, onLongPress, width = CARD_WIDTH}) => {
   const {t, i18n} = useTranslation();
   const imageUri = item['Image Source'] || (item as any).Image || '';
   const rating   = (item as any).Rating   || (item as any).imdb_rating || '';
@@ -96,6 +97,7 @@ const MovieCardComponent: React.FC<MovieCardProps> = ({item, onPress, width = CA
     <TouchableOpacity
       style={[styles.card, {width}]}
       onPress={() => onPress(item)}
+      onLongPress={onLongPress ? () => onLongPress(item) : undefined}
       activeOpacity={0.78}
     >
       <View style={styles.imageWrap}>

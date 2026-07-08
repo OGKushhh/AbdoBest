@@ -1,9 +1,10 @@
 # TODO
 
 ## Favorites screen
-- [ ] Switch the grid from 3 columns to 2 columns.
-- [ ] Match the title styling used on the Category screen (same title text/placement style, and possibly inherit the same badges).
-- [ ] Add filter options to the Favorites screen.
+- [x] Switch the grid from 3 columns to 2 columns. — Done as part of the rewrite below.
+- [x] Match the title styling used on the Category screen (same title text/placement style, and possibly inherit the same badges). — **Rewritten**: the header title now uses the exact same size/weight/placement as `CategoryScreen`. More significantly, cards now render with the actual shared `MovieCard` component (the same one `CategoryScreen`/`HomeScreen` use) instead of a separate custom card — so rating, quality, category, and season badges are identical, not just similar. Each saved favorite is matched against the in-memory content cache by id to get its full metadata; if a title isn't cached yet (e.g. fresh app launch), it falls back to a stub card built from the title/image that were saved when it was favorited, so it never breaks — it just shows fewer badges until that category loads.
+- [x] Add filter options to the Favorites screen. — Added a filter button (with an active-filter-count badge, matching `CategoryScreen`'s pattern) opening a bottom-sheet modal with sort (Newest/Oldest Added, A-Z, Z-A) and a category multi-select (only shown when the current tab actually has more than one category present). Active filters also show as removable chips under the tab bar.
+  - Side change: added an optional `onLongPress` prop to `MovieCard` (used here for the remove gesture) — backward compatible, its 3 other call sites don't pass it.
 
 ## Ads
 - [x] Startup ad popup: Arabic text is missing the number of hours. — **Fixed**: `RewardAdPopup.tsx` called `t('reward_body', { hours: '' })`, which made i18next substitute `{{hours}}` with an empty string *before* the code tried to `.split('{{hours}}')` on the result — the placeholder was already gone, so the highlighted hours text never got inserted (this was silently broken in English too, just not visible since the fallback happened to still show the sentence minus the number in a less obvious way). Fixed by calling `t('reward_body')` with no options, so i18next leaves `{{hours}}` untouched for the manual split to find. Also fixed a separate bug where the English template had a duplicate "hours hours" (the `reward_hours` string already contains the word "hours").
@@ -20,6 +21,9 @@
 ## Genres / filters
 - [x] Pressing any genre currently crashes the app. — **Fixed**: `CategoryScreen.tsx` was calling a nonexistent `setSelectedGenre(...)` (leftover from before multi-genre support); state is actually the plural `selectedGenres` array. Changed to `setSelectedGenres(incomingGenre ? [incomingGenre] : [])`.
 - [ ] Rework the genres and filter system — consider moving genre/filter parsing and fetching to the backend instead of doing it on the frontend.
+
+## Watched progress (found live, wasn't on the original list)
+- [x] "Mark as Watched" never actually asked which season/episode. — **Confirmed real bug, fixed.** The old flow (`DetailsScreen.tsx`) called `Alert.prompt` (iOS-only; silently falls through on Android) and, in its Android fallback `Alert.alert`, the "up to season X" button just silently reused whatever `selSeason` the user happened to have selected in the *unrelated* episode-browser dropdown — there was no way to actually choose a season in that dialog, and episode-level tracking was never implemented at all despite `WatchedProgress` supporting it. Replaced with a real picker modal (season chips + an episode +/− stepper capped to that season's episode count, reusing the existing season-modal visual style) that calls `handleCollectionToggleWithProgress('watched', {season, episode})` with values the user actually picked.
 
 ## Content Sync / Push Notifications
 - [x] Every new push to the backend with new content should trigger a content update fetch in the frontend, so that general notifications and content on the app stay in sync, while keeping everything else intact (e.g., the 24h cache). — **Implemented**:
