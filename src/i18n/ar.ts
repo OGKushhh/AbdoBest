@@ -93,6 +93,7 @@ export const ar = {
   data: 'البيانات',
   appearance: 'المظهر',
   cache_cleared: 'تم مسح ذاكرة التخزين المؤقت',
+  clear: 'مسح',
   clear_cache: 'مسح ذاكرة التخزين المؤقت',
   clear_cache_confirm: 'هل أنت متأكد من مسح ذاكرة التخزين المؤقت؟',
   sync_database: 'مزامنة قاعدة البيانات',
@@ -181,6 +182,9 @@ export const ar = {
   extract_err_http_body:     'أرجعت صفحة الفيديو خطأً. ربما تم نقلها أو حذفها.',
   extract_err_default_title: 'خطأ في التشغيل',
   extract_err_default_body:  'حدث خطأ أثناء تحميل الفيديو. يرجى المحاولة مجدداً.',
+  extract_error: 'فشل تحميل الفيديو. حاول مرة أخرى.',
+  copy: 'نسخ',
+  copied: 'تم النسخ',
   // Extract status
   extract_status_connecting: 'جارِ الاتصال...',
   extract_status_loading:    'جارِ تحميل الصفحة...',

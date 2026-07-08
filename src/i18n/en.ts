@@ -93,6 +93,7 @@ export const en = {
   data: 'Data',
   appearance: 'Appearance',
   cache_cleared: 'Cache cleared',
+  clear: 'Clear',
   clear_cache: 'Clear Cache',
   clear_cache_confirm: 'Are you sure you want to clear the cache?',
   sync_database: 'Sync Database',
@@ -181,6 +182,9 @@ export const en = {
   extract_err_http_body:     'The video page returned an error. It may have moved or been removed.',
   extract_err_default_title: 'Playback error',
   extract_err_default_body:  'Something went wrong loading the video. Please try again.',
+  extract_error: 'Failed to load video. Please try again.',
+  copy: 'Copy',
+  copied: 'Copied',
   // Extract status
   extract_status_connecting: 'Connecting...',
   extract_status_loading:    'Loading page...',
