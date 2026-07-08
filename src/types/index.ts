@@ -67,7 +67,6 @@ export interface UserSettings {
   language: 'ar' | 'en';
   defaultQuality: string;
   mobileDataWarning: boolean;
-  autoPlay: boolean;
   showArabicTitles: boolean;
   darkMode: boolean;
   qualityPreference: 'high' | 'medium' | 'low' | 'auto';

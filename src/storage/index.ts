@@ -56,7 +56,6 @@ const DEFAULT_SETTINGS = {
   language: 'ar',
   defaultQuality: '1080p',
   mobileDataWarning: true,
-  autoPlay: false,
   showArabicTitles: true,
   darkMode: true,
   qualityPreference: 'auto',

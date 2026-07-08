@@ -13,6 +13,12 @@
 
 ## Settings screen
 - [x] Ko-fi button UI needs a redesign — should look like the button style used in the README, not the current gradient pill. — **Fixed**: replaced the full-width gradient card (`LinearGradient`, heart icon, big padding) with a small, flat, dark badge — matching the compact "Support me on Ko-fi" button style (`https://ko-fi.com/img/githubbutton_sm.svg`) used in the README, rather than the app's usual big CTA-button look.
+- [x] Remove Auto Play option — confirmed it was dead (nothing in the video playback code ever read it). Removed the toggle row, the `autoPlay` field from types/storage defaults, and the unused `auto_play` i18n key from both languages.
+- [x] Remove Dark Mode toggle (no light theme built yet). — Removed the UI row only; the underlying `useTheme` system and the `darkMode` field in settings/storage are untouched since `colors` is still used everywhere. Also cleaned up the now-dead `dark_mode` special-casing in `SettingRow`/`updateSetting` that existed only to support that toggle.
+- [ ] Mobile Data Warning toggle doesn't actually work — confirmed same issue as Auto Play: the setting saves a boolean but nothing reads it anywhere (no check before streaming or downloading over cellular). Not removed yet — plan is to actually implement it instead:
+  - Needs a new dependency: `@react-native-community/netinfo` (standard, well-maintained, but still a native module — needs linking + a real device test, same caveat as the in-app update work).
+  - Only 2 places need the check, since both already funnel through single functions: `startExtraction(...)` in `DetailsScreen.tsx` (playback) and `startDownload(...)` in `downloadService.ts` (downloads).
+  - **Open question, needs a decision before building:** how often should the warning show — every time on cellular, once per app session, or once per title? (Asked, not yet answered.)
 
 ## Auth
 - [ ] After signing out of Google, the app should allow signing in with a different Google account without requiring a full app restart. Currently the sign-in state only resets after closing and reopening the app.

@@ -58,7 +58,7 @@ const AppModal: React.FC<AppModalProps> = ({ visible, onClose, children, colors 
 
 // ─── Main Screen ───────────────────────────────────────────────────────────
 export const SettingsScreen: React.FC = () => {
-  const { colors, isDark, setDarkMode } = useTheme();
+  const { colors } = useTheme();
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const insets = useSafeAreaInsets();
@@ -85,12 +85,10 @@ export const SettingsScreen: React.FC = () => {
 
   // ─── Unified settings updater ────────────────────────────────────────────
   const updateSetting = useCallback((key: string, value: any) => {
-    const storageKey = key === 'dark_mode' ? 'darkMode' : key;
-    const updated = { ...settings, [storageKey]: value };
+    const updated = { ...settings, [key]: value };
     setSettings(updated);
     saveSettings(updated);
-    if (storageKey === 'darkMode') setDarkMode(value);
-  }, [settings, setDarkMode]);
+  }, [settings]);
 
   const toggleLanguage = useCallback(() => {
     const newLang = settings.language === 'ar' ? 'en' : 'ar';
@@ -243,13 +241,13 @@ export const SettingsScreen: React.FC = () => {
 
   // ─── Helper Row Component ──────────────────────────────────────────────────
   const SettingRow = ({ icon, label, sub, value, onPress, toggle, settingKey, last }: any) => {
-    const isOn = settingKey === 'dark_mode' ? isDark : (settings[settingKey] ?? false);
+    const isOn = settings[settingKey] ?? false;
     return (
       <TouchableOpacity
         style={[styles.row, last && styles.rowLast]}
         onPress={() => {
           if (toggle && settingKey) {
-            updateSetting(settingKey, settingKey === 'dark_mode' ? !isDark : !settings[settingKey]);
+            updateSetting(settingKey, !settings[settingKey]);
           } else if (onPress) onPress();
         }}
         activeOpacity={0.65}
@@ -335,12 +333,6 @@ export const SettingsScreen: React.FC = () => {
               label={t('language')}
               value={settings.language === 'ar' ? t('arabic') : t('english')}
               onPress={toggleLanguage}
-            />
-            <SettingRow
-              icon={require('../../assets/icons/night-mode.png')}
-              label={t('dark_mode')}
-              settingKey="dark_mode"
-              toggle
               last
             />
           </View>
@@ -352,12 +344,6 @@ export const SettingsScreen: React.FC = () => {
               icon={require('../../assets/icons/browsing.png')}
               label={t('mobile_data_warning')}
               settingKey="mobileDataWarning"
-              toggle
-            />
-            <SettingRow
-              icon={require('../../assets/icons/play.png')}
-              label={t('auto_play')}
-              settingKey="autoPlay"
               toggle
             />
             <TouchableOpacity style={styles.row} onPress={() => setQualityModalVisible(true)} activeOpacity={0.65}>
