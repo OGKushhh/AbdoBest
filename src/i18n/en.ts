@@ -298,6 +298,22 @@ export const en = {
   profile_signout_confirm: 'Sign Out',
   profile_signout_error: 'Something went wrong. Please try again.',
 
+  // Profile editing
+  profile_name:            'Name',
+  profile_name_placeholder: 'Enter your name',
+  profile_gender:          'Gender',
+  gender_male:             'Male',
+  gender_female:           'Female',
+  gender_other:            'Other',
+  profile_genres:          'Preferred Genres',
+  profile_genres_hint:     'Pick a few to personalise recommendations',
+  profile_edit:            'Edit Profile',
+  profile_save:            'Save',
+  profile_saved:           'Profile updated',
+  profile_save_failed:     'Failed to save. Please try again.',
+  avatar_change:           'Change photo',
+  avatar_uploading:        'Uploading photo…',
+  avatar_upload_failed:    'Failed to upload photo. Please try again.',
   // Sign in screen
   sign_in_subtitle:   'Sign in to save favourites and get notified when new content drops.',
   sign_in_google:     'Continue with Google',

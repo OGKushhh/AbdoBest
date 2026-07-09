@@ -96,6 +96,9 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+    // Required by react-native-image-picker for the backported AndroidX Photo
+    // Picker on API < 33 (minSdkVersion here is 21) — see its README.
+    implementation("androidx.activity:activity:1.9.+")
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
