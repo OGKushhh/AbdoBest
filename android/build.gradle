@@ -47,7 +47,7 @@ subprojects {
             // have them, and that module compiles as its own Gradle project, so
             // an app-level `implementation(...)` dependency doesn't reach it —
             // this project-wide force does.
-            force 'androidx.activity:activity:1.9.2'
+            force 'androidx.activity:activity:1.7.0'
         }
     }
 }
