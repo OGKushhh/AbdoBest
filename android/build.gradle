@@ -50,4 +50,14 @@ subprojects {
             force 'androidx.activity:activity:1.7.0'
         }
     }
+
+    // ✅ NEW: Force all modules (including react-native-image-picker) to use the same compileSdk (33)
+    // This avoids the broken android-35 platform on the GitHub runner.
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            android {
+                compileSdkVersion rootProject.ext.compileSdkVersion
+            }
+        }
+    }
 }
