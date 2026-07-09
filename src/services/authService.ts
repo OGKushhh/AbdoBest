@@ -19,12 +19,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const AUTH_USER_KEY = 'auth_user';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+export type AuthProvider = 'google' | 'facebook' | 'email' | 'phone' | 'guest';
+
 export interface AbdoUser {
   uid: string;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
   isGuest: boolean;
+  provider: AuthProvider;
 }
 
 // ─── Init (call once at app startup) ────────────────────────────────────────
@@ -38,12 +41,26 @@ export function initAuth() {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function mapFirebaseUser(fbUser: FirebaseAuthTypes.User): AbdoUser {
+  let provider: AuthProvider = 'email';
+  if (fbUser.isAnonymous) {
+    provider = 'guest';
+  } else if (fbUser.providerData.some(p => p.providerId === 'google.com')) {
+    provider = 'google';
+  } else if (fbUser.providerData.some(p => p.providerId === 'facebook.com')) {
+    provider = 'facebook';
+  } else if (fbUser.providerData.some(p => p.providerId === 'phone')) {
+    provider = 'phone';
+  } else if (fbUser.providerData.some(p => p.providerId === 'password')) {
+    provider = 'email';
+  }
+
   return {
     uid:         fbUser.uid,
     displayName: fbUser.displayName,
     email:       fbUser.email,
     photoURL:    fbUser.photoURL,
     isGuest:     fbUser.isAnonymous,
+    provider,
   };
 }
 

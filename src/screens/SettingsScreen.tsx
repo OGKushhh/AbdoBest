@@ -15,7 +15,7 @@ import { checkForUpdate, openUpdateUrl, skipVersion } from '../services/updateSe
 import { APP_VERSION } from '../constants/endpoints';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation } from '@react-navigation/native';
-import { getPersistedUser, AbdoUser } from '../services/authService';
+import { getPersistedUser, onAuthStateChanged, AbdoUser } from '../services/authService';
 import { useRewardAd, formatAdFreeRemaining } from '../ads/RewardAdPopup';
 import { Colors } from '../theme/colors'; // for dark background etc. (fallback)
 
@@ -66,7 +66,17 @@ export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [currentUser, setCurrentUser] = React.useState<AbdoUser | null>(null);
 
-  React.useEffect(() => { getPersistedUser().then(setCurrentUser); }, []);
+  React.useEffect(() => {
+    // One-time read so the UI has something to show immediately (no flash of
+    // "signed out" while Firebase's listener below does its first callback),
+    // then subscribe for real-time updates — this is what actually fixes
+    // sign-in only showing up after an app restart: this screen is a tab
+    // that stays mounted in the background, so a one-time read on mount
+    // never notices a sign-in that happens later on a different screen.
+    getPersistedUser().then(setCurrentUser);
+    const unsubscribe = onAuthStateChanged(setCurrentUser);
+    return unsubscribe;
+  }, []);
 
   const { rewardElement, triggerReward, adFreeActive, remainingMs } = useRewardAd();
   const { running: syncing, progress: syncProgress, start: startSync } = useCacheSync();

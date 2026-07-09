@@ -22,7 +22,7 @@ import {useNavigation} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useTheme} from '../hooks/useTheme';
-import {signOut, AbdoUser} from '../services/authService';
+import {signOut, AbdoUser, AuthProvider} from '../services/authService';
 import {clearCollectionsCache} from '../services/favoritesService';
 import {
   fetchProfile, updateProfile, uploadAvatar, avatarUrlFor,
@@ -61,11 +61,11 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
     fetchProfile().then(setProfile).catch(() => {});
   }, [user?.uid]);
 
-  const providerLabel = !user ? t('sign_in') : user.isGuest
-    ? t('profile_guest')
-    : user.email?.includes('facebook')
-    ? 'Facebook'
-    : 'Google';
+  const PROVIDER_LABEL_KEY: Record<AuthProvider, string> = {
+    google: 'provider_google', facebook: 'provider_facebook',
+    email: 'provider_email', phone: 'provider_phone', guest: 'profile_guest',
+  };
+  const providerLabel = !user ? t('sign_in') : t(PROVIDER_LABEL_KEY[user.provider]);
 
   const providerColor = user?.isGuest ? colors.textMuted : colors.primary;
 
