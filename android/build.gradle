@@ -40,6 +40,14 @@ subprojects {
                     details.useVersion '18.3.0'   // use the latest stable from the list you shared
                 }
             }
+            // ✅ react-native-image-picker's ImagePickerModuleImpl.java uses the
+            // AndroidX Photo Picker APIs (PickVisualMedia, PickVisualMediaRequest,
+            // PickMultipleVisualMedia), which only exist from androidx.activity
+            // 1.7.0+. Whatever older version is transitively pulled in doesn't
+            // have them, and that module compiles as its own Gradle project, so
+            // an app-level `implementation(...)` dependency doesn't reach it —
+            // this project-wide force does.
+            force 'androidx.activity:activity:1.9.2'
         }
     }
 }
