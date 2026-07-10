@@ -274,7 +274,6 @@ export const DetailsScreen: React.FC = () => {
   const [malStudios,   setMalStudios]   = useState<string>('');
   const [malTitleEn,   setMalTitleEn]   = useState<string>('');
   const [malSeason,    setMalSeason]    = useState<string>('');
-  const [showLightbox, setShowLightbox] = useState(false);
 
   // Live view count (fetched from API, then bumped locally on play)
   const [liveViews, setLiveViews] = useState<number | null>(null);
