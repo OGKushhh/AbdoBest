@@ -231,7 +231,7 @@ export const en = {
   ad_free_active: 'Ad-Free Active',
   disable_ads: 'Disable Ads',
   ad_free_expires: 'Expires in {{time}}',
-  ad_free_watch_prompt: 'Watch 1 ad for 3h ad-free',
+  ad_free_watch_prompt: 'Watch 1 ad for 2h ad-free',
   // RewardAdPopup
   reward_title: 'Watch 1 Ad',
   reward_body: 'Enjoy {{hours}} ad-free by watching one short ad.',

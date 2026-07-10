@@ -231,7 +231,7 @@ export const ar = {
   ad_free_active: 'بدون إعلانات',
   disable_ads: 'تعطيل الإعلانات',
   ad_free_expires: 'ينتهي خلال {{time}}',
-  ad_free_watch_prompt: 'شاهد إعلاناً للحصول على 3 ساعات مجانية',
+  ad_free_watch_prompt: 'شاهد إعلاناً للحصول على ساعتين مجانيتين',
   // نافذة مكافأة الإعلان
   reward_title: 'شاهد إعلاناً واحداً',
   reward_body: 'استمتع بتجربة بدون إعلانات لمدة {{hours}} مقابل مشاهدة إعلان واحد قصير.',
