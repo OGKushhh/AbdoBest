@@ -18,12 +18,13 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useTheme} from '../hooks/useTheme';
 import {signOut, AbdoUser, AuthProvider} from '../services/authService';
 import {clearCollectionsCache} from '../services/favoritesService';
+import {Lightbox} from '../components/Lightbox';
 import {
   fetchProfile, updateProfile, uploadAvatar, avatarUrlFor,
   clearProfileCache, UserProfile,
@@ -61,6 +62,19 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
   const [editGender, setEditGender]   = useState<UserProfile['gender']>('');
   const [editGenres, setEditGenres]   = useState<string[]>([]);
   const [saving, setSaving]           = useState(false);
+
+  // Avatar lightbox — guarded against opening alongside the edit modal, and
+  // force-closed on navigation blur/unmount (an RN <Modal> left open across
+  // a navigation transition is a known Android crash source).
+  const [showLightbox, setShowLightbox] = useState(false);
+  useEffect(() => {
+    if (showEditModal) setShowLightbox(false);
+  }, [showEditModal]);
+  useFocusEffect(
+    useCallback(() => {
+      return () => setShowLightbox(false);
+    }, []),
+  );
 
   useEffect(() => {
     if (!user || user.isGuest) return;
@@ -184,7 +198,13 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
           {/* ── Avatar + name ── */}
           <View style={styles.avatarSection}>
             <TouchableOpacity
-              onPress={handleChangeAvatar}
+              onPress={() => {
+                if (avatarUri) {
+                  setShowLightbox(true);
+                } else if (user && !user.isGuest && !avatarUploading) {
+                  handleChangeAvatar();
+                }
+              }}
               disabled={!user || user.isGuest || avatarUploading}
               activeOpacity={0.8}
               style={styles.avatarTouchable}
@@ -202,9 +222,13 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
                 </View>
               )}
               {user && !user.isGuest && !avatarUploading && (
-                <View style={[styles.avatarEditBadge, {borderColor: colors.background}]}>
-                  <Image source={require('../../assets/icons/setting.png')} style={styles.avatarEditIcon} />
-                </View>
+                <TouchableOpacity
+                  style={[styles.avatarEditBadge, {borderColor: colors.background}]}
+                  onPress={handleChangeAvatar}
+                  hitSlop={8}
+                >
+                  <Image source={require('../../assets/icons/edit.png')} style={styles.avatarEditIcon} />
+                </TouchableOpacity>
               )}
             </TouchableOpacity>
 
@@ -287,6 +311,13 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
         </ScrollView>
       </SafeAreaView>
 
+      {/* ── Avatar lightbox ── */}
+      <Lightbox
+        visible={showLightbox && !showEditModal}
+        imageUri={avatarUri}
+        onClose={() => setShowLightbox(false)}
+      />
+
       {/* ── Edit Profile modal ── */}
       <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
         <View style={styles.editOverlay}>
@@ -367,21 +398,21 @@ const styles = StyleSheet.create({
   backIcon:      {width: 20, height: 20, transform: [{rotate: '90deg'}]},
   avatarSection: {alignItems: 'center', paddingVertical: 32},
   avatarTouchable: {marginBottom: 14},
-  avatar:        {width: 96, height: 96, borderRadius: 48},
-  avatarFallback:{width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center'},
-  avatarInitials:{fontSize: 34, fontWeight: '700', color: '#fff', fontFamily: 'Rubik-Bold'},
+  avatar:        {width: 192, height: 192, borderRadius: 96},
+  avatarFallback:{width: 192, height: 192, borderRadius: 96, justifyContent: 'center', alignItems: 'center'},
+  avatarInitials:{fontSize: 60, fontWeight: '700', color: '#fff', fontFamily: 'Rubik-Bold'},
   avatarUploadOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    borderRadius: 48, backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 96, backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center',
   },
   avatarEditBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#E53935', borderWidth: 3,
+    position: 'absolute', bottom: 4, right: 4,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#E53935', borderWidth: 4,
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarEditIcon: {width: 14, height: 14, tintColor: '#fff'},
+  avatarEditIcon: {width: 20, height: 20, tintColor: '#fff'},
   displayName:   {fontSize: 22, fontWeight: '700', fontFamily: 'Rubik-Bold', marginBottom: 4},
   email:         {fontSize: 14, fontFamily: 'Rubik', marginBottom: 10},
   providerBadge: {borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4, marginBottom: 14},

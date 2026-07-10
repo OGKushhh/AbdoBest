@@ -17,7 +17,7 @@ import {
   Modal, FlatList, ToastAndroid, Platform, Alert,
   PermissionsAndroid,
 } from 'react-native';
-import {useRoute, useNavigation} from '@react-navigation/native';
+import {useRoute, useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import FastImage from 'react-native-fast-image';
 import axios from 'axios';
@@ -48,6 +48,7 @@ function animeSeasonLabelD(dateStr: string | null | undefined, lang: 'en' | 'ar'
 import {localizeGenres} from '../i18n/genres';
 import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
+import {Lightbox} from '../components/Lightbox';
 import AkwamExtractor from '../components/AkwamExtractor';
 import {startDownload, registerFaselDownload} from '../services/downloadService';
 import HlsDownloadSheet from '../components/HlsAppChooserModal';
@@ -219,6 +220,24 @@ export const DetailsScreen: React.FC = () => {
   // WebView extractor state
   const [extractorUrl, setExtractorUrl] = useState<string | null>(null);
   const extractorTitleRef = useRef<string>('');
+
+  // Lightbox safety: if extraction somehow starts while the lightbox is open
+  // (shouldn't normally be reachable since the poster isn't the play button,
+  // but this is cheap insurance against exactly the collision being guarded
+  // against here), force it closed rather than ever letting both be visible.
+  useEffect(() => {
+    if (extracting) setShowLightbox(false);
+  }, [extracting]);
+
+  // Force-close on navigation blur (tab switch, back navigation, etc.) and
+  // on unmount — an RN <Modal> left open across a navigation transition is
+  // a known Android crash source.
+  useFocusEffect(
+    useCallback(() => {
+      return () => setShowLightbox(false);
+    }, []),
+  );
+
   // Tracks the last play request so the error-banner retry button works for both movies and episodes
   const lastPlayRef = useRef<{url: string; title: string; epUrl?: string; epNumber?: number; epSeason?: number} | null>(null);
   // Download mode: when true, handleExtracted starts a download instead of playing
@@ -239,6 +258,11 @@ export const DetailsScreen: React.FC = () => {
   const [showWatchedProgressModal, setShowWatchedProgressModal] = useState(false);
   const [wpSeason, setWpSeason]   = useState<string>('1');
   const [wpEpisode, setWpEpisode] = useState<number>(1);
+
+  // Poster lightbox — guarded against ever being open at the same time as
+  // the extraction flow, and force-closed on navigation blur/unmount. See
+  // the comment at the top of Lightbox.tsx for why this matters.
+  const [showLightbox, setShowLightbox] = useState(false);
 
   // Rating fetch state
   const [rating, setRating] = useState<string>(() => {
@@ -1100,15 +1124,21 @@ export const DetailsScreen: React.FC = () => {
           <Text style={S.title} numberOfLines={4}>{item.Title}{year ? ` (${year})` : ''}</Text>
         </View>
 
-        {/* ── Poster (no lightbox by default, but you can add one) ── */}
+        {/* ── Poster (tap to open lightbox) ── */}
         <View style={S.posterWrap}>
           {(item['Image Source'] || (raw as any).Image || (raw as any).poster) ? (
-            <FastImage
-              source={{uri: seasonPoster || item['Image Source'] || (raw as any).Image || (raw as any).poster}}
-              style={S.poster}
-              resizeMode={FastImage.resizeMode.cover}
-              fallback
-            />
+            <TouchableOpacity
+              activeOpacity={0.9}
+              disabled={extracting || showSeasonDlg || showWatchedProgressModal || collectionSheet || !!hlsChooser}
+              onPress={() => setShowLightbox(true)}
+            >
+              <FastImage
+                source={{uri: seasonPoster || item['Image Source'] || (raw as any).Image || (raw as any).poster}}
+                style={S.poster}
+                resizeMode={FastImage.resizeMode.cover}
+                fallback
+              />
+            </TouchableOpacity>
           ) : (
             <View style={[S.poster, S.posterPlaceholder]}>
               <Image source={require('../../assets/icons/clapboard.png')} style={{width: 52, height: 52, tintColor: Colors.dark.textMuted}} />
@@ -1557,6 +1587,15 @@ export const DetailsScreen: React.FC = () => {
           onClose={() => setHlsChooser(null)}
         />
       )}
+
+      {/* ── Poster lightbox ── */}
+      {/* visible is doubly-guarded here (not just via the useEffect above)
+          so there's no render-cycle window where both could be visible */}
+      <Lightbox
+        visible={showLightbox && !extracting}
+        imageUri={seasonPoster || item['Image Source'] || (raw as any).Image || (raw as any).poster || null}
+        onClose={() => setShowLightbox(false)}
+      />
 
       {/* ── Full-screen extracting overlay ── */}
       {extracting && (
