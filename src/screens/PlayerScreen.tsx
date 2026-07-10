@@ -195,10 +195,15 @@ export const PlayerScreen: React.FC = () => {
     }
   }, [isLandscape]);
 
-  // Unlock when leaving the player
+  // Lock back to portrait when leaving the player. The app is portrait-locked
+  // everywhere else (see AndroidManifest's screenOrientation="portrait") —
+  // this screen is the only place that intentionally overrides that at
+  // runtime to allow landscape playback. Calling unlockAllOrientations()
+  // here (as this used to do) left the *entire app* free-rotating after
+  // leaving the player, since nothing else ever re-locks it back to portrait.
   useEffect(() => {
     return () => {
-      Orientation.unlockAllOrientations();
+      Orientation.lockToPortrait();
     };
   }, []);
 
