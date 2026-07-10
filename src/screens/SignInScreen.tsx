@@ -12,7 +12,9 @@ import {fetchCollections} from '../services/favoritesService';
 import {initFCM} from '../services/fcmService';
 
 export function getFriendlyError(e: any, provider: string): string {
-  const msg = (e?.message ?? '') + (e?.code ?? '');
+  const code = (e?.code ?? '') as string;   // e.g. 'auth/invalid-phone-number'
+  const msg  = (e?.message ?? '') + code;
+
   if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('CANCELED')) return '';
   if (msg.includes('network') || msg.includes('Network')) return 'لا يوجد اتصال بالإنترنت. حاول مرة أخرى.';
   if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential'))
@@ -20,7 +22,22 @@ export function getFriendlyError(e: any, provider: string): string {
   if (msg.includes('email-already-in-use')) return 'هذا البريد الإلكتروني مستخدم بالفعل.';
   if (msg.includes('weak-password')) return 'كلمة المرور ضعيفة جداً. استخدم 6 أحرف على الأقل.';
   if (msg.includes('invalid-email')) return 'البريد الإلكتروني غير صالح.';
-  if (msg.includes('invalid-phone') || msg.includes('invalid-verification-code')) return 'رمز التحقق غير صحيح.';
+
+  // ── Phone auth — specific Firebase codes, checked before the generic ones ──
+  if (msg.includes('invalid-verification-code')) return 'رمز التحقق غير صحيح.';
+  if (msg.includes('code-expired') || msg.includes('session-expired'))
+    return 'انتهت صلاحية رمز التحقق. اطلب رمزاً جديداً.';
+  if (msg.includes('invalid-phone-number') || msg.includes('missing-phone-number'))
+    return 'رقم الهاتف غير صالح. تأكد من كتابته بدون صفر في البداية.';
+  if (msg.includes('quota-exceeded'))
+    return 'تم تجاوز الحد المسموح لرسائل التحقق. حاول لاحقاً.';
+  if (msg.includes('captcha-check-failed') || msg.includes('invalid-app-credential') || msg.includes('missing-app-credential'))
+    return 'فشل التحقق الأمني لإرسال الرمز. أعد تشغيل التطبيق وحاول مرة أخرى.';
+  if (msg.includes('app-not-authorized') || msg.includes('missing-client-identifier'))
+    return 'هذا التطبيق غير مصرّح له بتسجيل الدخول بالهاتف حالياً. حاول لاحقاً أو استخدم طريقة دخول أخرى.';
+  if (code === 'auth/internal-error')
+    return 'حدث خطأ داخلي أثناء إرسال رمز التحقق. حاول مرة أخرى لاحقاً.';
+
   if (msg.includes('too-many-requests')) return 'طلبات كثيرة جداً. حاول لاحقاً.';
   if (msg.includes('SIGN_IN_FAILED') || msg.includes('ApiException'))
     return `فشل تسجيل الدخول عبر ${provider}. حاول مرة أخرى.`;
@@ -34,7 +51,16 @@ export function useAuthSuccess(onSuccess?: (user: AbdoUser) => void) {
     fetchCollections().catch(() => {});
     initFCM().catch(() => {});
     if (onSuccess) onSuccess(user);
-    navigation.goBack();
+    // navigation.goBack() only pops one level — fine from SignInScreen itself,
+    // but broken when called from EmailSignInScreen/PhoneSignInScreen (two
+    // levels deep: Home → SignIn → EmailSignIn), where it just lands back on
+    // SignIn instead of actually finishing. Reset straight to Profile instead,
+    // for every sign-in method, so it's always a seamless landing — not just
+    // "back to wherever this screen was pushed from".
+    navigation.reset({
+      index: 1,
+      routes: [{name: 'Home'}, {name: 'Profile', params: {user}}],
+    });
   };
 }
 

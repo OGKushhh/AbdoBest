@@ -16,6 +16,7 @@ import { APP_VERSION } from '../constants/endpoints';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation } from '@react-navigation/native';
 import { getPersistedUser, onAuthStateChanged, AbdoUser } from '../services/authService';
+import { fetchProfile } from '../services/profileService';
 import { useRewardAd, formatAdFreeRemaining } from '../ads/RewardAdPopup';
 import { Colors } from '../theme/colors'; // for dark background etc. (fallback)
 
@@ -65,6 +66,7 @@ export const SettingsScreen: React.FC = () => {
   const [settings, setSettings] = useState(getSettings());
   const navigation = useNavigation<any>();
   const [currentUser, setCurrentUser] = React.useState<AbdoUser | null>(null);
+  const [profileName, setProfileName] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     // One-time read so the UI has something to show immediately (no flash of
@@ -77,6 +79,14 @@ export const SettingsScreen: React.FC = () => {
     const unsubscribe = onAuthStateChanged(setCurrentUser);
     return unsubscribe;
   }, []);
+
+  React.useEffect(() => {
+    if (currentUser && !currentUser.isGuest) {
+      fetchProfile().then(p => setProfileName(p.name || null)).catch(() => {});
+    } else {
+      setProfileName(null);
+    }
+  }, [currentUser?.uid]);
 
   const { rewardElement, triggerReward, adFreeActive, remainingMs } = useRewardAd();
   const { running: syncing, progress: syncProgress, start: startSync } = useCacheSync();
@@ -325,7 +335,11 @@ export const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>
-                  {currentUser ? (currentUser.displayName ?? t('profile_guest')) : t('sign_in')}
+                  {!currentUser
+                    ? t('sign_in')
+                    : currentUser.isGuest
+                    ? t('profile_guest')
+                    : profileName || currentUser.displayName || currentUser.email || t('profile')}
                 </Text>
                 <Text style={styles.rowSub}>
                   {currentUser ? (currentUser.isGuest ? t('profile_guest_sub') : currentUser.email ?? '') : t('profile_signin_hint')}

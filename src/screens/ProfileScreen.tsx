@@ -47,7 +47,13 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarBust, setAvatarBust] = useState(0); // cache-bust the avatar <Image> after a new upload
+  // Real timestamp, not a small incrementing counter — a counter resets to 0
+  // on every app restart, so it can produce the exact same "?v=1" URL a
+  // previous session already used, and the OS's disk-level HTTP image cache
+  // (which persists across restarts) then serves those old cached bytes
+  // instead of fetching the new photo. Timestamps don't collide across
+  // sessions the way a small counter can.
+  const [avatarBust, setAvatarBust] = useState(() => Date.now());
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -110,7 +116,7 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
     try {
       await uploadAvatar(result.assets[0].uri);
       setProfile(prev => prev ? {...prev, avatar: 'set'} : prev);
-      setAvatarBust(b => b + 1); // force the <Image> to reload past any cache
+      setAvatarBust(Date.now()); // fresh cache-buster, guaranteed not to collide with any previous session's value
     } catch (e) {
       Alert.alert(t('error'), t('avatar_upload_failed'));
     } finally {
