@@ -7,7 +7,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import {Colors} from '../theme/colors';
 import {AuthHeader} from '../components/AuthHeader';
-import {signInWithGoogle, signInWithFacebook, signInAsGuest, AbdoUser} from '../services/authService';
+import {signInWithGoogle, signInAsGuest, AbdoUser} from '../services/authService';
 import {fetchCollections} from '../services/favoritesService';
 import {initFCM} from '../services/fcmService';
 
@@ -81,13 +81,6 @@ export const SignInScreen: React.FC = () => {
     finally { setLoading(null); }
   };
 
-  const handleFacebook = async () => {
-    setLoading('facebook');
-    try { handleSuccess(await signInWithFacebook()); }
-    catch (e: any) { const m = getFriendlyError(e, 'Facebook'); if (m) Alert.alert('خطأ', m); }
-    finally { setLoading(null); }
-  };
-
   const handleGuest = async () => {
     setLoading('guest');
     try { handleSuccess(await signInAsGuest()); }
@@ -111,14 +104,6 @@ export const SignInScreen: React.FC = () => {
           {loading === 'google' ? <ActivityIndicator color="#1a1a1a" /> : <>
             <Image source={require('../../assets/icons/google.png')} style={[S.btnIcon, {tintColor: undefined}]} />
             <Text style={[S.btnText, {color: '#1a1a1a'}]}>{t('sign_in_google')}</Text>
-          </>}
-        </TouchableOpacity>
-
-        {/* Facebook */}
-        <TouchableOpacity style={[S.btn, S.btnFacebook]} onPress={handleFacebook} disabled={isAnyLoading} activeOpacity={0.8}>
-          {loading === 'facebook' ? <ActivityIndicator color="#fff" /> : <>
-            <Image source={require('../../assets/icons/facebook.png')} style={S.btnIcon} />
-            <Text style={S.btnText}>{t('sign_in_facebook')}</Text>
           </>}
         </TouchableOpacity>
 
@@ -165,7 +150,6 @@ const S = StyleSheet.create({
   body:          {paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40},
   btn:           {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 14, marginBottom: 12},
   btnGoogle:     {backgroundColor: '#fff'},
-  btnFacebook:   {backgroundColor: '#1877F2'},
   btnEmail:      {backgroundColor: '#E53935'},
   btnPhone:      {backgroundColor: '#2E7D32'},
   btnGuest:      {backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border},

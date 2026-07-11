@@ -3,7 +3,7 @@
  * Editable app-level profile: name, gender, preferred genres, avatar.
  *
  * Distinct from Firebase Auth's built-in displayName/photoURL (which only
- * exist for Google/Facebook sign-in). This is stored server-side under
+ * exist for Google sign-in). This is stored server-side under
  * the same /data/users/{uid}.json record as favorites/watched, in a
  * "profile" key — see app.py.
  *

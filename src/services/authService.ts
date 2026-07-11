@@ -1,25 +1,23 @@
 /**
  * authService.ts
- * Handles Google, Facebook, and guest sign-in via Firebase Auth.
+ * Handles Google, Email, Phone, and guest sign-in via Firebase Auth.
  * Persists the current user to AsyncStorage so session survives app restarts.
  *
  * Dependencies to install:
  *   @react-native-google-signin/google-signin
- *   react-native-fbsdk-next
  *   @react-native-firebase/app
  *   @react-native-firebase/auth
  */
 
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Storage key ────────────────────────────────────────────────────────────
 const AUTH_USER_KEY = 'auth_user';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-export type AuthProvider = 'google' | 'facebook' | 'email' | 'phone' | 'guest';
+export type AuthProvider = 'google' | 'email' | 'phone' | 'guest';
 
 export interface AbdoUser {
   uid: string;
@@ -46,8 +44,6 @@ function mapFirebaseUser(fbUser: FirebaseAuthTypes.User): AbdoUser {
     provider = 'guest';
   } else if (fbUser.providerData.some(p => p.providerId === 'google.com')) {
     provider = 'google';
-  } else if (fbUser.providerData.some(p => p.providerId === 'facebook.com')) {
-    provider = 'facebook';
   } else if (fbUser.providerData.some(p => p.providerId === 'phone')) {
     provider = 'phone';
   } else if (fbUser.providerData.some(p => p.providerId === 'password')) {
@@ -105,19 +101,6 @@ export async function signInWithGoogle(): Promise<AbdoUser> {
   return user;
 }
 
-// ─── Facebook sign-in ────────────────────────────────────────────────────────
-export async function signInWithFacebook(): Promise<AbdoUser> {
-  const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
-  if (result.isCancelled) throw new Error('Facebook sign-in cancelled');
-  const data = await AccessToken.getCurrentAccessToken();
-  if (!data?.accessToken) throw new Error('Facebook sign-in failed — no access token');
-  const credential = auth.FacebookAuthProvider.credential(data.accessToken);
-  const fbResult = await auth().signInWithCredential(credential);
-  const user = mapFirebaseUser(fbResult.user);
-  await persistUser(user);
-  return user;
-}
-
 // ─── Guest sign-in (anonymous) ───────────────────────────────────────────────
 export async function signInAsGuest(): Promise<AbdoUser> {
   const result = await auth().signInAnonymously();
@@ -168,12 +151,6 @@ export async function signOut(): Promise<void> {
   try {
     const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
     if (isGoogleUser) { try { await GoogleSignin.revokeAccess(); } catch {} await GoogleSignin.signOut(); }
-  } catch { /* ignore */ }
-
-  // Sign out from Facebook if that was the provider
-  try {
-    const isFbUser = user.providerData.some(p => p.providerId === 'facebook.com');
-    if (isFbUser) LoginManager.logOut();
   } catch { /* ignore */ }
 
   await auth().signOut();

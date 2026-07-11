@@ -27,18 +27,12 @@ allprojects {
     }
 }
 
-// Required for RN 0.72 + force a stable Facebook SDK version
+// Required for RN 0.72 module resolution
 subprojects {
     configurations.all {
         resolutionStrategy {
             dependencySubstitution {
                 substitute module('com.facebook.react:react-native') using module('com.facebook.react:react-android:+')
-            }
-            // ✅ Force a specific Facebook SDK version to avoid snapshot repo timeout
-            eachDependency { DependencyResolveDetails details ->
-                if (details.requested.group == 'com.facebook.android' && details.requested.name == 'facebook-android-sdk') {
-                    details.useVersion '18.3.0'   // use the latest stable from the list you shared
-                }
             }
             // ✅ react-native-image-picker's ImagePickerModuleImpl.java uses the
             // AndroidX Photo Picker APIs (PickVisualMedia, PickVisualMediaRequest,

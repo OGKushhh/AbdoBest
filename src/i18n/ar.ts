@@ -293,7 +293,6 @@ export const ar = {
   profile_uid:           'معرف المستخدم',
   profile_account_type:  'تسجيل الدخول عبر',
   provider_google:       'Google',
-  provider_facebook:     'Facebook',
   provider_email:        'البريد الإلكتروني',
   provider_phone:        'الهاتف',
 
@@ -343,7 +342,6 @@ export const ar = {
  // Sign in screen
   sign_in_subtitle:   'سجّل دخولك لحفظ المفضلة وتلقّي إشعارات عند نزول محتوى جديد.',
   sign_in_google:     'المتابعة عبر Google',
-  sign_in_facebook:   'المتابعة عبر Facebook',
   sign_in_email_btn:  'البريد الإلكتروني',
   sign_in_phone_btn:  'رقم الهاتف',
   continue_as_guest:  'المتابعة كزائر',

@@ -6,7 +6,7 @@
  * Editable app-level profile (name/gender/genres/avatar) lives on the
  * backend under /data/users/{uid}.json's "profile" key — see
  * profileService.ts and app.py. This is distinct from Firebase Auth's
- * displayName/photoURL (only populated for Google/Facebook); the backend
+ * displayName/photoURL (only populated for Google); the backend
  * profile values take precedence when set, so email/guest accounts (which
  * have neither) get a way to set a name and picture too.
  */
@@ -82,7 +82,7 @@ export const ProfileScreen: React.FC<Props> = ({route}) => {
   }, [user?.uid]);
 
   const PROVIDER_LABEL_KEY: Record<AuthProvider, string> = {
-    google: 'provider_google', facebook: 'provider_facebook',
+    google: 'provider_google',
     email: 'provider_email', phone: 'provider_phone', guest: 'profile_guest',
   };
   const providerLabel = !user ? t('sign_in') : t(PROVIDER_LABEL_KEY[user.provider]);

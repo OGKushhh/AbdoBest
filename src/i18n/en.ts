@@ -293,7 +293,6 @@ export const en = {
   profile_uid:           'User ID',
   profile_account_type:  'Signed in with',
   provider_google:       'Google',
-  provider_facebook:     'Facebook',
   provider_email:        'Email',
   provider_phone:        'Phone',
 
@@ -344,7 +343,6 @@ export const en = {
   // Sign in screen
   sign_in_subtitle:   'Sign in to save favourites and get notified when new content drops.',
   sign_in_google:     'Continue with Google',
-  sign_in_facebook:   'Continue with Facebook',
   sign_in_email_btn:  'Email',
   sign_in_phone_btn:  'Phone Number',
   continue_as_guest:  'Continue as Guest',
