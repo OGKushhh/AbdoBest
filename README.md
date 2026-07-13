@@ -23,7 +23,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/v/release/OGKushhh/AbdoBest?label=Latest%20Release&color=FF4500" alt="Release">
   <img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20%7C%20iOS%2013.0%2B-green" alt="Platform">
-  <img src="https://img.shields.io/badge/Size-~24%20MB-blue" alt="Size">
+  <img src="https://img.shields.io/badge/Size-~26%20MB-blue" alt="Size">
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License">
   <img src="https://img.shields.io/badge/Built%20with-React%20Native-61DAFB?logo=react" alt="React Native">
   <img src="https://img.shields.io/github/downloads/OGKushhh/AbdoBest/total?color=FF4500&label=Downloads" alt="Downloads">
@@ -52,7 +52,7 @@ AbdoBest is a **free Arabic streaming app** built with React Native. It aggregat
 ✅ **Quality switching** — 1080p down to 360p, pick what your connection handles.  
 ✅ **Offline downloads** — save episodes and watch without internet.  
 ✅ **Bilingual** — full Arabic (RTL) and English UI, switch anytime.  
-✅ **24 MB APK** — installs fast even on slow connections.
+✅ **26 MB APK** — installs fast even on slow connections.
 
 ---
 
@@ -92,7 +92,7 @@ AbdoBest also supports **iOS 13.0 and later**. Check the [Releases](https://gith
 | 🌐 **Bilingual** | Arabic and English UI with full RTL layout — switch in Settings. |
 | ⭐ **MAL Ratings** | Anime entries show MyAnimeList ratings. |
 | 🔄 **Auto-Update** | The app notifies you when a new version is available. |
-| 📦 **Tiny APK** | Only 24 MB — fast to download on any connection. |
+| 📦 **Tiny APK** | Only 26 MB — fast to download on any connection. |
 
 ---
 
@@ -147,7 +147,7 @@ AbdoBest is built on **React Native** and communicates with a backend API that i
 
 ## 📈 Roadmap
 
-**Current version:** `v1.1.9`
+**Current version:** <img src="https://img.shields.io/github/v/release/OGKushhh/AbdoBest?label=Latest%20Release&color=FF4500" alt="Release">
 
 - [x] Offline download support
 - [x] Performance overhaul
