@@ -57,6 +57,15 @@ const AppModal: React.FC<AppModalProps> = ({ visible, onClose, children, colors 
   </Modal>
 );
 
+// Release notes arrive as raw GitHub release body text (markdown bullets,
+// stray headers, blank lines). Split into clean lines for bullet rendering
+// instead of dumping the raw markdown into one Text block.
+const parseChangelogLines = (raw: string): string[] =>
+  raw
+    .split(/\r?\n/)
+    .map(line => line.replace(/^[-*•]\s*/, '').replace(/^#+\s*/, '').trim())
+    .filter(Boolean);
+
 // ─── Main Screen ───────────────────────────────────────────────────────────
 export const SettingsScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -255,8 +264,32 @@ export const SettingsScreen: React.FC = () => {
     // Update extras
     updateBadge: { alignSelf: 'flex-start', backgroundColor: `${colors.primary}20`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 12 },
     updateBadgeText: { color: colors.primary, fontSize: 12, fontWeight: '700', fontFamily: 'Rubik' },
-    changelogBox: { backgroundColor: colors.background || '#0F0F1A', borderRadius: 10, padding: 12, marginBottom: 16, maxHeight: 120 },
-    changelogText: { color: colors.textSecondary, fontSize: 13, lineHeight: 19, fontFamily: 'Rubik' },
+    changelogLabel: {
+      color: colors.textMuted, fontSize: 11, fontWeight: '700', fontFamily: 'Rubik',
+      textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    changelogBox: {
+      backgroundColor: colors.background || '#0F0F1A',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 6, paddingHorizontal: 14,
+      marginBottom: 18,
+      // Proportional to content instead of a fixed crop: short changelogs
+      // sit naturally, long ones scroll within a sensible cap tied to
+      // screen height rather than an arbitrary fixed pixel value.
+      minHeight: 48,
+      maxHeight: Dimensions.get('window').height * 0.28,
+    },
+    changelogRow: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+      paddingVertical: 7,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+    },
+    changelogRowLast: { borderBottomWidth: 0 },
+    changelogBullet: { color: colors.primary, fontSize: 13, lineHeight: 20, fontFamily: 'Rubik' },
+    changelogText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 20, fontFamily: 'Rubik', textAlign: isRTL ? 'right' : 'left' },
   }), [colors, insets.top, isRTL]);
 
   // ─── Helper Row Component ──────────────────────────────────────────────────
@@ -277,7 +310,12 @@ export const SettingsScreen: React.FC = () => {
         </View>
         <View style={styles.rowContent}>
           <Text style={styles.rowLabel}>{label}</Text>
-          {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
+          {/* Current value renders as a sub-line under the label — same
+              pattern as the "save location" row below — instead of an
+              inline trailing value. An inline value sits flush against a
+              right-aligned RTL label with no natural gap between them,
+              which is what made Arabic labels/values run together. */}
+          {(sub || value) ? <Text style={styles.rowSub}>{sub ?? value}</Text> : null}
         </View>
         {toggle ? (
           <Switch
@@ -287,10 +325,7 @@ export const SettingsScreen: React.FC = () => {
             thumbColor="#fff"
           />
         ) : (
-          <View style={styles.rowRight}>
-            {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-            <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
-          </View>
+          <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
         )}
       </TouchableOpacity>
     );
@@ -370,17 +405,15 @@ export const SettingsScreen: React.FC = () => {
               settingKey="mobileDataWarning"
               toggle
             />
-            <TouchableOpacity style={styles.row} onPress={() => setQualityModalVisible(true)} activeOpacity={0.65}>
+            <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={() => setQualityModalVisible(true)} activeOpacity={0.65}>
               <View style={styles.rowIcon}>
                 <Image source={require('../../assets/icons/setting.png')} style={styles.rowIconImg} />
               </View>
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>{t('quality_preference')}</Text>
+                <Text style={styles.rowSub}>{t(`quality_${settings.qualityPreference || 'auto'}`)}</Text>
               </View>
-              <View style={styles.rowRight}>
-                <Text style={styles.rowValue}>{t(`quality_${settings.qualityPreference || 'auto'}`)}</Text>
-                <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
-              </View>
+              <Image source={require('../../assets/icons/chevron-down.png')} style={styles.rowChevron} />
             </TouchableOpacity>
           </View>
 
@@ -571,9 +604,17 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.modalTitle}>{t('update_available')}</Text>
             <Text style={styles.modalBody}>{t('update_description')}</Text>
             {updateInfo.changelog ? (
-              <ScrollView style={styles.changelogBox} showsVerticalScrollIndicator={false}>
-                <Text style={styles.changelogText}>{updateInfo.changelog}</Text>
-              </ScrollView>
+              <>
+                <Text style={styles.changelogLabel}>{t('whats_new')}</Text>
+                <ScrollView style={styles.changelogBox} showsVerticalScrollIndicator={false}>
+                  {parseChangelogLines(updateInfo.changelog).map((line, i, arr) => (
+                    <View key={i} style={[styles.changelogRow, i === arr.length - 1 && styles.changelogRowLast]}>
+                      <Text style={styles.changelogBullet}>{isRTL ? '•' : '•'}</Text>
+                      <Text style={styles.changelogText}>{line}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
             ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity

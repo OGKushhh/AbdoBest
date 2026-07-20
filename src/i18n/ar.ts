@@ -76,6 +76,7 @@ export const ar = {
   // OTA
   update_available: 'تحديث متاح',
   update_description: 'يتوفر إصدار جديد من AbdoBest!',
+  whats_new: 'ما الجديد',
   update_changelog: 'التغييرات',
   download_update: 'تحديث الآن',
   skip_version: 'تخطي',

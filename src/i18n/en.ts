@@ -76,6 +76,7 @@ export const en = {
   // OTA
   update_available: 'Update Available',
   update_description: 'A new version of AbdoBest is available!',
+  whats_new: "What's New",
   update_changelog: 'Changelog',
   download_update: 'Download Update',
   skip_version: 'Skip',

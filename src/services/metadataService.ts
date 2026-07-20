@@ -7,6 +7,7 @@ import {
 } from '../storage/cache';
 import {ContentItem} from '../types';
 import {METADATA_TTL_MS} from '../constants/endpoints';
+import {EXCLUDED_CONTENT_IDS} from '../constants/exclusionList';
 
 const metadataApi = axios.create({
   baseURL: API_BASE,
@@ -63,9 +64,23 @@ export const sortByNewest = (items: ContentItem[]): ContentItem[] => {
 export const getRuntimeCache = (category: string): ContentItem[] | null =>
   _runtimeCache.get(category) ?? null;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Exclusion list — developer-maintained IDs that should never be shown.
+//
+// Filtering happens here (at the runtime-cache write) rather than at disk-write
+// time, so the full dataset stays on disk. That means removing an ID from
+// EXCLUDED_CONTENT_IDS in a future build doesn't require a re-download — it
+// reappears next time the runtime cache is repopulated.
+// ─────────────────────────────────────────────────────────────────────────────
+export const filterExcluded = (items: ContentItem[]): ContentItem[] => {
+  if (!EXCLUDED_CONTENT_IDS.length) return items;
+  const excludedSet = new Set(EXCLUDED_CONTENT_IDS);
+  return items.filter(item => !excludedSet.has(String((item as any)?.id)));
+};
+
 /** Populate runtime cache. Data is always a pre-sorted array from HF. */
 const _setRuntimeCache = (category: string, items: ContentItem[]): void => {
-  _runtimeCache.set(category, items);
+  _runtimeCache.set(category, filterExcluded(items));
 };
 
 /** Invalidate one or all entries — called on force refresh. */
@@ -274,7 +289,7 @@ export const searchContent = async (query: string): Promise<ContentItem[]> => {
     }
     if (!data || typeof data !== 'object') continue;
 
-    const items = toItemsArray(data) as ContentItem[];
+    const items = filterExcluded(toItemsArray(data) as ContentItem[]);
     for (const item of items) {
       if (matches.length >= 60) break;
       if (!seen.has(item.id) && testItem(item)) {
