@@ -24,6 +24,7 @@ import axios from 'axios';
 import {ContentItem, ArabicEpisode, ArabicEpisodeSource} from '../types';
 import {recordPlay, recordEpisodePlay} from '../services/viewService';
 import {getViewCount, getSeriesTotalViews, getEpisodeViewCount} from '../services/api';
+import {getDetailsCache, setDetailsCache, invalidateDetailsCache} from '../services/detailsCache';
 import {useAds} from '../ads/AdContext';
 import {Colors} from '../theme/colors';
 import {useTranslation} from 'react-i18next';
@@ -49,6 +50,7 @@ import {localizeGenres} from '../i18n/genres';
 import {API_BASE} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
 import {Lightbox} from '../components/Lightbox';
+import {getLargePosterUrl} from '../utils/posterUrl';
 import AkwamExtractor from '../components/AkwamExtractor';
 import {startDownload, registerFaselDownload} from '../services/downloadService';
 import HlsDownloadSheet from '../components/HlsAppChooserModal';
@@ -338,17 +340,41 @@ export const DetailsScreen: React.FC = () => {
   // ── Fetch live view count ─────────────────────────────────────────
   useEffect(() => {
     if (!item?.id || !category) return;
+    const cached = getDetailsCache(category, item.id);
+    if (cached && cached.liveViews !== null) {
+      if (cached.liveViews > 0) setLiveViews(cached.liveViews);
+      return; // cache hit within the 5-min TTL — skip the network call entirely
+    }
     const fetch = isEpisodic
       ? getSeriesTotalViews(category, item.id)
       : getViewCount(category, item.id);
     fetch
-      .then(v => { if (v > 0) setLiveViews(v); })
+      .then(v => {
+        if (v > 0) setLiveViews(v);
+        setDetailsCache(category, item.id, {liveViews: v});
+      })
       .catch(() => {});
   }, [item?.id, category, isEpisodic]);
 
   // ── Fetch episodes ────────────────────────────────────────────────
   useEffect(() => {
     if (!item || !isEpisodic) return;
+
+    // Cache hit within the 5-min TTL — reuse episodes + per-episode views,
+    // zero network calls (episodes list, per-episode view fan-out, all skipped).
+    const cached = getDetailsCache(category, item.id);
+    if (cached && (cached.epData || cached.arabicEpisodes)) {
+      if (isArabicSeries) {
+        setArabicEpisodes(cached.arabicEpisodes ?? []);
+      } else {
+        setEpData(cached.epData);
+        if (cached.epData?.seasons) setSelSeason(Object.keys(cached.epData.seasons)[0] ?? '1');
+      }
+      if (Object.keys(cached.episodeViews).length > 0) setEpisodeViews(cached.episodeViews);
+      setLoadingEps(false);
+      return;
+    }
+
     setLoadingEps(true);
     fetchEpisodes(category, item.id)
       .then(data => {
@@ -356,6 +382,7 @@ export const DetailsScreen: React.FC = () => {
         if (isArabicSeries && Array.isArray(data?.episodes)) {
           const eps = data.episodes as ArabicEpisode[];
           setArabicEpisodes(eps);
+          setDetailsCache(category, item.id, {arabicEpisodes: eps});
           // Fetch per-episode view counts
           Promise.allSettled(
             eps.map(ep =>
@@ -370,6 +397,7 @@ export const DetailsScreen: React.FC = () => {
               }
             });
             if (Object.keys(map).length > 0) setEpisodeViews(map);
+            setDetailsCache(category, item.id, {episodeViews: map});
           }).catch(() => {});
           setLoadingEps(false);
           return;
@@ -429,6 +457,7 @@ export const DetailsScreen: React.FC = () => {
         }
         setEpData(data);
         if (data?.seasons) setSelSeason(Object.keys(data.seasons)[0] ?? '1');
+        setDetailsCache(category, item.id, {epData: data});
         // Fetch per-episode view counts — collect all episode URLs across all seasons with their season number
         const allEpEntries: { epUrl: string; season: string; epIdx: number }[] = [];
         if (data?.seasons) {
@@ -458,6 +487,7 @@ export const DetailsScreen: React.FC = () => {
               }
             });
             if (Object.keys(map).length > 0) setEpisodeViews(map);
+            setDetailsCache(category, item.id, {episodeViews: map});
           }).catch(() => {});
         }
       })
@@ -668,6 +698,9 @@ export const DetailsScreen: React.FC = () => {
       }
       // Optimistically bump the displayed view count
       setLiveViews(prev => (prev ?? 0) + 1);
+      // Force a fresh fetch next time this title is reopened, instead of
+      // trying to keep the cache's incremented count in perfect sync.
+      invalidateDetailsCache(category, item.id);
       nav.navigate('Player', {
         url: primaryUrl,
         servers: m3u8Urls,
@@ -711,6 +744,7 @@ export const DetailsScreen: React.FC = () => {
       setAkwamUrl(null);
       recordEpisodePlay(item.id, category, ep.number, 1); // series total + per-episode
       setEpisodeViews(prev => ({...prev, [ep.url]: (prev[ep.url] ?? 0) + 1}));
+      invalidateDetailsCache(category, item.id);
       setExtracting(false);
       nav.navigate('Player', {
         url: mp4,
@@ -1592,7 +1626,7 @@ export const DetailsScreen: React.FC = () => {
           so there's no render-cycle window where both could be visible */}
       <Lightbox
         visible={showLightbox && !extracting}
-        imageUri={seasonPoster || item['Image Source'] || (raw as any).Image || (raw as any).poster || null}
+        imageUri={getLargePosterUrl(seasonPoster || item['Image Source'] || (raw as any).Image || (raw as any).poster || null)}
         onClose={() => setShowLightbox(false)}
       />
 

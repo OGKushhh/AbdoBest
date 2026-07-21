@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 import { getIdToken } from './authService';
 import { API_BASE } from '../constants/endpoints';
 import { loadCategory, ContentCategory, SYNC_CATEGORIES } from './metadataService';
+import { invalidateDetailsCache, clearAllDetailsCache } from './detailsCache';
 
 // ─── Request permission + register token with backend ────────────────────────
 export async function initFCM(): Promise<void> {
@@ -106,6 +107,19 @@ export async function syncContentFromPush(data: Record<string, string>): Promise
       : SYNC_CATEGORIES;
 
   if (categories.length === 0) return;
+
+  // DetailsScreen caches episodes + view counts per title for 5 minutes (see
+  // detailsCache.ts). A targeted push tells us exactly which title changed,
+  // so drop just that one; a general push doesn't say which titles, so we
+  // clear everything rather than risk masking a stale episode list. Either
+  // way this is a best-effort freshness improvement, not the correctness
+  // guarantee — the 5-min TTL is what bounds staleness if a push never
+  // arrives (see detailsCache.ts header comment).
+  if (type === 'content_update' && data.content_id && categories[0]) {
+    invalidateDetailsCache(categories[0], data.content_id);
+  } else if (type === 'general_update') {
+    clearAllDetailsCache();
+  }
 
   await Promise.all(
     categories.map(cat =>
