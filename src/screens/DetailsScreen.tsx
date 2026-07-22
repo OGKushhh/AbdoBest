@@ -1439,13 +1439,12 @@ export const DetailsScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={`ep-${selSeason}-${idx}`}
-                    style={[S.epRow, isExtractingThis && S.epRowDisabled, isSpecial && S.epRowFat]}
+                    style={[S.epRow, isExtractingThis && S.epRowDisabled]}
                     onPress={() => handlePlayEpisode(epUrl, idx + 1, false)}
                     disabled={extracting}
                     activeOpacity={0.75}
                   >
-                    {/* Top line — always present */}
-                    <View style={isSpecial ? S.epRowTop : {flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12}}>
+                    <View style={{flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12}}>
                       <View style={[S.epNumCircle, isExtractingThis && S.epNumActive, isSpecial && {width: 'auto', paddingHorizontal: 8}]}>
                         <Text style={[S.epNum, isExtractingThis && S.epNumActiveTxt]}>{epNum}</Text>
                       </View>
@@ -1465,12 +1464,19 @@ export const DetailsScreen: React.FC = () => {
                           <Text style={S.epViewsBadgeTxt}>{formatViews(episodeViews[epUrl])}</Text>
                         </View>
                       ) : null}
-                      {/* Title inline for normal eps, hidden here for specials */}
-                      {!isSpecial && (
-                        <Text style={[S.epTitle, {marginStart: 'auto', textAlign: 'right'}]} numberOfLines={1}>
-                          {epSuffix ? `${t('episode')} ${epNum} ${epSuffix}` : `${t('episode')} ${epNum}`}
-                        </Text>
-                      )}
+                      {/* One line for both: normal episodes never need to shrink (their
+                          text is always short), specials can run long — adjustsFontSizeToFit
+                          shrinks the font to fit instead of truncating, so nothing is ever cut off. */}
+                      <Text
+                        style={[S.epTitle, {marginStart: 'auto', textAlign: 'right', flexShrink: 1}]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit={isSpecial}
+                        minimumFontScale={isSpecial ? 0.7 : undefined}
+                      >
+                        {isSpecial
+                          ? (epSuffix ?? epNum)
+                          : (epSuffix ? `${t('episode')} ${epNum} ${epSuffix}` : `${t('episode')} ${epNum}`)}
+                      </Text>
                       {isExtractingThis ? (
                         <ActivityIndicator size="small" color={Colors.dark.primary} />
                       ) : (
@@ -1480,12 +1486,6 @@ export const DetailsScreen: React.FC = () => {
                         />
                       )}
                     </View>
-                    {/* Second line — only for specials with long titles */}
-                    {isSpecial && (
-                      <Text style={S.epTitleFat} numberOfLines={2}>
-                        {epSuffix ?? epNum}
-                      </Text>
-                    )}
                   </TouchableOpacity>
                 );
               })
@@ -1972,9 +1972,6 @@ const S = StyleSheet.create({
   seasonPosterWrap: {paddingVertical: 10, alignItems: 'center'},
   seasonPoster:     {width: 120, height: 180, borderRadius: 10, backgroundColor: Colors.dark.surfaceLight},
   epRow:           {flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.dark.border, gap: 12},
-  epRowFat:        {flexDirection: 'column', alignItems: 'stretch', paddingVertical: 12, gap: 8},
-  epRowTop:        {flexDirection: 'row', alignItems: 'center', gap: 12},
-  epTitleFat:      {color: Colors.dark.text, fontSize: 13, fontWeight: '600', fontFamily: 'Rubik', textAlign: 'right', paddingHorizontal: 4, lineHeight: 20},
   epRowDisabled:   {opacity: 0.5},
   epNumCircle:     {width: 38, height: 38, borderRadius: 19, backgroundColor: `${Colors.dark.primary}20`, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: `${Colors.dark.primary}40`},
   epNumActive:     {backgroundColor: Colors.dark.primary, borderColor: Colors.dark.primary},
