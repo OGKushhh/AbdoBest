@@ -136,7 +136,6 @@ AbdoBest is built on **React Native** and communicates with a backend API that i
 | **Axios** | API requests |
 | **Firebase** (App, Auth, Messaging) | Authentication & push notifications |
 | **Google Sign-In** | Google account authentication |
-| **react-native-fbsdk-next** | Facebook SDK integration |
 | **react-native-linear-gradient** | Gradient UI elements |
 | **react-native-orientation-locker** | Screen orientation control |
 | **react-native-immersive-mode** | Fullscreen/immersive playback |
