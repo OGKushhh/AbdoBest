@@ -1,24 +1,20 @@
 /**
- * AkwamExtractor – FINAL WORKING VERSION
+ * AkwamExtractor – Direct version (no shortener redirects)
  *
  * WATCH mode:
- *   1. WebView loads the shortener (go.akwam.com.co/watch/…).
- *   2. Injected JS clicks the download-link (window.location.href) →
- *      navigates to the real watch page (akwam.com.co/watch/…).
- *   3. On that page, JS aggressively scans for #player source[src] inside
- *      the main document AND any same‑origin iframes.
- *   4. If nothing is found after 5 seconds, a native fetch of the same URL
- *      extracts the mp4 from the raw HTML – hard guarantee.
+ *   - WebView loads akwam.it/watch/... directly.
+ *   - Injected JS scans for #player source[src] (dynamic or static).
+ *   - Fallback: native fetch of the same URL after 5s as a hard guarantee.
  *
- * DOWNLOAD mode · pure HTTP, no WebView (unchanged).
+ * DOWNLOAD mode:
+ *   - Pure HTTP – fetches the download page and extracts the MP4 link directly.
  */
 
-import React, {useRef, useEffect, useCallback, useState} from 'react';
-import {View, Platform} from 'react-native';
-import {WebView} from 'react-native-webview';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { View, Platform } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   AKWAM_BASE_URL,
-  AKWAM_GO_DOMAIN,
   AKWAM_BASE_DOMAIN,
   AKWAM_REFERER,
   normalizeAkwamUrl,
@@ -37,43 +33,44 @@ interface Props {
 const UA =
   'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
-// ── Pure HTTP download resolution (unchanged, already reliable) ───────────
-async function resolveDownloadMp4(shortUrl: string): Promise<string> {
-  const r1 = await fetch(normalizeAkwamUrl(shortUrl), {
+// ── Pure HTTP download resolution (no shortener) ──────────────────────────
+async function resolveDownloadMp4(url: string): Promise<string> {
+  // Direct fetch – no manual redirect handling, just follow them.
+  const resp = await fetch(normalizeAkwamUrl(url), {
     method: 'GET',
-    redirect: 'manual',
-    headers: {'User-Agent': UA},
+    redirect: 'follow',
+    headers: {
+      'User-Agent': UA,
+      Referer: AKWAM_REFERER,
+    },
   });
-  let downloadPageUrl: string;
-  if (r1.status >= 300 && r1.status < 400) {
-    const loc = r1.headers.get('location');
-    if (!loc) throw new Error('redirect with no Location header');
-    downloadPageUrl = loc.startsWith('http') ? loc : `${AKWAM_BASE_URL}${loc}`;
-  } else {
-    const html = await r1.text();
-    const m =
-      html.match(/class="download-link"[^>]*href="([^"]+)"/) ||
-      html.match(/href="([^"]+)"[^>]*class="download-link"/);
-    const href = m?.[1];
-    if (!href) throw new Error('download-link not found');
-    downloadPageUrl = href.startsWith('http') ? href : `${AKWAM_BASE_URL}${href}`;
+
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+  const html = await resp.text();
+
+  // Patterns for the download button and fallback MP4 URLs
+  const patterns = [
+    /class="[^"]*\blink\b[^"]*\bbtn\b[^"]*"[^>]*href="([^"]+\.mp4[^"]*)"/i,
+    /(?:href|src)="(https?:\/\/[^"]+\.mp4[^"]*)"/i,
+    /https?:\/\/[^\s"'<>]+\.mp4/i,
+  ];
+
+  for (const p of patterns) {
+    const m = html.match(p);
+    if (m) {
+      const mp4 = m[1] || m[0];
+      // Make it absolute if relative
+      if (mp4.startsWith('http')) return mp4;
+      if (mp4.startsWith('/')) return `${AKWAM_BASE_URL}${mp4}`;
+      return mp4;
+    }
   }
-  const r2 = await fetch(downloadPageUrl, {
-    headers: {'User-Agent': UA, Referer: AKWAM_REFERER},
-  });
-  const html2 = await r2.text();
-  const mp4Match = html2.match(
-    /class="[^"]*\blink\b[^"]*\bbtn\b[^"]*"[^>]*href="([^"]+\.mp4[^"]*)"/,
-  );
-  if (mp4Match) return mp4Match[1];
-  const fallback = html2.match(/(?:href|src)="(https?:\/\/[^"]+\.mp4[^"]*)"/);
-  if (fallback) return fallback[1];
-  const bare = html2.match(/https?:\/\/[^\s"'<>]+\.mp4/);
-  if (bare) return bare[0];
-  throw new Error('mp4 not found in download page');
+
+  throw new Error('MP4 not found in download page');
 }
 
-// ── Extract mp4 from HTML string (used in fallback) ───────────────────────
+// ── Extract MP4 from HTML (fallback) ──────────────────────────────────────
 function extractMp4(html: string): string | null {
   const patterns = [
     /<source[^>]+src="([^"]+\.mp4[^"]*)"/i,
@@ -88,7 +85,7 @@ function extractMp4(html: string): string | null {
   return null;
 }
 
-// ── Injected JS (runs on ANY page the WebView loads) ──────────────────────
+// ── Injected JS – scans for #player source on the watch page ─────────────
 const WATCH_JS = `
 (function() {
   if (window.__akwamDone) return;
@@ -100,33 +97,6 @@ const WATCH_JS = `
     window.ReactNativeWebView.postMessage(url);
   }
 
-  function log(msg) {
-    try { window.ReactNativeWebView.postMessage('[AKWAM_LOG] ' + msg); } catch(e) {}
-  }
-
-  var currentUrl = window.location.href;
-
-  // Shortener page – detect by go domain or legacy aliases
-  if (currentUrl.indexOf('go.akwam.it') !== -1 || currentUrl.indexOf('go.akwam.com.co') !== -1 || currentUrl.indexOf('akw.cam') !== -1) {
-    function clickDownloadLink() {
-      var link = document.querySelector('a.download-link');
-      if (link && link.href) {
-        log('navigating to ' + link.href.substring(0, 80));
-        window.location.href = link.href;
-        return true;
-      }
-      return false;
-    }
-    if (clickDownloadLink()) return;
-    document.addEventListener('DOMContentLoaded', function() { clickDownloadLink(); });
-    var tries = 0;
-    var t = setInterval(function() {
-      if (clickDownloadLink() || ++tries > 20) clearInterval(t);
-    }, 200);
-    return;
-  }
-
-  // Final watch page (akwam.it/watch/…) – scan for #player source
   function scan() {
     var s = document.querySelector('#player source[src]');
     if (s && s.src && s.src.indexOf('.mp4') !== -1) { done(s.src); return true; }
@@ -152,7 +122,7 @@ const WATCH_JS = `
 true;
 `;
 
-// ── Component ─────────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────
 const AkwamExtractor: React.FC<Props> = ({
   startUrl,
   mode,
@@ -160,10 +130,9 @@ const AkwamExtractor: React.FC<Props> = ({
   onError,
   timeoutMs = 45000,
 }) => {
-  const doneRef     = useRef(false);
-  const timerRef    = useRef<ReturnType<typeof setTimeout>>();
+  const doneRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const fallbackRef = useRef<ReturnType<typeof setTimeout>>();
-  // Store the final watch URL for the native fetch fallback
   const watchPageUrlRef = useRef<string | null>(null);
 
   const done = useCallback(
@@ -180,13 +149,12 @@ const AkwamExtractor: React.FC<Props> = ({
   const startFallback = useCallback(() => {
     const finalUrl = watchPageUrlRef.current;
     if (!finalUrl) return;
-    // Wait 5s before falling back, so the WebView has a chance
     fallbackRef.current = setTimeout(() => {
       if (doneRef.current) return;
       console.log('[Akwam] FALLBACK fetch starting:', finalUrl.substring(0, 80));
-      fetch(finalUrl, {headers: {'User-Agent': UA}})
-        .then(r => r.text())
-        .then(html => {
+      fetch(finalUrl, { headers: { 'User-Agent': UA } })
+        .then((r) => r.text())
+        .then((html) => {
           const mp4 = extractMp4(html);
           if (mp4) {
             console.log('[Akwam] FALLBACK got mp4:', mp4.substring(0, 120));
@@ -209,11 +177,11 @@ const AkwamExtractor: React.FC<Props> = ({
 
     if (mode === 'download') {
       resolveDownloadMp4(startUrl)
-        .then(mp4 => {
+        .then((mp4) => {
           console.log('[Akwam] DOWNLOAD success:', mp4.substring(0, 120));
           done(mp4);
         })
-        .catch(e => {
+        .catch((e) => {
           console.warn('[Akwam] DOWNLOAD failed:', e.message);
           done();
         });
@@ -242,16 +210,14 @@ const AkwamExtractor: React.FC<Props> = ({
   );
 
   const handleNavRequest = useCallback(
-    (request: {url: string}) => {
+    (request: { url: string }) => {
       const url = request.url;
       console.log('[Akwam] WEBVIEW nav:', url?.substring(0, 120));
       if (!url) return true;
       if (url.startsWith('about:') || url.startsWith('data:')) return true;
 
-      // If it's the real watch page (new or legacy domain), store it and start fallback timer
-      const isWatchPage =
-        url.includes(`${AKWAM_BASE_DOMAIN}/watch/`) ||
-        url.includes('akwam.com.co/watch/');
+      // Store the real watch page URL for the fallback
+      const isWatchPage = url.includes(`${AKWAM_BASE_DOMAIN}/watch/`);
       if (isWatchPage && url !== watchPageUrlRef.current) {
         watchPageUrlRef.current = url;
         startFallback();
@@ -262,15 +228,9 @@ const AkwamExtractor: React.FC<Props> = ({
         return false;
       }
 
-      const allowed = [
-        AKWAM_BASE_DOMAIN,   // akwam.it
-        AKWAM_GO_DOMAIN,     // go.akwam.it
-        'akwam.com.co',      // legacy
-        'go.akwam.com.co',   // legacy
-        'akw.cam',           // legacy alias
-        'downet.net',
-      ];
-      const ok = allowed.some(h => url.includes(h));
+      // Only allow akwam.it and the CDN (downet.net)
+      const allowed = [AKWAM_BASE_DOMAIN, 'downet.net'];
+      const ok = allowed.some((h) => url.includes(h));
       if (!ok) console.log('[Akwam] WEBVIEW blocked:', url.substring(0, 120));
       return ok;
     },
@@ -280,9 +240,12 @@ const AkwamExtractor: React.FC<Props> = ({
   if (mode !== 'watch') return null;
 
   return (
-    <View pointerEvents="none" style={{position: 'absolute', width: 1, height: 1, opacity: 0}}>
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+    >
       <WebView
-        source={{uri: normalizeAkwamUrl(startUrl)}}
+        source={{ uri: normalizeAkwamUrl(startUrl) }}
         javaScriptEnabled
         domStorageEnabled
         thirdPartyCookiesEnabled
@@ -291,10 +254,12 @@ const AkwamExtractor: React.FC<Props> = ({
         onShouldStartLoadWithRequest={handleNavRequest}
         onError={() => done()}
         originWhitelist={['*']}
-        {...(Platform.OS === 'android' ? {
-          setSupportMultipleWindows: false,
-          mixedContentMode: 'always' as const,
-        } : {})}
+        {...(Platform.OS === 'android'
+          ? {
+              setSupportMultipleWindows: false,
+              mixedContentMode: 'always' as const,
+            }
+          : {})}
         userAgent={UA}
       />
     </View>
