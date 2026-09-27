@@ -47,7 +47,7 @@ function animeSeasonLabelD(dateStr: string | null | undefined, lang: 'en' | 'ar'
   return `${seasons[key][lang]} ${year}`;
 }
 import {localizeGenres} from '../i18n/genres';
-import {API_BASE} from '../constants/endpoints';
+import {API_BASE, FASEL_BASE_URL} from '../constants/endpoints';
 import {VideoExtractor} from '../components/VideoExtractor';
 import {Lightbox} from '../components/Lightbox';
 import {getLargePosterUrl} from '../utils/posterUrl';
@@ -64,7 +64,7 @@ import {
 import {getPersistedUser} from '../services/authService';
 import { resolveAkwamDownloadLink } from '../services/akwamDownload';
 
-const FASEL_BASE = 'https://www.fasel-hd.cam';
+const FASEL_BASE = FASEL_BASE_URL;
 
 /**
  * Derive a human-readable episode label from a fasel-hd episode URL.

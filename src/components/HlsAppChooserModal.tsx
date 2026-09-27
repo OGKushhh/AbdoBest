@@ -14,6 +14,7 @@ import {
 import {Linking} from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {Colors} from '../theme/colors';
+import {FASEL_REFERER} from '../constants/endpoints';
 
 // ─── iOS downloader apps (download-only, no VLC) ──────────────────────────
 // Checked in order. First one installed wins.
@@ -87,7 +88,7 @@ const HlsDownloadSheet: React.FC<Props> = ({visible, m3u8Url, title, onClose}) =
       const scheme = m3u8Url.startsWith('https') ? 'https' : 'http';
       const rawUrl = m3u8Url.replace(/^https?:\/\//, '');
       const encodedTitle = encodeURIComponent(filename);
-      const encodedReferer = encodeURIComponent('https://www.fasel-hd.cam/');
+      const encodedReferer = encodeURIComponent(FASEL_REFERER);
 
       // Method 1: Explicit intent URI targeting UrlHandlerDownloader
       try {

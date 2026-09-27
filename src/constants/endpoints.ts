@@ -16,6 +16,21 @@ export const AKWAM_LEGACY_DOMAINS = [
 ] as const;
 // ──────────────────────────────────────────────────────────────────────────
 
+// ── Fasel domains ──────────────────────────────────────────────────────────
+// Update FASEL_BASE_DOMAIN when fasel changes their domain – everything
+// else (DetailsScreen's page URL, the HLS handoff referer, etc.)
+// auto-follows. The VideoExtractor allowlist (see src/components/
+// VideoExtractor.tsx) already lists both .cam and .co, so cached
+// pre-scraped URLs from the backend keep loading after a domain swap.
+export const FASEL_BASE_DOMAIN = 'fasel-hd.co';
+export const FASEL_BASE_URL    = `https://www.${FASEL_BASE_DOMAIN}`;
+export const FASEL_REFERER     = `${FASEL_BASE_URL}/`;
+// Legacy domain(s) kept for URL-rewriting (links already saved in DB use these)
+export const FASEL_LEGACY_DOMAINS = [
+  'fasel-hd.cam',
+] as const;
+// ──────────────────────────────────────────────────────────────────────────
+
 /**
  * Rewrites any stored akwam URL (old domains) to the current live domain.
  * Safe to call even if the URL is already on the new domain or is empty.
