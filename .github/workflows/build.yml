@@ -20,9 +20,10 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        env:
-          SKIP_JDK_VERSION_CHECK: true
+        uses: android-actions/setup-android@v4
+        with:
+          # Only install platform-tools; the deprecated 'tools' package is gone.
+          packages: 'platform-tools'
 
       - name: Install NDK
         run: sdkmanager --install "ndk;23.1.7779620"
