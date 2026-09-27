@@ -276,6 +276,7 @@ const BLOCKED_DOMAINS = [
 // ── Allowed domains ──────────────────────────────────────────────────────────
 const ALLOWED_DOMAINS = [
   'fasel-hd.cam',
+  'fasel-hd.co',
   'faselhd.com',
   'faselhd.tv',
   'faselhdx.bid',
