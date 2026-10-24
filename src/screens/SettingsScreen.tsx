@@ -11,7 +11,8 @@ import { getSettings, saveSettings } from '../storage';
 import { clearAllMetadataCache } from '../storage/cache';
 import { getLastSyncTime, clearRuntimeCache } from '../services/metadataService';
 import { CacheSyncInline, useCacheSync } from '../components/CacheSyncOverlay';
-import { checkForUpdate, openUpdateUrl, skipVersion } from '../services/updateService';
+import { checkForUpdate, openUpdateUrl, skipVersion, downloadAndInstallApk, ReleaseInfo, DownloadProgress } from '../services/updateService';
+import { UpdateModal } from '../components/UpdateModal';
 import { APP_VERSION } from '../constants/endpoints';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation } from '@react-navigation/native';
@@ -104,11 +105,37 @@ export const SettingsScreen: React.FC = () => {
   const [qualityModalVisible, setQualityModalVisible] = useState(false);
   const [cacheModalVisible, setCacheModalVisible] = useState(false);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [updateInfo, setUpdateInfo] = useState<ReleaseInfo | null>(null);
   const [dirModalVisible, setDirModalVisible] = useState(false);
 
   const [clearingCache, setClearingCache] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<DownloadProgress | null>(null);
+
+  // ── Update download handler (same logic as App.tsx's handleUpdateDownload) ──
+  // Downloads the APK in-app on Android (with progress bar via UpdateModal),
+  // falls back to opening the browser on iOS or on download failure.
+  const handleUpdateDownload = useCallback(async (url: string) => {
+    if (Platform.OS !== 'android' || !updateInfo) {
+      setUpdateModalVisible(false);
+      openUpdateUrl(url);
+      return;
+    }
+    setUpdateDownloading(true);
+    setUpdateProgress(null);
+    try {
+      await downloadAndInstallApk(updateInfo, setUpdateProgress);
+      setUpdateModalVisible(false);
+    } catch (e: any) {
+      console.warn('[Settings] In-app download/install failed, falling back to browser:', e?.message);
+      openUpdateUrl(url);
+      setUpdateModalVisible(false);
+    } finally {
+      setUpdateDownloading(false);
+      setUpdateProgress(null);
+    }
+  }, [updateInfo]);
 
   const qualityOptions = ['auto', '1080', '720', '480', '360'];
 
@@ -594,53 +621,27 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </AppModal>
 
-      {/* ── Update Modal ── */}
-      <AppModal visible={updateModalVisible} onClose={() => setUpdateModalVisible(false)} colors={colors}>
-        {updateInfo ? (
-          <>
-            <View style={styles.updateBadge}>
-              <Text style={styles.updateBadgeText}>v{updateInfo.version} {t('latest_version')}</Text>
-            </View>
-            <Text style={styles.modalTitle}>{t('update_available')}</Text>
-            <Text style={styles.modalBody}>{t('update_description')}</Text>
-            {updateInfo.changelog ? (
-              <>
-                <Text style={styles.changelogLabel}>{t('whats_new')}</Text>
-                <ScrollView style={styles.changelogBox} showsVerticalScrollIndicator={false}>
-                  {parseChangelogLines(updateInfo.changelog).map((line, i, arr) => (
-                    <View key={i} style={[styles.changelogRow, i === arr.length - 1 && styles.changelogRowLast]}>
-                      <Text style={styles.changelogBullet}>{isRTL ? '•' : '•'}</Text>
-                      <Text style={styles.changelogText}>{line}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </>
-            ) : null}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnSecondary}
-                onPress={() => { skipVersion(updateInfo.version); setUpdateModalVisible(false); }}
-              >
-                <Text style={styles.modalBtnTextSecondary}>{t('skip_version')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalBtnPrimary}
-                onPress={() => { openUpdateUrl(updateInfo.downloadUrl); setUpdateModalVisible(false); }}
-              >
-                <Text style={styles.modalBtnTextPrimary}>{t('download_update')}</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.modalTitle}>{t('up_to_date')}</Text>
-            <Text style={styles.modalBody}>v{APP_VERSION}</Text>
-            <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setUpdateModalVisible(false)}>
-              <Text style={styles.modalBtnTextPrimary}>{t('ok')}</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </AppModal>
+      {/* ── Update Modal ── same component as App.tsx auto-popup ── */}
+      {updateInfo ? (
+        <UpdateModal
+          visible={updateModalVisible}
+          release={updateInfo}
+          currentVersion={APP_VERSION}
+          downloading={updateDownloading}
+          progress={updateProgress}
+          onDownload={handleUpdateDownload}
+          onSkip={(version: string) => { skipVersion(version); setUpdateModalVisible(false); }}
+          onDismiss={() => setUpdateModalVisible(false)}
+        />
+      ) : (
+        <AppModal visible={updateModalVisible} onClose={() => setUpdateModalVisible(false)} colors={colors}>
+          <Text style={styles.modalTitle}>{t('up_to_date')}</Text>
+          <Text style={styles.modalBody}>v{APP_VERSION}</Text>
+          <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setUpdateModalVisible(false)}>
+            <Text style={styles.modalBtnTextPrimary}>{t('ok')}</Text>
+          </TouchableOpacity>
+        </AppModal>
+      )}
 
       {/* Reward ad popup */}
       {rewardElement}
