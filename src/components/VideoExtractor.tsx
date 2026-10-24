@@ -275,18 +275,26 @@ const BLOCKED_DOMAINS = [
 
 // ── Allowed domains ──────────────────────────────────────────────────────────
 const ALLOWED_DOMAINS = [
+  // FaselHD page domains (all known legacy + current)
   'fasel-hd.cam',
   'fasel-hd.co',
   'faselhd.com',
   'faselhd.tv',
   'faselhdx.bid',
   'faselhdx.com',
+  // Cloudflare Turnstile challenge scripts — REQUIRED when CF challenges
+  // the WebView. Without this, the challenge page can't load its solving
+  // JS from challenges.cloudflare.com, the page hangs on "Just a moment…"
+  // and VideoExtractor times out after 45s with onError('timeout').
+  'challenges.cloudflare.com',
+  // FaselHD CDN + player
   'scdns.io',
   'jwpcdn.com',
   'jwplayer.com',
   'cdn.jwplayer.com',
   'content.jwplatform.com',
   'ssl.p.jwpcdn.com',
+  // Generic CDNs that FaselHD's m3u8 streams are served from
   'cloudfront.net',
   'akamaized.net',
   'akamai.net',
@@ -479,7 +487,7 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
         onLoad={() => dbg('LOADED')}
         onError={handleLoadError}
         onHttpError={handleHttpError}
-        userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
         scalesPageToFit={false}
