@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS = {
   darkMode: true,
   qualityPreference: 'auto',
   subtitleEnabled: false,
+  askBeforeResume: false,
   downloadDir: 'downloads',
 };
 

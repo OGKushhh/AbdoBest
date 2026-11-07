@@ -10,8 +10,13 @@ import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
+import { storage } from '../storage/Storage';
 import { useTheme } from '../hooks/useTheme';
 import {AKWAM_BASE_URL, AKWAM_REFERER} from '../constants/endpoints';
+
+// ── Resume playback constants ──────────────────────────────────────────────
+const RESUME_PREFIX = 'resume:';
+const RESUME_THRESHOLD = 0.95; // Don't resume if past 95% of duration
 
 // ─── Orientation (no external library needed) ─────────────────────────────────
 // We use react-native's built-in Dimensions + a JS-side rotation flag.
@@ -321,6 +326,33 @@ export const PlayerScreen: React.FC = () => {
   // ── Seek-after-load ref ───────────────────────────────────────────────────
   const seekAfterLoadRef = useRef<number | null>(null);
 
+  // ── Resume playback ──────────────────────────────────────────────────────
+  const latestPositionRef = useRef({ currentTime: 0, duration: 0 });
+  const hasResumedRef = useRef(false);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [resumePosition, setResumePosition] = useState(0);
+  const [showResumeToast, setShowResumeToast] = useState(false);
+  const resumeToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveResumePosition = useCallback(() => {
+    const { currentTime: ct, duration: dur } = latestPositionRef.current;
+    if (dur > 0 && ct > 5) {
+      storage.set(RESUME_PREFIX + title, JSON.stringify({
+        position: ct, duration: dur, savedAt: Date.now(),
+      }));
+    }
+  }, [title]);
+
+  // Periodic save every 15s + final save on unmount
+  useEffect(() => {
+    const interval = setInterval(saveResumePosition, 15000);
+    return () => {
+      clearInterval(interval);
+      saveResumePosition();
+      if (resumeToastTimer.current) clearTimeout(resumeToastTimer.current);
+    };
+  }, [saveResumePosition]);
+
   // ── Seek bar ──────────────────────────────────────────────────────────────
   const [seekBarWidth, setSeekBarWidth] = useState(0);
   const [seekBarX, setSeekBarX]         = useState(0);
@@ -356,11 +388,51 @@ export const PlayerScreen: React.FC = () => {
     }
   };
 
-  const handleProgress = (data: OnProgressData) => setCurrentTime(data.currentTime);
+  const handleProgress = (data: OnProgressData) => {
+    setCurrentTime(data.currentTime);
+    latestPositionRef.current.currentTime = data.currentTime;
+  };
+
   const handleLoad = (meta: any) => {
     setDuration(meta.duration);
     setBuffering(false);
     showControlsTemporarily();
+    latestPositionRef.current.duration = meta.duration;
+
+    // ── Resume position check (first load only, not quality-switch reloads) ──
+    if (!hasResumedRef.current) {
+      hasResumedRef.current = true;
+      const key = RESUME_PREFIX + title;
+      const saved = storage.getString(key);
+      if (saved) {
+        try {
+          const { position, duration: savedDuration } = JSON.parse(saved);
+          if (savedDuration > 0 && position > 5) {
+            const ratio = position / savedDuration;
+            if (ratio < RESUME_THRESHOLD) {
+              const settings = getSettings();
+              if (settings.askBeforeResume) {
+                // Show prompt — pause until user decides
+                setResumePosition(position);
+                setShowResumePrompt(true);
+                setPlaying(false);
+              } else {
+                // Auto-resume + toast
+                seekAfterLoadRef.current = position;
+                setResumePosition(position);
+                setShowResumeToast(true);
+                resumeToastTimer.current = setTimeout(() => setShowResumeToast(false), 4000);
+              }
+            } else {
+              // Past 95% — delete saved position, start from beginning
+              storage.delete(key);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // Existing seek-after-load logic (handles both quality-switch + resume)
     if (seekAfterLoadRef.current !== null) {
       const target = seekAfterLoadRef.current;
       seekAfterLoadRef.current = null;
@@ -740,6 +812,59 @@ export const PlayerScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Resume prompt modal (askBeforeResume = ON) ── */}
+      <Modal visible={showResumePrompt} transparent animationType="fade">
+        <View style={styles.resumeOverlay}>
+          <View style={styles.resumeCard}>
+            <Text style={styles.resumeTitle}>{t('continue_watching')}</Text>
+            <Text style={styles.resumeTime}>{t('resume_from', { time: formatTime(resumePosition) })}</Text>
+            <View style={styles.resumeActions}>
+              <TouchableOpacity
+                style={styles.resumeBtnSecondary}
+                onPress={() => {
+                  setShowResumePrompt(false);
+                  setPlaying(true);
+                  storage.delete(RESUME_PREFIX + title);
+                }}
+              >
+                <Text style={styles.resumeBtnTextSecondary}>{t('start_over')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.resumeBtnPrimary}
+                onPress={() => {
+                  setShowResumePrompt(false);
+                  videoRef.current?.seek(resumePosition);
+                  setCurrentTime(resumePosition);
+                  setPlaying(true);
+                }}
+              >
+                <Text style={styles.resumeBtnTextPrimary}>{t('resume')} ▶</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Resume toast (askBeforeResume = OFF — auto-resume) ── */}
+      {showResumeToast && (
+        <TouchableOpacity
+          style={styles.resumeToast}
+          activeOpacity={0.8}
+          onPress={() => {
+            setShowResumeToast(false);
+            if (resumeToastTimer.current) clearTimeout(resumeToastTimer.current);
+            videoRef.current?.seek(0);
+            setCurrentTime(0);
+            storage.delete(RESUME_PREFIX + title);
+          }}
+        >
+          <Text style={styles.resumeToastText}>
+            {t('resume_toast', { time: formatTime(resumePosition) })}
+          </Text>
+          <Text style={styles.resumeToastSub}>{t('resume_toast_restart')}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -781,4 +906,18 @@ const styles = StyleSheet.create({
   errorText:        { fontSize: 16, textAlign: 'center', marginTop: 16 },
   errorButton:      { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8 },
   errorButtonText:  { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  // ── Resume playback ──
+  resumeOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' },
+  resumeCard:         { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 24, width: '85%', maxWidth: 360, alignItems: 'center' },
+  resumeTitle:        { color: '#fff', fontSize: 18, fontWeight: '700', fontFamily: 'Rubik-Bold', marginBottom: 8 },
+  resumeTime:         { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontFamily: 'Rubik', marginBottom: 20 },
+  resumeActions:      { flexDirection: 'row', gap: 12, width: '100%' },
+  resumeBtnSecondary: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
+  resumeBtnPrimary:   { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#E53935', alignItems: 'center' },
+  resumeBtnTextSecondary: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '600', fontFamily: 'Rubik' },
+  resumeBtnTextPrimary:   { color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik-Bold' },
+  resumeToast:        { position: 'absolute', bottom: 80, left: 20, right: 20, backgroundColor: 'rgba(26,26,46,0.95)', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 },
+  resumeToastText:    { color: '#fff', fontSize: 13, fontWeight: '600', fontFamily: 'Rubik' },
+  resumeToastSub:     { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: 'Rubik' },
 });

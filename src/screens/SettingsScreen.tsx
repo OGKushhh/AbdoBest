@@ -432,6 +432,13 @@ export const SettingsScreen: React.FC = () => {
               settingKey="mobileDataWarning"
               toggle
             />
+            <SettingRow
+              icon={require('../../assets/icons/night-mode.png')}
+              label={t('ask_before_resume')}
+              sub={t('ask_before_resume_sub')}
+              settingKey="askBeforeResume"
+              toggle
+            />
             <TouchableOpacity style={[styles.row, styles.rowLast]} onPress={() => setQualityModalVisible(true)} activeOpacity={0.65}>
               <View style={styles.rowIcon}>
                 <Image source={require('../../assets/icons/setting.png')} style={styles.rowIconImg} />

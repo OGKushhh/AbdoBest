@@ -72,6 +72,7 @@ export interface UserSettings {
   qualityPreference: 'high' | 'medium' | 'low' | 'auto';
   playerQuality: 'auto' | '1080' | '720' | '480' | '360';
   subtitleEnabled: boolean;
+  askBeforeResume: boolean;
   downloadDir: 'downloads' | 'internal';
 }
 
