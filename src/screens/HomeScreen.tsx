@@ -82,7 +82,7 @@ const INFO_TIP_KEYS = [
   { iconKey: 'info_tip_update_icon',   textKey: 'info_tip_update',   link: null,                          linkKey: null },
   { iconKey: 'info_tip_auto_icon',     textKey: 'info_tip_auto',     link: null,                          linkKey: null },
   { iconKey: 'info_tip_play_icon',     textKey: 'info_tip_play',     link: null,                          linkKey: null },
-  { iconKey: 'info_tip_telegram_icon', textKey: 'info_tip_telegram', link: 'https://t.me/Abdobestt',      linkKey: 'info_tip_telegram_link' },
+  { iconKey: 'info_tip_telegram_icon', textKey: 'info_tip_telegram', link: 'https://t.me/AbdoBestChat',      linkKey: 'info_tip_telegram_link' },
   { iconKey: 'info_tip_kofi_icon',     textKey: 'info_tip_kofi',     link: 'https://ko-fi.com/abdobest',  linkKey: 'info_tip_kofi_link' },
 ] as const;
 
