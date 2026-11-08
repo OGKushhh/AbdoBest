@@ -19,7 +19,83 @@ interface UpdateModalProps {
   onDismiss: () => void;
 }
 
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
+const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
+
+// ── Lightweight markdown parser for GitHub release changelogs ────────────────
+// Handles the most common markdown patterns found in release notes:
+//   ## Header      → bold, larger text
+//   ### Subheader  → bold, medium text
+//   - item / * item → bullet point with proper indentation
+//   **bold**       → bold (stripped, rendered as bold Text)
+//   `code`         → stripped of backticks
+//   ``` blocks     → skipped (code fences)
+//   Regular text   → paragraph
+// No external dependency — just string parsing + React Native components.
+interface ChangelogBlock {
+  type: 'header' | 'subheader' | 'bullet' | 'paragraph';
+  content: string;
+  items?: string[];
+}
+
+function parseChangelog(markdown: string): ChangelogBlock[] {
+  if (!markdown) return [];
+  const lines = markdown.split('\n');
+  const blocks: ChangelogBlock[] = [];
+  let currentBullets: string[] = [];
+  let inCodeFence = false;
+
+  const flushBullets = () => {
+    if (currentBullets.length > 0) {
+      blocks.push({ type: 'bullet', content: '', items: [...currentBullets] });
+      currentBullets = [];
+    }
+  };
+
+  // Strip inline markdown: **bold** → bold, *italic* → italic, `code` → code
+  const stripInline = (text: string): string =>
+    text
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1') // [text](url) → text
+      .trim();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Toggle code fence
+    if (trimmed.startsWith('```')) {
+      inCodeFence = !inCodeFence;
+      flushBullets();
+      continue;
+    }
+    // Skip content inside code fences
+    if (inCodeFence) continue;
+
+    if (!trimmed) {
+      flushBullets();
+      continue;
+    }
+
+    if (trimmed.startsWith('## ')) {
+      flushBullets();
+      blocks.push({ type: 'header', content: stripInline(trimmed.slice(3)) });
+    } else if (trimmed.startsWith('### ')) {
+      flushBullets();
+      blocks.push({ type: 'subheader', content: stripInline(trimmed.slice(4)) });
+    } else if (trimmed.startsWith('# ')) {
+      flushBullets();
+      blocks.push({ type: 'header', content: stripInline(trimmed.slice(2)) });
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      currentBullets.push(stripInline(trimmed.slice(2)));
+    } else {
+      flushBullets();
+      blocks.push({ type: 'paragraph', content: stripInline(trimmed) });
+    }
+  }
+  flushBullets();
+  return blocks;
+}
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${Math.round(bytes)} B`;
@@ -73,7 +149,28 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             <View style={styles.changelogContainer}>
               <Text style={styles.changelogTitle}>{t('update_changelog')}</Text>
               <ScrollView style={styles.changelogScroll} showsVerticalScrollIndicator={false}>
-                <Text style={styles.changelogText}>{release.changelog}</Text>
+                {parseChangelog(release.changelog).map((block, i) => {
+                  switch (block.type) {
+                    case 'header':
+                      return <Text key={i} style={styles.clHeader}>{block.content}</Text>;
+                    case 'subheader':
+                      return <Text key={i} style={styles.clSubheader}>{block.content}</Text>;
+                    case 'bullet':
+                      return (
+                        <View key={i} style={styles.clBulletGroup}>
+                          {(block.items || []).map((item, j) => (
+                            <View key={j} style={styles.clBulletRow}>
+                              <Text style={styles.clBulletDot}>{'\u2022'}</Text>
+                              <Text style={styles.clBulletText}>{item}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    case 'paragraph':
+                    default:
+                      return <Text key={i} style={styles.clParagraph}>{block.content}</Text>;
+                  }
+                })}
               </ScrollView>
             </View>
           )}
@@ -135,7 +232,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.surface,
     borderRadius: 20,
     padding: 24,
-    maxHeight: SCREEN_WIDTH - 24,
+    maxHeight: SCREEN_HEIGHT * 0.75,
   },
   header: {
     alignItems: 'center',
@@ -201,12 +298,54 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   changelogScroll: {
-    maxHeight: 120,
+    maxHeight: SCREEN_HEIGHT * 0.3,
   },
-  changelogText: {
+  // ── Markdown-rendered changelog styles ──
+  clHeader: {
+    color: Colors.dark.text,
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: 'Rubik-Bold',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  clSubheader: {
+    color: Colors.dark.text,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Rubik',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  clBulletGroup: {
+    marginBottom: 4,
+  },
+  clBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 3,
+    paddingLeft: 4,
+  },
+  clBulletDot: {
+    color: Colors.dark.primary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  clBulletText: {
     color: Colors.dark.textSecondary,
-    fontSize: Typography.sizes.sm,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+    fontFamily: 'Rubik',
+  },
+  clParagraph: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+    fontFamily: 'Rubik',
   },
   dateText: {
     color: Colors.dark.textMuted,
