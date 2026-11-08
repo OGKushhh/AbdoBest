@@ -1086,7 +1086,7 @@ export const DetailsScreen: React.FC = () => {
 
   const handleReport = () => {
     const msg = encodeURIComponent(`[Report] ${item.Title} (ID: ${item.id}, Category: ${category})\n\nالمشكلة: `);
-    Linking.openURL(`https://t.me/Abdobestt?text=${msg}`);
+    Linking.openURL(`https://t.me/AbdoBestChat?text=${msg}`);
   };
 
   const showComingSoon = () => {
