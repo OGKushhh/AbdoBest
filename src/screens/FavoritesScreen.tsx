@@ -15,6 +15,7 @@ import React, {useState, useCallback, useEffect, useMemo} from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   StatusBar, Image, RefreshControl, Alert, Modal, ScrollView,
+  TextInput,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -81,6 +82,10 @@ export const FavoritesScreen: React.FC = () => {
   const [activeTab, setActiveTab]   = useState<Tab>('favourites');
   const [items, setItems]           = useState<CollectionEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [tabCounts, setTabCounts]   = useState<Record<string, number>>({favourites: 0, watched: 0, watch_later: 0});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showRemoveSheet, setShowRemoveSheet] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<CollectionEntry | null>(null);
 
   // Filters
   const [showFilterPopup, setShowFilterPopup] = useState(false);
@@ -97,30 +102,41 @@ export const FavoritesScreen: React.FC = () => {
     setItems(data);
   }, [activeTab]);
 
+  // Load item counts for all 3 tabs (for the tab badges)
+  const loadCounts = useCallback(async () => {
+    const [fav, watched, later] = await Promise.all([
+      getCollectionItems('favourites'),
+      getCollectionItems('watched'),
+      getCollectionItems('watch_later'),
+    ]);
+    setTabCounts({
+      favourites: fav.length,
+      watched: watched.length,
+      watch_later: later.length,
+    });
+  }, []);
+
   // Reload when tab changes or screen comes into focus
-  useFocusEffect(useCallback(() => { load(false); }, [load]));
+  useFocusEffect(useCallback(() => { load(false); loadCounts(); }, [load, loadCounts]));
   useEffect(() => { load(false); }, [activeTab]);
 
   // Reset category filter when switching tabs — categories present differ per tab
   useEffect(() => { setSelectedCategories([]); }, [activeTab]);
 
+  // Replace native Alert with styled bottom sheet
   const handleRemove = useCallback((item: CollectionEntry) => {
-    Alert.alert(
-      t('favorites_remove_title'),
-      t('favorites_remove_body', {title: item.title}),
-      [
-        {text: t('cancel'), style: 'cancel'},
-        {
-          text: t('remove'),
-          style: 'destructive',
-          onPress: async () => {
-            await removeFromCollection(activeTab as CollectionName, item.content_id, item.category);
-            load(false);
-          },
-        },
-      ],
-    );
-  }, [activeTab, load, t]);
+    setRemoveTarget(item);
+    setShowRemoveSheet(true);
+  }, []);
+
+  const confirmRemove = useCallback(async () => {
+    if (!removeTarget) return;
+    setShowRemoveSheet(false);
+    await removeFromCollection(activeTab as CollectionName, removeTarget.content_id, removeTarget.category);
+    setRemoveTarget(null);
+    load(false);
+    loadCounts();
+  }, [removeTarget, activeTab, load, loadCounts]);
 
   const handlePress = useCallback((fullItem: ContentItem) => {
     navigation.navigate('Details', {item: fullItem});
@@ -166,8 +182,14 @@ export const FavoritesScreen: React.FC = () => {
         sorted.sort((a, b) => b.entry.added_at.localeCompare(a.entry.added_at));
         break;
     }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(({entry}) => entry.title.toLowerCase().includes(q));
+    }
+
     return sorted;
-  }, [hydrated, selectedCategories, selectedSort]);
+  }, [hydrated, selectedCategories, selectedSort, searchQuery]);
 
   const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories(prev =>
@@ -199,20 +221,40 @@ export const FavoritesScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Tabs */}
+      {/* Tabs with counts */}
       <View style={styles.tabBar}>
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
             style={[styles.tabItem, activeTab === tab.key && styles.tabItemActive]}
-            onPress={() => setActiveTab(tab.key)}
+            onPress={() => { setActiveTab(tab.key); setSearchQuery(''); }}
             activeOpacity={0.7}>
             <Text style={[styles.tabLabel, activeTab === tab.key && styles.tabLabelActive]}>
-              {t(tab.labelKey)}
+              {t(tab.labelKey)}{tabCounts[tab.key] > 0 ? ` (${tabCounts[tab.key]})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Search bar */}
+      {!isEmpty && (
+        <View style={styles.searchRow}>
+          <Image source={require('../../assets/icons/search.png')} style={{width: 16, height: 16, tintColor: Colors.dark.textMuted, marginRight: 8}} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={t('search_placeholder')}
+            placeholderTextColor={Colors.dark.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Text style={{fontSize: 18, color: Colors.dark.textMuted, fontWeight: '700'}}>×</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Active filter chips */}
       {activeFilterCount > 0 && (
@@ -242,6 +284,13 @@ export const FavoritesScreen: React.FC = () => {
           />
           <Text style={styles.emptyTitle}>{t(`favorites_empty_${activeTab}`)}</Text>
           <Text style={styles.emptySubtitle}>{t('favorites_empty_hint')}</Text>
+          <TouchableOpacity
+            style={styles.emptyCtaBtn}
+            onPress={() => navigation.navigate('BrowseTab')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.emptyCtaText}>{t('browse')} →</Text>
+          </TouchableOpacity>
         </View>
       ) : visibleItems.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -283,6 +332,33 @@ export const FavoritesScreen: React.FC = () => {
           )}
         />
       )}
+
+      {/* Styled remove confirmation sheet (replaces native Alert) */}
+      <Modal visible={showRemoveSheet} transparent animationType="slide" onRequestClose={() => setShowRemoveSheet(false)}>
+        <TouchableOpacity style={styles.removeOverlay} activeOpacity={1} onPress={() => setShowRemoveSheet(false)}>
+          <View style={styles.removeSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.removeHandle} />
+            <Text style={styles.removeTitle}>{t('favorites_remove_title')}</Text>
+            <Text style={styles.removeBody}>{t('favorites_remove_body', {title: removeTarget?.title ?? ''})}</Text>
+            <View style={styles.removeActions}>
+              <TouchableOpacity
+                style={styles.removeBtnCancel}
+                onPress={() => setShowRemoveSheet(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.removeBtnCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.removeBtnConfirm}
+                onPress={confirmRemove}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.removeBtnConfirmText}>{t('remove')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Filter Modal */}
       <Modal visible={showFilterPopup} transparent animationType="fade" onRequestClose={() => setShowFilterPopup(false)}>
@@ -500,4 +576,70 @@ const styles = StyleSheet.create({
     paddingVertical: 13, alignItems: 'center', marginTop: 16,
   },
   applyBtnText: {color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Rubik-Bold'},
+
+  // ── Search bar ──
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: Colors.dark.surface, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 2,
+    borderWidth: 1, borderColor: Colors.dark.border,
+  },
+  searchInput: {
+    flex: 1, color: Colors.dark.text, fontSize: 14,
+    paddingVertical: 10, fontFamily: 'Rubik',
+  },
+
+  // ── Empty state CTA ──
+  emptyCtaBtn: {
+    marginTop: 16, paddingHorizontal: 24, paddingVertical: 10,
+    backgroundColor: Colors.dark.primary, borderRadius: 12,
+  },
+  emptyCtaText: {
+    color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: 'Rubik-Bold',
+  },
+
+  // ── Styled remove confirmation sheet ──
+  removeOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end',
+  },
+  removeSheet: {
+    backgroundColor: Colors.dark.surface,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20,
+  },
+  removeHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: Colors.dark.border,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  removeTitle: {
+    color: Colors.dark.text, fontSize: 18, fontWeight: '700',
+    fontFamily: 'Rubik-Bold', textAlign: 'center', marginBottom: 8,
+  },
+  removeBody: {
+    color: Colors.dark.textSecondary, fontSize: 14,
+    fontFamily: 'Rubik', textAlign: 'center', marginBottom: 20,
+    lineHeight: 20,
+  },
+  removeActions: {
+    flexDirection: 'row', gap: 12,
+  },
+  removeBtnCancel: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: Colors.dark.background, alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.dark.border,
+  },
+  removeBtnCancelText: {
+    color: Colors.dark.textSecondary, fontSize: 15, fontWeight: '600',
+    fontFamily: 'Rubik',
+  },
+  removeBtnConfirm: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: Colors.dark.error, alignItems: 'center',
+  },
+  removeBtnConfirmText: {
+    color: '#fff', fontSize: 15, fontWeight: '700',
+    fontFamily: 'Rubik-Bold',
+  },
 });
