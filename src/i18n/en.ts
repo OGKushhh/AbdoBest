@@ -270,7 +270,7 @@ export const en = {
   favorites: 'Favorites',
 
   // Favorites screen
-  favorites_tab_favourites:  'Favourites',
+  favorites_tab_favourites:  'Favorites',
   favorites_tab_watched:     'Watched',
   favorites_tab_watch_later: 'Watch Later',
   favorites_empty_favourites:  'No favourites yet',
@@ -369,8 +369,8 @@ export const en = {
   search_country:        'Search country or code',
 
   // Toast messages
-  added_to_favourites:  'Added to Favourites',
-  removed_from_favourites: 'Removed from Favourites',
+  added_to_favourites:  'Added to Favorites',
+  removed_from_favourites: 'Removed from Favorites',
   added_to_list_success: 'Added to list',
   removed_from_list:    'Removed from list',
 
