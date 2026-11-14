@@ -156,8 +156,8 @@ export const DownloadsScreen: React.FC = () => {
 
   const handleDeleteGroup = (group: GroupEntry) => {
     Alert.alert(
-      'حذف السلسلة / Delete Series',
-      `حذف ${group.episodes.length} حلقة؟`,
+      t('delete_series'),
+      `${t('delete')} ${group.episodes.length} ${t('episodes')}?`,
       [
         {text: t('cancel'), style: 'cancel'},
         {text: t('delete'), style: 'destructive', onPress: () => {
@@ -204,7 +204,7 @@ export const DownloadsScreen: React.FC = () => {
           <View style={styles.info}>
             <Text style={styles.title} numberOfLines={2}>{group.seriesTitle}</Text>
             <Text style={styles.epCount}>
-              {completedCount}/{group.episodes.length} {t('episodes') || 'حلقات'}
+              {completedCount}/{group.episodes.length} {t('episodes')}
             </Text>
             {(group.overallStatus === 'downloading' || group.overallStatus === 'paused') && (
               <>

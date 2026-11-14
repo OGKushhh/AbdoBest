@@ -43,7 +43,7 @@ export const EmailSignInScreen: React.FC = () => {
         await resetPassword(email.trim());
         Alert.alert(t('reset_link_sent_title'), t('reset_link_sent_body'));
         setStep('signin');
-      } catch (e: any) { Alert.alert(t('error'), getFriendlyError(e, 'Email') || t('reset_send_failed')); }
+      } catch (e: any) { const ek = getFriendlyError(e, 'Email'); Alert.alert(t('error'), ek ? t(ek) : t('reset_send_failed')); }
       finally { setLoading(false); }
       return;
     }
@@ -60,7 +60,7 @@ export const EmailSignInScreen: React.FC = () => {
         : await signUpWithEmail(email.trim(), password);
       handleSuccess(user);
     } catch (e: any) {
-      Alert.alert(t('error'), getFriendlyError(e, 'Email') || t('email_signin_title'));
+      Alert.alert(t('error'), (() => { const ek = getFriendlyError(e, 'Email'); return ek ? t(ek) : t('error_signin_generic'); })());
     } finally { setLoading(false); }
   };
 

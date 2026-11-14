@@ -15,7 +15,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Share, Linking, Dimensions, StatusBar, Image,
   Modal, FlatList, ToastAndroid, Platform, Alert,
-  PermissionsAndroid,
+  PermissionsAndroid, Vibration,
 } from 'react-native';
 import {useRoute, useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -861,7 +861,7 @@ export const DetailsScreen: React.FC = () => {
 
         try {
           const mp4 = await resolveAkwamDownloadLink(src.download_url);
-          console.log('[Details] resolved mp4 URL:', mp4);
+          if (DEBUG) console.log('[Details] resolved mp4 URL:', mp4);
           await startDownload(epItem, mp4);
           const doneMsg = lang === 'ar'
             ? `⬇ بدأ التحميل: ${title}`
@@ -1026,6 +1026,7 @@ export const DetailsScreen: React.FC = () => {
       image: item['Image Source'] ?? '',
     });
     setIsFavourited(newState);
+    Vibration.vibrate(10);
     showToast(newState ? t('added_to_favourites') : t('removed_from_favourites'));
   }, [item, category, t, showToast]);
 
@@ -1055,6 +1056,7 @@ export const DetailsScreen: React.FC = () => {
     }
     if (col === 'watched')     setInWatched(v => !v);
     if (col === 'watch_later') setInWatchLater(v => !v);
+    Vibration.vibrate(10);
     const wasIn = col === 'watched' ? inWatched : inWatchLater;
     showToast(wasIn ? t('removed_from_list') : t('added_to_list_success'));
   }, [item, category, inWatched, inWatchLater, showToast, t]);

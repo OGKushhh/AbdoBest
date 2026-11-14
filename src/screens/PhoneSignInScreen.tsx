@@ -43,7 +43,7 @@ export const PhoneSignInScreen: React.FC = () => {
     Keyboard.dismiss();
     const cleaned = localNumber.trim().replace(/^0+/, '');
     if (!cleaned) {
-      Alert.alert('خطأ', 'أدخل رقم الهاتف.'); return;
+      Alert.alert(t('error'), t('error_phone_required')); return;
     }
     const fullNumber = `+${country.dial}${cleaned}`;
     setLoading('phone');
@@ -53,19 +53,19 @@ export const PhoneSignInScreen: React.FC = () => {
       setStep('otp');
       setTimeout(() => otpRef.current?.focus(), 400);
     } catch (e: any) {
-      Alert.alert('خطأ', getFriendlyError(e, 'Phone') || 'فشل إرسال رمز التحقق.');
+      Alert.alert(t('error'), (() => { const ek = getFriendlyError(e, 'Phone'); return ek ? t(ek) : t('error_send_otp_failed'); })());
     } finally { setLoading(null); }
   };
 
   const handleConfirmOTP = async () => {
     Keyboard.dismiss();
-    if (!otp.trim() || otp.length < 6) { Alert.alert('خطأ', 'أدخل رمز التحقق المكون من 6 أرقام.'); return; }
+    if (!otp.trim() || otp.length < 6) { Alert.alert(t('error'), t('error_otp_required')); return; }
     setLoading('otp');
     try {
       const user = await confirmPhoneOTP(confirmation, otp.trim());
       handleSuccess(user);
     } catch (e: any) {
-      Alert.alert('خطأ', getFriendlyError(e, 'Phone') || 'رمز التحقق غير صحيح.');
+      Alert.alert(t('error'), (() => { const ek = getFriendlyError(e, 'Phone'); return ek ? t(ek) : t('error_invalid_otp'); })());
     } finally { setLoading(null); }
   };
 

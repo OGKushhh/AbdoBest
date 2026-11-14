@@ -12,36 +12,33 @@ import {fetchCollections} from '../services/favoritesService';
 import {initFCM} from '../services/fcmService';
 
 export function getFriendlyError(e: any, provider: string): string {
-  const code = (e?.code ?? '') as string;   // e.g. 'auth/invalid-phone-number'
+  // Returns an i18n KEY (to be passed to t()), or '' to suppress the alert.
+  // Callers: const key = getFriendlyError(e, 'Google'); if (key) Alert.alert(t('error'), t(key));
+  const code = (e?.code ?? '') as string;
   const msg  = (e?.message ?? '') + code;
 
   if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('CANCELED')) return '';
-  if (msg.includes('network') || msg.includes('Network')) return 'لا يوجد اتصال بالإنترنت. حاول مرة أخرى.';
+  if (msg.includes('network') || msg.includes('Network')) return 'error_no_internet';
   if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential'))
-    return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-  if (msg.includes('email-already-in-use')) return 'هذا البريد الإلكتروني مستخدم بالفعل.';
-  if (msg.includes('weak-password')) return 'كلمة المرور ضعيفة جداً. استخدم 6 أحرف على الأقل.';
-  if (msg.includes('invalid-email')) return 'البريد الإلكتروني غير صالح.';
+    return 'error_invalid_credentials';
+  if (msg.includes('email-already-in-use')) return 'error_email_in_use';
+  if (msg.includes('weak-password')) return 'error_weak_password';
+  if (msg.includes('invalid-email')) return 'error_invalid_email';
 
-  // ── Phone auth — specific Firebase codes, checked before the generic ones ──
-  if (msg.includes('invalid-verification-code')) return 'رمز التحقق غير صحيح.';
-  if (msg.includes('code-expired') || msg.includes('session-expired'))
-    return 'انتهت صلاحية رمز التحقق. اطلب رمزاً جديداً.';
-  if (msg.includes('invalid-phone-number') || msg.includes('missing-phone-number'))
-    return 'رقم الهاتف غير صالح. تأكد من كتابته بدون صفر في البداية.';
-  if (msg.includes('quota-exceeded'))
-    return 'تم تجاوز الحد المسموح لرسائل التحقق. حاول لاحقاً.';
+  // ── Phone auth — specific Firebase codes ──
+  if (msg.includes('invalid-verification-code')) return 'error_invalid_otp';
+  if (msg.includes('code-expired') || msg.includes('session-expired')) return 'error_otp_expired';
+  if (msg.includes('invalid-phone-number') || msg.includes('missing-phone-number')) return 'error_invalid_phone';
+  if (msg.includes('quota-exceeded')) return 'error_otp_quota';
   if (msg.includes('captcha-check-failed') || msg.includes('invalid-app-credential') || msg.includes('missing-app-credential'))
-    return 'فشل التحقق الأمني لإرسال الرمز. أعد تشغيل التطبيق وحاول مرة أخرى.';
+    return 'error_otp_security';
   if (msg.includes('app-not-authorized') || msg.includes('missing-client-identifier'))
-    return 'هذا التطبيق غير مصرّح له بتسجيل الدخول بالهاتف حالياً. حاول لاحقاً أو استخدم طريقة دخول أخرى.';
-  if (code === 'auth/internal-error')
-    return 'حدث خطأ داخلي أثناء إرسال رمز التحقق. حاول مرة أخرى لاحقاً.';
+    return 'error_phone_unauthorized';
+  if (code === 'auth/internal-error') return 'error_otp_internal';
 
-  if (msg.includes('too-many-requests')) return 'طلبات كثيرة جداً. حاول لاحقاً.';
-  if (msg.includes('SIGN_IN_FAILED') || msg.includes('ApiException'))
-    return `فشل تسجيل الدخول عبر ${provider}. حاول مرة أخرى.`;
-  return `فشل تسجيل الدخول. حاول مرة أخرى.`;
+  if (msg.includes('too-many-requests')) return 'error_too_many_requests';
+  if (msg.includes('SIGN_IN_FAILED') || msg.includes('ApiException')) return 'error_signin_failed';
+  return 'error_signin_generic';
 }
 
 /** Shared post-auth wiring, used here and by EmailSignInScreen / PhoneSignInScreen. */
@@ -77,14 +74,14 @@ export const SignInScreen: React.FC = () => {
   const handleGoogle = async () => {
     setLoading('google');
     try { handleSuccess(await signInWithGoogle()); }
-    catch (e: any) { const m = getFriendlyError(e, 'Google'); if (m) Alert.alert('خطأ', m); }
+    catch (e: any) { const m = getFriendlyError(e, 'Google'); if (m) Alert.alert(t('error'), t(m)); }
     finally { setLoading(null); }
   };
 
   const handleGuest = async () => {
     setLoading('guest');
     try { handleSuccess(await signInAsGuest()); }
-    catch (e: any) { Alert.alert('خطأ', 'تعذّر المتابعة كزائر. حاول مرة أخرى.'); }
+    catch (e: any) { Alert.alert(t('error'), t('error_guest_failed')); }
     finally { setLoading(null); }
   };
 
@@ -150,7 +147,7 @@ const S = StyleSheet.create({
   body:          {paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40},
   btn:           {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 14, marginBottom: 12},
   btnGoogle:     {backgroundColor: '#fff'},
-  btnEmail:      {backgroundColor: '#E53935'},
+  btnEmail:      {backgroundColor: Colors.dark.primary},
   btnPhone:      {backgroundColor: '#2E7D32'},
   btnGuest:      {backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border},
   btnIcon:       {width: 22, height: 22, tintColor: '#fff', marginRight: 10},
