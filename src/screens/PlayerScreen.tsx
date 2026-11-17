@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import Video, { VideoRef, OnProgressData, OnBufferData } from 'react-native-video';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { getSettings, saveSettings } from '../storage';
 import { storage } from '../storage/Storage';
@@ -216,14 +216,17 @@ export const PlayerScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS === 'android') {
-        // Android: use ImmersiveMode via NativeModules if available, else no-op
+        // setTranslucent lets the app draw UNDER the status bar — without it,
+        // OEM ROMs (ColorOS, MIUI, OneUI) reserve the status bar space and
+        // the video doesn't fill the full screen.
+        StatusBar.setTranslucent(true);
+        StatusBar.setHidden(true);
         try {
           const IM = require('react-native-immersive-mode').default;
           IM.fullLayout(true);
           IM.setBarMode('FullSticky');
         } catch (_) {}
       } else {
-        // iOS: hide the status bar via StatusBar API
         StatusBar.setHidden(true, 'fade');
       }
       return () => {
@@ -233,12 +236,32 @@ export const PlayerScreen: React.FC = () => {
             IM.fullLayout(false);
             IM.setBarMode('Normal');
           } catch (_) {}
+          StatusBar.setHidden(false);
         } else {
           StatusBar.setHidden(false, 'fade');
         }
       };
     }, []),
   );
+
+  // ── Re-hide status bar on orientation change (LANDSCAPE FIX) ─────────────
+  // The useFocusEffect above hides the status bar when entering the player.
+  // But Android RE-SHOWS it when you rotate to landscape. Without this
+  // effect, nothing re-hides it after rotation — the user sees the phone's
+  // status bar (clock, battery, signal) at the top of the landscape view.
+  // This fires every time isLandscape changes (rotate button OR physical
+  // rotation) and re-applies the immersive settings.
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      StatusBar.setTranslucent(true);
+      StatusBar.setHidden(true);
+      try {
+        const IM = require('react-native-immersive-mode').default;
+        IM.fullLayout(true);
+        IM.setBarMode('FullSticky');
+      } catch (_) {}
+    }
+  }, [isLandscape]);
 
   // ── Playback state ────────────────────────────────────────────────────────
   const [playing, setPlaying]           = useState(true);
@@ -520,7 +543,7 @@ export const PlayerScreen: React.FC = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={[]} style={styles.container}>
       <StatusBar hidden />
 
       {/* ── Video ── */}
@@ -865,7 +888,7 @@ export const PlayerScreen: React.FC = () => {
           <Text style={styles.resumeToastSub}>{t('resume_toast_restart')}</Text>
         </TouchableOpacity>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
