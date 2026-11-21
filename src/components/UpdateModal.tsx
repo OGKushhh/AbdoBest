@@ -21,6 +21,13 @@ interface UpdateModalProps {
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
+// Small-screen detection — Samsung A5 (2015) is 720×1280, anything under
+// 700px height is considered "small" and gets tighter spacing.
+const IS_SMALL_SCREEN = SCREEN_HEIGHT < 700;
+const MODAL_PADDING = IS_SMALL_SCREEN ? 16 : 20;
+const HEADER_MARGIN = IS_SMALL_SCREEN ? 12 : 16;
+const ICON_SIZE = IS_SMALL_SCREEN ? 48 : 56;
+
 // ── Lightweight markdown parser for GitHub release changelogs ────────────────
 // Handles the most common markdown patterns found in release notes:
 //   ## Header      → bold, larger text
@@ -123,28 +130,28 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.modal}>
           {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <Image source={require('../../assets/icons/sync.png')} style={{width: 32, height: 32, tintColor: Colors.dark.primary}} />
+          <View style={[styles.header, {marginBottom: HEADER_MARGIN}]}>
+            <View style={[styles.iconContainer, {width: ICON_SIZE, height: ICON_SIZE, borderRadius: ICON_SIZE / 2, marginBottom: IS_SMALL_SCREEN ? 8 : 12}]}>
+              <Image source={require('../../assets/icons/sync.png')} style={{width: ICON_SIZE * 0.5, height: ICON_SIZE * 0.5, tintColor: Colors.dark.primary}} />
             </View>
             <Text style={styles.title}>{t('update_available')}</Text>
             <Text style={styles.subtitle}>{t('update_description')}</Text>
           </View>
 
           {/* Version info */}
-          <View style={styles.versionRow}>
+          <View style={[styles.versionRow, {marginBottom: IS_SMALL_SCREEN ? 10 : 14}]}>
             <View style={styles.versionBox}>
               <Text style={styles.versionLabel}>{t('current_version')}</Text>
               <Text style={styles.versionValue}>v{currentVersion}</Text>
             </View>
-            <Image source={require('../../assets/icons/arrow.png')} style={{width: 20, height: 20, tintColor: Colors.dark.textMuted}} />
+            <Image source={require('../../assets/icons/arrow.png')} style={{width: 18, height: 18, tintColor: Colors.dark.textMuted}} />
             <View style={[styles.versionBox, styles.versionBoxNew]}>
               <Text style={styles.versionLabel}>{t('latest_version')}</Text>
               <Text style={[styles.versionValue, {color: Colors.dark.primary}]}>v{release.version}</Text>
             </View>
           </View>
 
-          {/* Changelog */}
+          {/* Changelog — flex: 1 so it shrinks to fit, buttons always visible */}
           {release.changelog && (
             <View style={styles.changelogContainer}>
               <Text style={styles.changelogTitle}>{t('update_changelog')}</Text>
@@ -196,11 +203,11 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           ) : (
             <>
               <TouchableOpacity
-                style={styles.downloadButton}
+                style={[styles.downloadButton, {paddingVertical: IS_SMALL_SCREEN ? 11 : 14}]}
                 onPress={() => onDownload(release.downloadUrl)}
               >
-                <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 22, height: 22, tintColor: '#fff'}} />
-                <Text style={styles.downloadButtonText}>{t('download_update')}</Text>
+                <Image source={require('../../assets/icons/download-to-storage-drive.png')} style={{width: 20, height: 20, tintColor: '#fff'}} />
+                <Text style={[styles.downloadButtonText, {fontSize: IS_SMALL_SCREEN ? 14 : Typography.sizes.lg}]}>{t('download_update')}</Text>
               </TouchableOpacity>
 
               <View style={styles.bottomRow}>
@@ -231,21 +238,17 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH - 48,
     backgroundColor: Colors.dark.surface,
     borderRadius: 20,
-    padding: 24,
-    maxHeight: SCREEN_HEIGHT * 0.75,
+    padding: MODAL_PADDING,
+    maxHeight: SCREEN_HEIGHT * 0.82,
+    overflow: 'hidden',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: `${Colors.dark.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: `${Colors.dark.primary}20`,
   },
   title: {
     color: Colors.dark.text,
@@ -262,7 +265,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
   versionBox: {
     backgroundColor: Colors.dark.background,
@@ -290,6 +292,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
+    flex: 1,
+    minHeight: 60,
   },
   changelogTitle: {
     color: Colors.dark.textSecondary,
@@ -298,7 +302,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   changelogScroll: {
-    maxHeight: SCREEN_HEIGHT * 0.3,
+    flex: 1,
   },
   // ── Markdown-rendered changelog styles ──
   clHeader: {
